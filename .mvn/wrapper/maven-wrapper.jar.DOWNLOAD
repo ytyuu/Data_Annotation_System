@@ -1,0 +1,11 @@
+# This file indicates that maven-wrapper.jar needs to be downloaded.
+# Run the following command to initialize Maven Wrapper:
+#
+# In PowerShell:
+# $wrapperUrl = "https://maven.aliyun.com/repository/public/org/apache/maven/wrapper/maven-wrapper/3.2.0/maven-wrapper-3.2.0.jar"
+# $wrapperPath = ".\.mvn\wrapper\maven-wrapper.jar"
+# (New-Object System.Net.WebClient).DownloadFile($wrapperUrl, $wrapperPath)
+#
+# Or use this one-liner:
+# powershell -Command "(New-Object System.Net.WebClient).DownloadFile('https://maven.aliyun.com/repository/public/org/apache/maven/wrapper/maven-wrapper/3.2.0/maven-wrapper-3.2.0.jar', '.\.mvn\wrapper\maven-wrapper.jar')"
+
