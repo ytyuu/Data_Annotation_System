@@ -11,20 +11,28 @@ let shuttingDown = false;
 
 function stopServer() {
   if (!server || server.killed) {
-    return;
+    return Promise.resolve();
   }
 
-  server.kill('SIGTERM');
+  const currentServer = server;
   server = null;
+
+  const stopped = new Promise((resolve) => {
+    currentServer.once('exit', resolve);
+    currentServer.once('error', resolve);
+  });
+
+  currentServer.kill('SIGTERM');
+  return stopped;
 }
 
-function startServer() {
-  stopServer();
+async function startServer() {
+  await stopServer();
   server = startApiServer(port);
   console.log(`API server started at http://localhost:${port}`);
 }
 
-function compileAndRestart(reason) {
+async function compileAndRestart(reason) {
   if (compiling) {
     pendingCompile = true;
     return;
@@ -37,7 +45,7 @@ function compileAndRestart(reason) {
     console.log(`API ${reason}: compiling with mvnd...`);
     compileWithMvnd();
     if (!shuttingDown) {
-      startServer();
+      await startServer();
     }
   } catch (error) {
     console.error(error instanceof Error ? error.message : error);
@@ -47,14 +55,16 @@ function compileAndRestart(reason) {
   } finally {
     compiling = false;
     if (pendingCompile && !shuttingDown) {
-      compileAndRestart('source changed');
+      await compileAndRestart('source changed');
     }
   }
 }
 
 function scheduleCompile() {
   clearTimeout(compileTimer);
-  compileTimer = setTimeout(() => compileAndRestart('source changed'), 250);
+  compileTimer = setTimeout(() => {
+    compileAndRestart('source changed');
+  }, 250);
 }
 
 function watchDirectory(directory) {
@@ -89,15 +99,15 @@ function watchDirectory(directory) {
 }
 
 const closeWatchers = watchDirectory(sourceRoot);
-compileAndRestart('dev startup');
+await compileAndRestart('dev startup');
 
 console.log(`API watch mode enabled for ${sourceRoot}`);
 
-const shutdown = () => {
+const shutdown = async () => {
   shuttingDown = true;
   clearTimeout(compileTimer);
   closeWatchers();
-  stopServer();
+  await stopServer();
   process.exit(0);
 };
 

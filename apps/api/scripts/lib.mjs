@@ -10,6 +10,7 @@ export const workspaceRoot = path.resolve(apiRoot, '..', '..');
 export const sourceRoot = path.join(apiRoot, 'src', 'main', 'kotlin');
 export const buildRoot = path.join(apiRoot, 'target');
 export const classesRoot = path.join(buildRoot, 'classes');
+export const runtimeClasspathFile = path.join(buildRoot, 'runtime-classpath.txt');
 export const mainClass = 'com.example.api.Main';
 export const mvndCommand = process.platform === 'win32' ? 'mvnd.exe' : 'mvnd';
 
@@ -59,8 +60,47 @@ export function compileWithMvnd() {
   return classesRoot;
 }
 
+function buildRuntimeClasspath() {
+  const result = spawnSync(
+    mvndCommand,
+    [
+      '-q',
+      'dependency:build-classpath',
+      `-Dmdep.outputFile=${runtimeClasspathFile}`,
+      '-Dmdep.includeScope=runtime'
+    ],
+    {
+      cwd: apiRoot,
+      stdio: 'inherit'
+    }
+  );
+
+  if (result.error?.code === 'ENOENT') {
+    throw new Error('mvnd was not found. Install Maven Daemon and make sure mvnd is available on PATH.');
+  }
+
+  if (result.status !== 0) {
+    throw new Error(`mvnd dependency classpath failed with exit code ${result.status ?? 'unknown'}`);
+  }
+}
+
+function readRuntimeClasspath() {
+  if (!fs.existsSync(runtimeClasspathFile)) {
+    buildRuntimeClasspath();
+  }
+
+  const dependencyClasspath = fs.readFileSync(runtimeClasspathFile, 'utf8').trim();
+  if (!dependencyClasspath) {
+    throw new Error(`Runtime classpath is empty: ${runtimeClasspathFile}`);
+  }
+
+  return [classesRoot, dependencyClasspath].join(path.delimiter);
+}
+
 export function startApiServer(port) {
-  return spawn(mvndCommand, ['-q', 'exec:java', `-Dexec.args=${port}`], {
+  const classpath = readRuntimeClasspath();
+
+  return spawn('java', ['-cp', classpath, mainClass, String(port)], {
     stdio: 'inherit',
     cwd: apiRoot,
     env: {
