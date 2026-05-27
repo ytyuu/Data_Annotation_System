@@ -14,6 +14,6 @@ object GreetingHandler {
      */
     fun show(ctx: Context) {
         val name = ctx.queryParam("name")?.takeIf { it.isNotBlank() } ?: "world"
-        ctx.json(GreetingResponse(message = "Good Morning, $name!"))
+        ctx.json(GreetingResponse(message = "Good Night, $name!"))
     }
 }

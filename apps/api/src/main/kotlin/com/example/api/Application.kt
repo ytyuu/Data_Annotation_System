@@ -11,8 +11,9 @@ import io.javalin.Javalin
  * @param serverConfig 服务器配置
  * @return 配置完成的 Javalin 实例
  */
-fun createApp(serverConfig: ServerConfig): Javalin =
-    Javalin.create { config ->
+fun createApp(serverConfig: ServerConfig): Javalin {
+    return Javalin.create { config ->
         configureHttp(config)
         registerApiRoutes(config, serverConfig)
     }
+}
