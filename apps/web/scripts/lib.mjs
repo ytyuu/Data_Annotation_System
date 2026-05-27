@@ -9,6 +9,7 @@ export const webRoot = path.resolve(scriptDir, '..');
 export const workspaceRoot = path.resolve(webRoot, '..', '..');
 export const srcRoot = path.join(webRoot, 'src');
 export const distRoot = path.join(webRoot, 'dist');
+export const tscBin = path.join(workspaceRoot, 'node_modules', 'typescript', 'bin', 'tsc');
 
 function copyRecursive(source, target) {
   const stat = fs.statSync(source);
@@ -26,7 +27,23 @@ function copyRecursive(source, target) {
 
 export function buildWeb() {
   fs.rmSync(distRoot, { recursive: true, force: true });
-  copyRecursive(srcRoot, distRoot);
+  fs.mkdirSync(distRoot, { recursive: true });
+
+  // 编译 TypeScript
+  const result = spawnSync('node', [tscBin], { cwd: webRoot, stdio: 'inherit' });
+  if (result.status !== 0) {
+    throw new Error('TypeScript compilation failed');
+  }
+
+  // 复制非 TS 静态文件到 dist
+  for (const file of ['index.html', 'styles.css']) {
+    const srcPath = path.join(srcRoot, file);
+    const dstPath = path.join(distRoot, file);
+    if (fs.existsSync(srcPath)) {
+      fs.copyFileSync(srcPath, dstPath);
+    }
+  }
+
   return distRoot;
 }
 
