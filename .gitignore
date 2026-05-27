@@ -25,3 +25,5 @@ apps/**/dist/
 /out
 bin/
 dist/
+
+.claude

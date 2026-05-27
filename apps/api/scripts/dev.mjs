@@ -1,13 +1,14 @@
-import { compileJava, startApiServer } from './lib.mjs';
+import { compileJava, startJavaServer } from './lib.mjs';
 
 const port = Number(process.env.PORT ?? '7000');
 compileJava();
-const server = startApiServer(port);
+const server = startJavaServer(port);
 
 console.log(`API server started at http://localhost:${port}`);
 
 const shutdown = () => {
-  server.close(() => process.exit(0));
+  server.kill('SIGTERM');
+  process.exit(0);
 };
 
 process.on('SIGINT', shutdown);

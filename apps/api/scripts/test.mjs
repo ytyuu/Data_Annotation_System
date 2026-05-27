@@ -1,4 +1,4 @@
-import { compileJava, requestJson, startApiServer } from './lib.mjs';
+import { compileJava, requestJson, startJavaServer } from './lib.mjs';
 
 async function waitForServer(port, timeoutMs = 5000) {
   const startedAt = Date.now();
@@ -24,7 +24,7 @@ function assert(condition, message) {
 
 const port = Number(process.env.PORT ?? '7071');
 compileJava();
-const server = startApiServer(port);
+const server = startJavaServer(port);
 
 try {
   await waitForServer(port);
@@ -43,6 +43,6 @@ try {
 
   console.log('API tests passed.');
 } finally {
-  server.close();
+  server.kill('SIGTERM');
 }
 

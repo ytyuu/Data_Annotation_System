@@ -7,7 +7,7 @@
     },
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["build/**", "dist/**"]
+      "outputs": ["build/**", "dist/**", "target/**"]
     },
     "test": {
       "dependsOn": ["build"],

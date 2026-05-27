@@ -8,7 +8,7 @@ const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 export const apiRoot = path.resolve(scriptDir, '..');
 export const workspaceRoot = path.resolve(apiRoot, '..', '..');
 export const sourceRoot = path.join(apiRoot, 'src', 'main', 'java');
-export const buildRoot = path.join(apiRoot, 'build');
+export const buildRoot = path.join(apiRoot, 'target');
 export const classesRoot = path.join(buildRoot, 'classes');
 export const mainClass = 'com.example.api.Main';
 
@@ -64,63 +64,6 @@ export function startJavaServer(port) {
       PORT: String(port)
     }
   });
-}
-
-function escapeJson(value) {
-  return JSON.stringify(value).slice(1, -1);
-}
-
-function readQueryParam(requestUrl, key, defaultValue) {
-  const url = new URL(requestUrl, 'http://127.0.0.1');
-  const value = url.searchParams.get(key);
-  return value && value.trim() ? value : defaultValue;
-}
-
-export function startApiServer(port) {
-  const server = http.createServer((request, response) => {
-    const method = request.method ?? 'GET';
-    const url = new URL(request.url ?? '/', `http://${request.headers.host ?? 'localhost'}`);
-    const pathName = url.pathname;
-
-    response.setHeader('Access-Control-Allow-Origin', '*');
-    response.setHeader('Access-Control-Allow-Headers', 'content-type');
-    response.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
-
-    if (method === 'OPTIONS') {
-      response.writeHead(204);
-      response.end();
-      return;
-    }
-
-    if (pathName === '/') {
-      response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      response.end(JSON.stringify({
-        message: 'API server is running',
-        port,
-        timestamp: new Date().toISOString()
-      }));
-      return;
-    }
-
-    if (pathName === '/api/health') {
-      response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      response.end(JSON.stringify({ status: 'ok' }));
-      return;
-    }
-
-    if (pathName === '/api/hello') {
-      const name = readQueryParam(request.url ?? '/', 'name', 'world');
-      response.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8' });
-      response.end(JSON.stringify({ message: `Hello, ${name}!` }));
-      return;
-    }
-
-    response.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8' });
-    response.end(JSON.stringify({ error: 'Not Found', path: escapeJson(pathName) }));
-  });
-
-  server.listen(port, '127.0.0.1');
-  return server;
 }
 
 export function requestJson(port, requestPath) {
