@@ -1,5 +1,5 @@
-import { compileJava } from './lib.mjs';
+import { compileKotlin } from './lib.mjs';
 
-compileJava();
+compileKotlin();
 console.log('API build completed.');
 

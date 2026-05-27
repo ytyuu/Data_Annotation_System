@@ -1,4 +1,4 @@
-import { compileJava, requestJson, startJavaServer } from './lib.mjs';
+import { compileKotlin, requestJson, startApiServer } from './lib.mjs';
 
 async function waitForServer(port, timeoutMs = 5000) {
   const startedAt = Date.now();
@@ -23,8 +23,8 @@ function assert(condition, message) {
 }
 
 const port = Number(process.env.PORT ?? '7071');
-compileJava();
-const server = startJavaServer(port);
+compileKotlin();
+const server = startApiServer(port);
 
 try {
   await waitForServer(port);
@@ -35,7 +35,7 @@ try {
 
   const hello = await requestJson(port, '/api/hello?name=Turbo');
   assert(hello.statusCode === 200, `Expected 200 from /api/hello, got ${hello.statusCode}`);
-  assert(hello.body.includes('Hello, Turbo!'), 'Hello endpoint did not personalize the response');
+  assert(hello.body.includes('Good Morning, Turbo!'), 'Hello endpoint did not personalize the response');
 
   const root = await requestJson(port, '/');
   assert(root.statusCode === 200, `Expected 200 from /, got ${root.statusCode}`);

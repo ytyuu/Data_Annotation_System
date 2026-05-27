@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { compileWithMvnd, sourceRoot, startJavaServer } from './lib.mjs';
+import { compileWithMvnd, sourceRoot, startApiServer } from './lib.mjs';
 
 const port = Number(process.env.PORT ?? '7000');
 let server = null;
@@ -20,7 +20,7 @@ function stopServer() {
 
 function startServer() {
   stopServer();
-  server = startJavaServer(port);
+  server = startApiServer(port);
   console.log(`API server started at http://localhost:${port}`);
 }
 
@@ -62,7 +62,7 @@ function watchDirectory(directory) {
 
   const watchOne = (currentDirectory) => {
     watchers.push(fs.watch(currentDirectory, (eventType, fileName) => {
-      if (!fileName || !String(fileName).endsWith('.java')) {
+      if (!fileName || !String(fileName).endsWith('.kt')) {
         return;
       }
 

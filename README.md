@@ -4,7 +4,7 @@
 
 ## 目录结构
 
-- `apps/api` - Java API 服务端
+- `apps/api` - Kotlin API 服务端
 - `apps/web` - 静态前端应用
 
 ## 快速启动
@@ -17,7 +17,7 @@ pnpm install
 pnpm dev
 ```
 
-API 开发模式使用 `mvnd` 编译，保存 `apps/api/src/main/java` 下的 Java 源码后会自动重新编译并重启后端。
+API 开发模式使用 `mvnd` 编译，保存 `apps/api/src/main/kotlin` 下的 Kotlin 源码后会自动重新编译并重启后端。
 
 ## 端口
 
