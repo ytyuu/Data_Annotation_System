@@ -1,6 +1,4 @@
-import fs from 'node:fs';
-import path from 'node:path';
-import { buildWeb, requestText, srcRoot, startWebServer } from './lib.mjs';
+import { buildWeb, distRoot, requestText, startWebServer } from './lib.mjs';
 
 function assert(condition, message) {
   if (!condition) {
@@ -26,7 +24,7 @@ async function waitForServer(port, timeoutMs = 4000) {
 
 buildWeb();
 const port = Number(process.env.PORT ?? '3001');
-const server = startWebServer(port, srcRoot);
+const server = startWebServer(port, distRoot);
 
 try {
   await waitForServer(port);
@@ -38,9 +36,6 @@ try {
   const appJs = await requestText(port, '/app.js');
   assert(appJs.statusCode === 200, `Expected 200 from /app.js, got ${appJs.statusCode}`);
   assert(appJs.body.includes('http://localhost:7000'), 'Web JS did not include the API URL');
-
-  const distIndex = path.join(path.dirname(srcRoot), 'dist', 'index.html');
-  assert(fs.existsSync(distIndex), 'Build output dist/index.html is missing');
 
   console.log('Web tests passed.');
 } finally {
