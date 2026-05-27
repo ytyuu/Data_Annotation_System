@@ -97,10 +97,17 @@ function readRuntimeClasspath() {
   return [classesRoot, dependencyClasspath].join(path.delimiter);
 }
 
+function getJavaCommand() {
+  if (process.env.JAVA_HOME) {
+    return path.join(process.env.JAVA_HOME, 'bin', 'java');
+  }
+  return 'java';
+}
+
 export function startApiServer(port) {
   const classpath = readRuntimeClasspath();
 
-  return spawn('java', ['-cp', classpath, mainClass, String(port)], {
+  return spawn(getJavaCommand(), ['-cp', classpath, mainClass, String(port)], {
     stdio: 'inherit',
     cwd: apiRoot,
     env: {
