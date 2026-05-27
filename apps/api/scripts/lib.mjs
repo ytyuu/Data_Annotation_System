@@ -7,13 +7,13 @@ import { fileURLToPath } from 'node:url';
 const scriptDir = path.dirname(fileURLToPath(import.meta.url));
 export const apiRoot = path.resolve(scriptDir, '..');
 export const workspaceRoot = path.resolve(apiRoot, '..', '..');
-export const sourceRoot = path.join(apiRoot, 'src', 'main', 'java');
+export const sourceRoot = path.join(apiRoot, 'src', 'main', 'kotlin');
 export const buildRoot = path.join(apiRoot, 'target');
 export const classesRoot = path.join(buildRoot, 'classes');
 export const mainClass = 'com.example.api.Main';
 export const mvndCommand = process.platform === 'win32' ? 'mvnd.exe' : 'mvnd';
 
-function collectJavaFiles(dir) {
+function collectKotlinFiles(dir) {
   if (!fs.existsSync(dir)) {
     return [];
   }
@@ -24,8 +24,8 @@ function collectJavaFiles(dir) {
   for (const entry of entries) {
     const fullPath = path.join(dir, entry.name);
     if (entry.isDirectory()) {
-      files.push(...collectJavaFiles(fullPath));
-    } else if (entry.isFile() && fullPath.endsWith('.java')) {
+      files.push(...collectKotlinFiles(fullPath));
+    } else if (entry.isFile() && fullPath.endsWith('.kt')) {
       files.push(fullPath);
     }
   }
@@ -33,27 +33,13 @@ function collectJavaFiles(dir) {
   return files;
 }
 
-export function compileJava({ lint = false } = {}) {
-  fs.rmSync(buildRoot, { recursive: true, force: true });
-  fs.mkdirSync(classesRoot, { recursive: true });
-
-  const sources = collectJavaFiles(sourceRoot);
+export function compileKotlin() {
+  const sources = collectKotlinFiles(sourceRoot);
   if (sources.length === 0) {
-    throw new Error(`No Java sources found under ${sourceRoot}`);
+    throw new Error(`No Kotlin sources found under ${sourceRoot}`);
   }
 
-  const args = [];
-  if (lint) {
-    args.push('-Xlint:all', '-Werror');
-  }
-  args.push('-encoding', 'UTF-8', '-d', classesRoot, ...sources);
-
-  const result = spawnSync('javac', args, { stdio: 'inherit' });
-  if (result.status !== 0) {
-    throw new Error(`javac failed with exit code ${result.status ?? 'unknown'}`);
-  }
-
-  return classesRoot;
+  return compileWithMvnd();
 }
 
 export function compileWithMvnd() {
@@ -73,8 +59,8 @@ export function compileWithMvnd() {
   return classesRoot;
 }
 
-export function startJavaServer(port) {
-  return spawn('java', ['-cp', classesRoot, mainClass, String(port)], {
+export function startApiServer(port) {
+  return spawn(mvndCommand, ['-q', 'exec:java', `-Dexec.args=${port}`], {
     stdio: 'inherit',
     cwd: apiRoot,
     env: {

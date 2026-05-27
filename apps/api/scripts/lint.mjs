@@ -1,5 +1,5 @@
-import { compileJava } from './lib.mjs';
+import { compileKotlin } from './lib.mjs';
 
-compileJava({ lint: true });
+compileKotlin();
 console.log('API lint passed.');
 
