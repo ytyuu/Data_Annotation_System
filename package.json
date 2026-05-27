@@ -1,7 +1,7 @@
 {
   "private": true,
   "name": "data-annotation-system-monorepo",
-  "packageManager": "npm@10.9.2",
+  "packageManager": "pnpm@10.29.2",
   "workspaces": [
     "apps/*"
   ],

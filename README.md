@@ -1,33 +1,32 @@
-# Data Annotation System Monorepo
+# 数据标注系统 Monorepo
 
-This repository is organized as a Turbo monorepo.
+本项目基于 Turbo 构建的 monorepo。
 
-## Structure
+## 目录结构
 
-- `apps/api` - Java API server
-- `apps/web` - static frontend app
+- `apps/api` - Java API 服务端
+- `apps/web` - 静态前端应用
 
-## Quick start
+## 快速启动
 
 ```powershell
-npm install
-npm run dev
+pnpm install
+pnpm dev
 ```
 
-## Ports
+## 端口
 
 - API: `http://localhost:7000`
 - Web: `http://localhost:3000`
 
-## Useful commands
+## 常用命令
 
 ```powershell
-npm run build
-npm run test
-npm run lint
+pnpm build
+pnpm test
+pnpm lint
 ```
 
-## Notes
+## 说明
 
-The new monorepo entrypoints live under `apps/`. The root-level legacy files are left in place for reference, but the Turbo workflow uses the workspace packages.
-
+各应用的入口在 `apps/` 目录下。根目录的 `pnpm dev` 命令通过 Turbo 并行运行 API 和前端工作区的开发脚本。
