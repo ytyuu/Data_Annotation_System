@@ -4,8 +4,20 @@
 
 ## 目录结构
 
-- `apps/api` - Kotlin API 服务端
-- `apps/web` - 静态前端应用
+```
+apps/
+  api/                    - 后端 API（Kotlin + Javalin）
+    src/main/kotlin/      - Kotlin 源码
+    pom.xml               - Maven 构建配置
+  web/                    - 前端静态应用
+    src/                  - HTML/CSS/JS 源码
+```
+
+## 环境要求
+
+- [mvnd](https://github.com/apache/maven-mvnd)（Maven Daemon，用于后端编译）
+- JDK 25
+- pnpm
 
 ## 快速启动
 
@@ -24,6 +36,14 @@ API 开发模式使用 `mvnd` 编译，保存 `apps/api/src/main/kotlin` 下的 
 - API: `http://localhost:7000`
 - Web: `http://localhost:3000`
 
+## API 接口
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/` | 服务状态 |
+| `GET` | `/api/health` | 健康检查 |
+| `GET` | `/api/hello?name=xxx` | 问候接口 |
+
 ## 常用命令
 
 ```powershell
@@ -35,6 +55,21 @@ pnpm test
 
 # 运行代码检查
 pnpm lint
+```
+
+## 单独操作后端
+
+```powershell
+cd apps/api
+
+# 编译
+mvnd compile
+
+# 运行
+mvnd exec:java
+
+# 指定端口运行
+mvnd exec:java -Dexec.args=8080
 ```
 
 ## 说明
