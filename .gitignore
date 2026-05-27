@@ -6,6 +6,12 @@ target/
 .gradle
 build
 
+# Node / Turbo
+node_modules/
+.turbo/
+apps/**/build/
+apps/**/dist/
+
 # IDE
 .idea/
 .vscode/

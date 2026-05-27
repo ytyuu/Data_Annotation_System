@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Data Annotation System</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <section class="hero">
+        <p class="eyebrow">Turbo Monorepo Demo</p>
+        <h1>前后端放在一个仓库里统一管理</h1>
+        <p class="lead">
+          这个页面会直接请求本地 API 服务，方便你在同一个仓库里同时开发前端和后端。
+        </p>
+      </section>
+
+      <section class="card">
+        <form id="hello-form" class="form">
+          <label for="name">输入一个名字</label>
+          <div class="row">
+            <input id="name" name="name" type="text" value="Turbo" autocomplete="off" />
+            <button type="submit">问候一下</button>
+          </div>
+        </form>
+
+        <div class="status" id="status">等待连接 API...</div>
+        <div class="result" id="result">点击按钮后这里会显示后端返回的消息。</div>
+      </section>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>
+
