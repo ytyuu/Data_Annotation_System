@@ -11,6 +11,7 @@ export const sourceRoot = path.join(apiRoot, 'src', 'main', 'java');
 export const buildRoot = path.join(apiRoot, 'target');
 export const classesRoot = path.join(buildRoot, 'classes');
 export const mainClass = 'com.example.api.Main';
+export const mvndCommand = process.platform === 'win32' ? 'mvnd.exe' : 'mvnd';
 
 function collectJavaFiles(dir) {
   if (!fs.existsSync(dir)) {
@@ -50,6 +51,23 @@ export function compileJava({ lint = false } = {}) {
   const result = spawnSync('javac', args, { stdio: 'inherit' });
   if (result.status !== 0) {
     throw new Error(`javac failed with exit code ${result.status ?? 'unknown'}`);
+  }
+
+  return classesRoot;
+}
+
+export function compileWithMvnd() {
+  const result = spawnSync(mvndCommand, ['-q', 'compile'], {
+    cwd: apiRoot,
+    stdio: 'inherit'
+  });
+
+  if (result.error?.code === 'ENOENT') {
+    throw new Error('mvnd was not found. Install Maven Daemon and make sure mvnd is available on PATH.');
+  }
+
+  if (result.status !== 0) {
+    throw new Error(`mvnd compile failed with exit code ${result.status ?? 'unknown'}`);
   }
 
   return classesRoot;

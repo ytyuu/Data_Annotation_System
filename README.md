@@ -10,9 +10,14 @@
 ## 快速启动
 
 ```powershell
+# 安装所有依赖（根目录和各 apps）
 pnpm install
+
+# 启动开发服务器（通过 Turbo 并行启动 API 和前端）
 pnpm dev
 ```
+
+API 开发模式使用 `mvnd` 编译，保存 `apps/api/src/main/java` 下的 Java 源码后会自动重新编译并重启后端。
 
 ## 端口
 
@@ -22,8 +27,13 @@ pnpm dev
 ## 常用命令
 
 ```powershell
+# 构建所有应用（通过 Turbo 并行构建）
 pnpm build
+
+# 运行所有应用的测试
 pnpm test
+
+# 运行代码检查
 pnpm lint
 ```
 

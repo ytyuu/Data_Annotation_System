@@ -49,7 +49,7 @@ public final class Main {
                 return;
             }
             String name = queryParam(exchange.getRequestURI(), "name", "world");
-            sendJson(exchange, 200, "{\"message\":\"Hello, " + escapeJson(name) + "!\"}");
+            sendJson(exchange, 200, "{\"message\":\"Good Morning, " + escapeJson(name) + "!\"}");
         });
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> server.stop(0)));
