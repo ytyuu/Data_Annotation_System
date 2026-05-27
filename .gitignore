@@ -26,3 +26,6 @@ apps/**/dist/
 bin/
 dist/
 
+
+
+mvnd.properties
