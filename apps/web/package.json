@@ -6,6 +6,9 @@
     "build": "node scripts/build.mjs",
     "test": "node scripts/test.mjs",
     "lint": "node scripts/lint.mjs"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.0",
+    "tailwindcss": "^4.3.0"
   }
 }
-

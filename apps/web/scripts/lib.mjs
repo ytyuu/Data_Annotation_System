@@ -10,6 +10,7 @@ export const workspaceRoot = path.resolve(webRoot, '..', '..');
 export const srcRoot = path.join(webRoot, 'src');
 export const distRoot = path.join(webRoot, 'dist');
 export const tscBin = path.join(workspaceRoot, 'node_modules', 'typescript', 'bin', 'tsc');
+export const tailwindCliEntry = path.join(webRoot, 'node_modules', '@tailwindcss', 'cli', 'dist', 'index.mjs');
 
 function copyRecursive(source, target) {
   const stat = fs.statSync(source);
@@ -35,8 +36,10 @@ export function buildWeb() {
     throw new Error('TypeScript compilation failed');
   }
 
-  // 复制非 TS 静态文件到 dist
-  for (const file of ['index.html', 'styles.css']) {
+  buildStyles();
+
+  // 复制非 TS/CSS 静态文件到 dist
+  for (const file of ['index.html']) {
     const srcPath = path.join(srcRoot, file);
     const dstPath = path.join(distRoot, file);
     if (fs.existsSync(srcPath)) {
@@ -45,6 +48,35 @@ export function buildWeb() {
   }
 
   return distRoot;
+}
+
+export function buildStyles({ watch = false } = {}) {
+  const args = [
+    tailwindCliEntry,
+    '-i',
+    path.join(srcRoot, 'styles.css'),
+    '-o',
+    path.join(distRoot, 'styles.css')
+  ];
+  if (watch) {
+    args.push('--watch');
+  } else {
+    args.push('--minify');
+  }
+
+  const result = spawnSync('node', args, {
+    cwd: webRoot,
+    stdio: 'inherit'
+  });
+  if (result.error?.code === 'ENOENT') {
+    throw new Error('Tailwind CSS CLI was not found. Run pnpm install from the repository root.');
+  }
+  if (result.error) {
+    throw result.error;
+  }
+  if (result.status !== 0) {
+    throw new Error(`Tailwind CSS build failed with exit code ${result.status ?? 'unknown'}`);
+  }
 }
 
 function mimeType(filePath) {
