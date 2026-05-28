@@ -45,8 +45,8 @@ mvnd exec:java -Dexec.args=8080
 
 - `pnpm build` 会通过 mvnd 编译 Kotlin。
 - `pnpm lint` 当前也是编译检查，不是独立的格式化或静态分析工具。
-- `pnpm test` 会编译后启动 API 服务，默认使用 `PORT=7071`，并检查 `/api/health`、`/api/hello` 和 `/`。
-- `pnpm dev` 会监听 `src/main/kotlin` 下的 `.kt` 文件变化，变更后重新编译并重启服务。
+- `pnpm test` 当前也是编译检查，与 `build`/`lint` 相同。
+- `pnpm dev` 通过 nodemon 监听 `src/` 下的 `.kt` 文件变化，变更后自动重新编译并重启服务。
 
 ## 开发约定
 

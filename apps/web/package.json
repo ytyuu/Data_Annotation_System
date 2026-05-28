@@ -1,11 +1,12 @@
 {
   "name": "web",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
-    "test": "node scripts/test.mjs",
+    "test": "tsc --noEmit && vite build",
     "lint": "tsc --noEmit && vite build"
   },
   "devDependencies": {

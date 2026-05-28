@@ -55,8 +55,7 @@ pnpm --filter web lint
 - 源码目录：`apps/api/src/main/kotlin`。
 - 入口类：`com.example.api.Main`。
 - 默认开发端口：`7000`。
-- 测试脚本默认使用 `PORT=7071`，会启动服务并检查 `/api/health`、`/api/hello` 和 `/`。
-- 构建、lint、test 都会先通过 mvnd 编译 Kotlin；当前 lint 脚本本质上是编译检查。
+- 构建、lint、test 都是 mvnd 编译检查，功能相同。
 - 不要把后端描述为 Spring Boot、MyBatis、PostgreSQL、Redis 或 S3，除非代码中实际引入并配置了这些依赖。
 
 常用命令：

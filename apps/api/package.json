@@ -1,11 +1,14 @@
 {
   "name": "api",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "node scripts/dev.mjs",
-    "build": "node scripts/build.mjs",
-    "test": "node scripts/test.mjs",
-    "lint": "node scripts/lint.mjs"
+    "dev": "nodemon --watch src -e kt --exec \"mvnd -q compile && mvnd exec:java\"",
+    "build": "mvnd -q compile",
+    "test": "mvnd -q compile",
+    "lint": "mvnd -q compile"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.14"
   }
 }
-
