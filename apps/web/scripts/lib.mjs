@@ -1,4 +1,5 @@
 import { spawnSync } from 'node:child_process';
+import * as esbuild from 'esbuild';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
@@ -9,6 +10,8 @@ export const webRoot = path.resolve(scriptDir, '..');
 export const workspaceRoot = path.resolve(webRoot, '..', '..');
 export const srcRoot = path.join(webRoot, 'src');
 export const distRoot = path.join(webRoot, 'dist');
+export const appEntry = path.join(srcRoot, 'app.tsx');
+export const appOutput = path.join(distRoot, 'app.js');
 export const tscBin = path.join(workspaceRoot, 'node_modules', 'typescript', 'bin', 'tsc');
 export const tailwindCliEntry = path.join(webRoot, 'node_modules', '@tailwindcss', 'cli', 'dist', 'index.mjs');
 
@@ -30,12 +33,13 @@ export function buildWeb() {
   fs.rmSync(distRoot, { recursive: true, force: true });
   fs.mkdirSync(distRoot, { recursive: true });
 
-  // 编译 TypeScript
-  const result = spawnSync('node', [tscBin], { cwd: webRoot, stdio: 'inherit' });
+  // Type check before bundling the React app.
+  const result = spawnSync('node', [tscBin, '--noEmit'], { cwd: webRoot, stdio: 'inherit' });
   if (result.status !== 0) {
-    throw new Error('TypeScript compilation failed');
+    throw new Error('TypeScript type check failed');
   }
 
+  buildApp();
   buildStyles();
 
   // 复制非 TS/CSS 静态文件到 dist
@@ -48,6 +52,23 @@ export function buildWeb() {
   }
 
   return distRoot;
+}
+
+export function buildApp() {
+  esbuild.buildSync({
+    entryPoints: [appEntry],
+    outfile: appOutput,
+    bundle: true,
+    format: 'esm',
+    platform: 'browser',
+    sourcemap: true,
+    jsx: 'automatic',
+    minify: true,
+    define: {
+      'process.env.NODE_ENV': '"production"'
+    },
+    logLevel: 'info'
+  });
 }
 
 export function buildStyles({ watch = false } = {}) {
