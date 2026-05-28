@@ -1,16 +1,32 @@
 import { spawn } from 'node:child_process';
-import { buildWeb, distRoot, startWebServer, tailwindCliEntry, tscBin, webRoot } from './lib.mjs';
+import * as esbuild from 'esbuild';
+import { appEntry, appOutput, buildWeb, distRoot, startWebServer, tailwindCliEntry, tscBin, webRoot } from './lib.mjs';
 
 const port = Number(process.env.PORT ?? '3000');
 
 // 先 build 确保 dist 存在
 buildWeb();
 
-// 启动 tsc --watch 后台编译
-const tsc = spawn('node', [tscBin, '--watch', '--preserveWatchOutput'], {
+// 启动 tsc --watch 后台类型检查
+const tsc = spawn('node', [tscBin, '--noEmit', '--watch', '--preserveWatchOutput'], {
   cwd: webRoot,
   stdio: 'inherit'
 });
+
+const esbuildContext = await esbuild.context({
+  entryPoints: [appEntry],
+  outfile: appOutput,
+  bundle: true,
+  format: 'esm',
+  platform: 'browser',
+  sourcemap: true,
+  jsx: 'automatic',
+  define: {
+    'process.env.NODE_ENV': '"development"'
+  },
+  logLevel: 'info'
+});
+await esbuildContext.watch();
 
 const tailwind = spawn('node', [tailwindCliEntry, '-i', 'src/styles.css', '-o', 'dist/styles.css', '--watch'], {
   cwd: webRoot,
@@ -57,7 +73,9 @@ server.once('error', (error) => {
 const shutdown = () => {
   tsc.kill('SIGTERM');
   tailwind.kill('SIGTERM');
-  server.close(() => process.exit(0));
+  esbuildContext.dispose().finally(() => {
+    server.close(() => process.exit(0));
+  });
 };
 
 process.on('SIGINT', shutdown);

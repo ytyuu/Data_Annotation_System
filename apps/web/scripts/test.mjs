@@ -31,11 +31,12 @@ try {
 
   const index = await requestText(port, '/');
   assert(index.statusCode === 200, `Expected 200 from web root, got ${index.statusCode}`);
-  assert(index.body.includes('Turbo Monorepo Demo'), 'Web root HTML did not load correctly');
+  assert(index.body.includes('id="root"'), 'Web root HTML did not include the React mount point');
 
   const appJs = await requestText(port, '/app.js');
   assert(appJs.statusCode === 200, `Expected 200 from /app.js, got ${appJs.statusCode}`);
   assert(appJs.body.includes('http://localhost:7000'), 'Web JS did not include the API URL');
+  assert(appJs.body.includes('Turbo Monorepo Demo'), 'Web JS did not include the React app content');
 
   console.log('Web tests passed.');
 } finally {
