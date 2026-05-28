@@ -7,7 +7,7 @@
 ```text
 apps/
   api/   后端 API，Kotlin + Javalin + Maven/mvnd
-  web/   前端静态应用，React + TypeScript + Tailwind CSS + Node 脚本
+  web/   前端静态应用，React + TypeScript + Tailwind CSS + Vite
 ```
 
 子目录也放置了对应的 `AGENTS.md` 文件：
@@ -73,15 +73,14 @@ mvnd exec:java -Dexec.args=8080
 
 ## 前端规则（`apps/web`）
 
-- 技术栈：React + TypeScript + Tailwind CSS，使用自定义 Node 脚本构建和启动静态服务。
+- 技术栈：React + TypeScript + Tailwind CSS + Vite。
 - 源码目录：`apps/web/src`。
 - 构建输出：`apps/web/dist`。
 - 默认开发端口：`3000`。
-- 测试脚本默认使用 `PORT=3001`，会构建后启动静态服务并检查首页与 `app.js`。
-- 当前没有 Vite、Vue、Pinia、Vuetify、Tanstack Query 或 Zod；不要按这些框架的约定组织代码，除非先完成依赖和架构迁移。
-- React 入口为 `src/app.tsx`，由 esbuild 打包到 `dist/app.js`。
-- 样式通过 Tailwind CSS CLI 从 `src/styles.css` 构建到 `dist/styles.css`；页面样式优先使用 Tailwind 工具类。
-- `index.html` 需要加载 `./app.js`，lint 脚本会检查这一点。
+- `index.html` 位于 `apps/web/` 根目录（Vite 约定），引用 `/src/app.tsx` 作为入口。
+- React 入口为 `src/app.tsx`，由 Vite 打包。
+- 样式通过 `@tailwindcss/vite` 插件集成；页面样式优先使用 Tailwind 工具类。
+- 当前没有 Vue、Pinia、Vuetify、Tanstack Query 或 Zod；不要按这些框架的约定组织代码，除非先完成依赖和架构迁移。
 
 常用命令：
 
