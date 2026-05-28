@@ -36,7 +36,7 @@ try {
   const appJs = await requestText(port, '/app.js');
   assert(appJs.statusCode === 200, `Expected 200 from /app.js, got ${appJs.statusCode}`);
   assert(appJs.body.includes('http://localhost:7000'), 'Web JS did not include the API URL');
-  assert(appJs.body.includes('Turbo Monorepo Demo'), 'Web JS did not include the React app content');
+  assert(appJs.body.includes('Data Annotation System'), 'Web JS did not include the React app content');
 
   console.log('Web tests passed.');
 } finally {

@@ -3,14 +3,148 @@
 @layer base {
   :root {
     color-scheme: light;
-    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', sans-serif;
   }
 
   body {
     min-height: 100vh;
-    background: linear-gradient(180deg, #eef4ff 0%, #f5f7fb 60%, #ffffff 100%);
-    color: var(--color-slate-900);
+    background: #fff;
+    color: #111;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer components {
+  .das-page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 124px 16px 72px;
+  }
+
+  .das-header {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    z-index: 10;
+    padding: 18px max(16px, calc((100vw - 720px) / 2)) 16px;
+    border-bottom: 1px solid #eaeaea;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(12px);
+  }
+
+  .das-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.14em;
+    color: #888;
+    margin-bottom: 8px;
+  }
+
+  .das-title {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.2;
+    margin: 0;
+  }
+
+  .das-desc {
+    margin-top: 8px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #555;
+    max-width: 520px;
+  }
+
+  .das-body {
+    margin-top: 40px;
+    border: 1px solid #e0e0e0;
+    padding: 24px;
+  }
+
+  .das-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .das-input-label {
+    display: block;
+    width: 100%;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 4px;
+  }
+
+  .das-input {
+    flex: 1 1 240px;
+    min-width: 0;
+    border: 1px solid #ccc;
+    padding: 10px 14px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+    background: #fff;
+    color: #111;
+  }
+
+  .das-input:focus {
+    border-color: #111;
+  }
+
+  .das-btn {
+    border: 1px solid #111;
+    background: #111;
+    color: #fff;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+
+  .das-btn:hover {
+    background: #fff;
+    color: #111;
+  }
+
+  .das-status {
+    margin-top: 16px;
+    font-size: 12px;
+    color: #777;
+  }
+
+  .das-status[data-kind='error'] {
+    color: #c00;
+  }
+
+  .das-status[data-kind='loading'] {
+    color: #666;
+  }
+
+  .das-status[data-kind='success'] {
+    color: #080;
+  }
+
+  .das-result {
+    margin-top: 6px;
+    font-size: 16px;
+    font-weight: 600;
+  }
+
+  .das-footer {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10;
+    padding: 12px max(16px, calc((100vw - 720px) / 2));
+    border-top: 1px solid #eaeaea;
+    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(12px);
+    font-size: 12px;
+    color: #777;
   }
 }
