@@ -1,5 +1,6 @@
 import { createRoot } from 'react-dom/client';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import './styles.css';
 import { ApiTest } from './pages/ApiTest';
 import { RoleSelect } from './pages/RoleSelect';
 import { Login } from './pages/Login';
