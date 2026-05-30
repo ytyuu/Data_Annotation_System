@@ -17,7 +17,7 @@ object Main {
         val appConfig = AppConfig.from(args)
 
         DatabaseFactory.init(appConfig.database)
-        createApp(appConfig.server).start(appConfig.server.port)
+        createApp(appConfig).start(appConfig.server.port)
         println("API server started at http://localhost:${appConfig.server.port}")
         Thread.currentThread().join()
     }

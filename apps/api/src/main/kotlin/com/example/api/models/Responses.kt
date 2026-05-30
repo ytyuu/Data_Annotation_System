@@ -65,6 +65,25 @@ data class RegisterResponse(
 )
 
 /**
+ * 登录请求数据。
+ */
+data class LoginRequest(
+    val username: String = "",
+    val password: String = "",
+    val role: String = "",
+)
+
+/**
+ * 登录响应数据。
+ */
+data class LoginResponse(
+    val token: String,
+    val tokenType: String = "Bearer",
+    val expiresAt: String,
+    val user: UserResponse,
+)
+
+/**
  * API 错误响应数据。
  */
 data class ErrorResponse(val message: String)
