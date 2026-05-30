@@ -13,7 +13,18 @@ import javax.crypto.spec.SecretKeySpec
 /**
  * 签发 HMAC-SHA256 JWT。
  */
+/**
+ * 签发和验证 HMAC-SHA256 JWT。
+ *
+ * @param config 安全配置
+ */
 class JwtService(private val config: SecurityConfig) {
+    /**
+     * 为用户签发 JWT。
+     *
+     * @param user 用户信息
+     * @return 签发的 Token
+     */
     fun issue(user: UserResponse): IssuedToken {
         val now = OffsetDateTime.now(ZoneOffset.UTC)
         val expiresAt = now.plusMinutes(config.jwtExpiresMinutes)
@@ -28,6 +39,12 @@ class JwtService(private val config: SecurityConfig) {
         )
     }
 
+    /**
+     * 验证 JWT 的签名和有效期。
+     *
+     * @param token JWT 字符串
+     * @return 验证结果
+     */
     fun verify(token: String): JwtVerificationResult {
         val parts = token.split('.')
         if (parts.size != 3) {
@@ -137,11 +154,26 @@ class JwtService(private val config: SecurityConfig) {
     }
 }
 
+/**
+ * 已签发的 JWT。
+ *
+ * @property token JWT 字符串
+ * @property expiresAt 过期时间
+ */
 data class IssuedToken(
     val token: String,
     val expiresAt: OffsetDateTime,
 )
 
+/**
+ * JWT Payload 中的用户声明。
+ *
+ * @property userId 用户 ID
+ * @property username 用户名
+ * @property displayName 显示名称
+ * @property role 角色
+ * @property expiresAt 过期时间戳（秒）
+ */
 data class JwtClaims(
     val userId: String,
     val username: String,
@@ -150,7 +182,11 @@ data class JwtClaims(
     val expiresAt: Long,
 )
 
+/** JWT 验证结果。 */
 sealed class JwtVerificationResult {
+    /** 验证通过。 */
     data class Valid(val claims: JwtClaims) : JwtVerificationResult()
+
+    /** 验证失败，[message] 为失败原因。 */
     data class Invalid(val message: String) : JwtVerificationResult()
 }

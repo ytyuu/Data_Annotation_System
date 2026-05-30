@@ -18,10 +18,21 @@ import java.util.UUID
 /**
  * 认证业务服务。
  */
+/**
+ * 认证业务服务，封装用户注册、登录和Token验证逻辑。
+ *
+ * @param securityConfig 安全配置
+ */
 class AuthService(securityConfig: SecurityConfig) {
     private val jwtService = JwtService(securityConfig)
     private val publicRoles = setOf("provider", "annotator")
 
+    /**
+     * 用户注册。
+     *
+     * @param request 注册请求
+     * @return 注册结果
+     */
     fun register(request: RegisterRequest): AuthResult<RegisterResponse> {
         val username = request.username.trim()
         val displayName = request.displayName.trim()
@@ -79,6 +90,12 @@ class AuthService(securityConfig: SecurityConfig) {
         }
     }
 
+    /**
+     * 用户登录，验证成功后签发 JWT。
+     *
+     * @param request 登录请求
+     * @return 登录结果，成功时包含 JWT Token
+     */
     fun login(request: LoginRequest): AuthResult<LoginResponse> {
         val username = request.username.trim()
         val password = request.password
@@ -133,6 +150,12 @@ class AuthService(securityConfig: SecurityConfig) {
         )
     }
 
+    /**
+     * 从 Authorization 头中提取并验证 JWT，返回当前用户信息。
+     *
+     * @param authorizationHeader Authorization 请求头（Bearer xxx）
+     * @return 验证结果，成功时返回用户信息
+     */
     fun currentUser(authorizationHeader: String?): AuthResult<UserResponse> {
         val token = extractBearerToken(authorizationHeader)
             ?: return AuthResult.Unauthorized("缺少访问令牌")
