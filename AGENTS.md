@@ -8,6 +8,7 @@
 apps/
   api/   后端 API，Kotlin + Javalin + Maven/mvnd
   web/   前端静态应用，React + TypeScript + Tailwind CSS + Vite
+docs/    项目业务文档和数据库设计
 ```
 
 子目录也放置了对应的 `AGENTS.md` 文件：
@@ -16,6 +17,13 @@ apps/
 - 前端规则：`apps/web/AGENTS.md`
 
 前后端子目录文件均已包含对应范围的专用规则。修改对应范围代码前必须先阅读并遵守更深层的说明。
+
+## 文档目录
+
+- `docs/business-process.md`：业务流程文档，说明角色权限、核心对象、流程图对应规则和状态流转。
+- `docs/database-design.sql`：PostgreSQL 数据库表设计，包含建表语句、字段注释和索引。
+
+涉及业务流程、角色权限、数据库结构、接口语义或页面工作流的改动前，AI 必须先阅读 `docs/business-process.md`；涉及表结构或字段含义时，还必须阅读 `docs/database-design.sql`。
 
 ## 根目录常用命令
 
