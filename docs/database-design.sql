@@ -186,17 +186,20 @@ comment on column dataset_reviews.updated_at is '更新时间';
 -- 常用查询索引
 create index idx_users_role_status on users(role, status);
 
-create index idx_datasets_provider_status on datasets(provider_id, status);
 create index idx_datasets_status_created_at on datasets(status, created_at desc);
+create index idx_datasets_provider_status_updated_at on datasets(provider_id, status, updated_at desc);
 
 create index idx_data_items_dataset_status on data_items(dataset_id, status);
 create index idx_data_items_metadata_gin on data_items using gin (metadata);
+create index idx_data_items_pending_by_dataset on data_items(dataset_id, created_at) where status = 'pending';
 
-create index idx_annotation_tasks_annotator_status on annotation_tasks(annotator_id, status);
 create index idx_annotation_tasks_dataset_status on annotation_tasks(dataset_id, status);
+create index idx_annotation_tasks_annotator_dataset_status on annotation_tasks(annotator_id, dataset_id, status);
+create index idx_annotation_tasks_annotator_status_assigned_at on annotation_tasks(annotator_id, status, assigned_at desc);
 
 create index idx_annotations_item_status on annotations(item_id, status);
 create index idx_annotations_result_gin on annotations using gin (result);
 create index idx_annotations_disputed on annotations(item_id) where is_disputed = true;
 
 create index idx_dataset_reviews_dataset_created_at on dataset_reviews(dataset_id, created_at desc);
+create index idx_dataset_reviews_provider_status_created_at on dataset_reviews(provider_id, status, created_at desc);
