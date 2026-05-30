@@ -1,4 +1,4 @@
-package com.example.api.handlers
+package com.example.api.handlers.system
 
 import com.example.api.config.ServerConfig
 import com.example.api.models.RootResponse

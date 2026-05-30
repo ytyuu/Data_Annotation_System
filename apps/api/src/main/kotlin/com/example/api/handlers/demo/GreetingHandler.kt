@@ -1,4 +1,4 @@
-package com.example.api.handlers
+package com.example.api.handlers.demo
 
 import com.example.api.models.GreetingResponse
 import io.javalin.http.Context

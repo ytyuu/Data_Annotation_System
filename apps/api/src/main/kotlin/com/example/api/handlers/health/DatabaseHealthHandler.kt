@@ -1,4 +1,4 @@
-package com.example.api.handlers
+package com.example.api.handlers.health
 
 import com.example.api.models.DatabaseHealthResponse
 import io.javalin.http.Context
