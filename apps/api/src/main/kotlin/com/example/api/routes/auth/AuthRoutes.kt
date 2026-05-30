@@ -24,7 +24,7 @@ fun registerAuthRoutes(authService: AuthService?) {
     val registerHandler = authService?.let(::RegisterHandler)
 
     routeGroup(requireAuth(authMiddleware)) {
-        get("/me", Handler { ctx -> MeHandler.show(ctx) })
+        get("/me") { ctx -> MeHandler.show(ctx) }
     }
 
     post("/register") { ctx ->
