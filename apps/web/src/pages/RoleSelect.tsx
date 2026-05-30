@@ -23,29 +23,25 @@ export function RoleSelect() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-2xl px-6">
-        <div className="text-center mb-10">
-          <h1 className="text-3xl font-bold text-gray-900">数据标注系统</h1>
-          <p className="mt-2 text-gray-500">请选择您的身份以继续登录</p>
+    <div className="app-page app-center">
+      <div className="app-stack app-stack-md">
+        <div className="app-heading">
+          <h1 className="app-title">数据标注系统</h1>
+          <p className="app-subtitle">请选择您的身份以继续登录</p>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+        <div className="app-choice-grid">
           {roles.map((role) => (
             <button
               key={role.key}
               onClick={() => handleSelect(role.key)}
-              className="group relative bg-white border-2 border-gray-200 rounded-xl p-8 text-left hover:border-blue-500 hover:shadow-lg transition-all duration-200 cursor-pointer"
+              className="app-choice-card group cursor-pointer"
             >
-              <div className="text-xl font-semibold text-gray-900 group-hover:text-blue-600">
-                {role.title}
-              </div>
-              <p className="mt-3 text-sm text-gray-500 leading-relaxed">
-                {role.desc}
-              </p>
-              <div className="absolute top-4 right-4 w-8 h-8 rounded-full bg-gray-100 group-hover:bg-blue-500 flex items-center justify-center transition-colors">
+              <div className="app-choice-title">{role.title}</div>
+              <p className="app-choice-desc">{role.desc}</p>
+              <div className="app-choice-arrow">
                 <svg
-                  className="w-4 h-4 text-gray-400 group-hover:text-white transition-colors"
+                  className="app-choice-arrow-icon"
                   fill="none"
                   viewBox="0 0 24 24"
                   stroke="currentColor"

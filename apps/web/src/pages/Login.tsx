@@ -63,7 +63,7 @@ export function Login() {
 
   return (
     <div className="app-page app-center">
-      <div className="app-stack app-stack-sm">
+      <div className="app-stack app-stack-md">
         <div className="app-heading">
           <h1 className="app-title">数据标注系统</h1>
           <p className="app-subtitle">
@@ -71,7 +71,7 @@ export function Login() {
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="app-card">
+        <form onSubmit={handleSubmit} className="app-card max-w-md mx-auto">
           {error && <div className="app-alert-error">{error}</div>}
 
           <div className="app-field">
