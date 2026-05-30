@@ -18,10 +18,10 @@ export function Login() {
 
   if (!role || !roleLabels[role]) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="app-page app-center">
         <div className="text-center">
           <p className="text-gray-500">请先选择用户身份</p>
-          <Link to="/" className="mt-4 inline-block text-blue-600 hover:underline">
+          <Link to="/" className="app-link-primary mt-4 inline-block">
             返回选择身份
           </Link>
         </div>
@@ -62,24 +62,20 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-md px-6">
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">数据标注系统</h1>
-          <p className="mt-2 text-gray-500">
+    <div className="app-page app-center">
+      <div className="app-stack app-stack-sm">
+        <div className="app-heading">
+          <h1 className="app-title">数据标注系统</h1>
+          <p className="app-subtitle">
             以 <span className="font-medium text-gray-700">{roleLabels[role]}</span> 身份登录
           </p>
         </div>
 
-        <form onSubmit={handleSubmit} className="bg-white rounded-xl shadow-sm border border-gray-200 p-8">
-          {error && (
-            <div className="mb-6 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-              {error}
-            </div>
-          )}
+        <form onSubmit={handleSubmit} className="app-card">
+          {error && <div className="app-alert-error">{error}</div>}
 
-          <div className="mb-5">
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1.5">
+          <div className="app-field">
+            <label htmlFor="username" className="app-label">
               用户名
             </label>
             <input
@@ -87,14 +83,14 @@ export function Login() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+              className="app-input"
               placeholder="请输入用户名"
               autoComplete="username"
             />
           </div>
 
           <div className="mb-6">
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1.5">
+            <label htmlFor="password" className="app-label">
               密码
             </label>
             <input
@@ -102,7 +98,7 @@ export function Login() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all"
+              className="app-input"
               placeholder="请输入密码"
               autoComplete="current-password"
             />
@@ -111,13 +107,13 @@ export function Login() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 px-4 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="app-button-primary"
           >
             {loading ? '登录中...' : '登 录'}
           </button>
 
           <div className="mt-6 text-center">
-            <Link to="/" className="text-sm text-gray-500 hover:text-gray-700">
+            <Link to="/" className="app-link">
               ← 返回选择身份
             </Link>
           </div>

@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -10,10 +11,9 @@ interface GreetingResponse {
 
 function Header() {
   return (
-    <header className="das-header">
-      <p className="das-label">Data Annotation System</p>
-      <h1 className="das-title">前后端放在一个仓库里统一管理</h1>
-      <p className="das-desc">
+    <header className="app-heading">
+      <h1 className="app-title">数据标注系统</h1>
+      <p className="app-subtitle">
         这个页面会请求本地 API 服务，方便你在同一个仓库里同时开发前端和后端。
       </p>
     </header>
@@ -59,35 +59,44 @@ export function ApiTest() {
   }, []);
 
   return (
-    <div className="das-page">
-      <Header />
+    <div className="app-page app-center">
+      <div className="app-stack app-stack-sm">
+        <Header />
 
-      <main className="das-body">
-        <form id="hello-form" className="das-form" onSubmit={handleSubmit}>
-          <label htmlFor="name" className="das-input-label">
-            输入一个名字
-          </label>
-          <input
-            id="name"
-            name="name"
-            type="text"
-            value={name}
-            autoComplete="off"
-            className="das-input"
-            onChange={(event) => setName(event.target.value)}
-          />
-          <button type="submit" className="das-btn">
-            问候一下
-          </button>
-        </form>
+        <main className="app-card">
+          <form id="hello-form" onSubmit={handleSubmit}>
+            <div className="mb-6">
+              <label htmlFor="name" className="app-label">
+                输入一个名字
+              </label>
+              <input
+                id="name"
+                name="name"
+                type="text"
+                value={name}
+                autoComplete="off"
+                className="app-input"
+                onChange={(event) => setName(event.target.value)}
+              />
+            </div>
 
-        <div className="das-status" data-kind={statusKind}>
-          {status}
-        </div>
-        <div className="das-result">{result}</div>
-      </main>
+            <button type="submit" className="app-button-primary">
+              问候一下
+            </button>
+          </form>
 
-      <footer className="das-footer">Data Annotation System</footer>
+          <div className="app-status" data-kind={statusKind}>
+            {status}
+          </div>
+          <div className="app-result">{result}</div>
+
+          <div className="mt-6 text-center">
+            <Link to="/" className="app-link">
+              ← 返回选择身份
+            </Link>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
