@@ -21,6 +21,21 @@ data class RootResponse(
 data class HealthResponse(val status: String)
 
 /**
+ * 数据库健康检查响应数据。
+ *
+ * @property status 数据库健康状态
+ * @property database 数据库类型
+ * @property latencyMs 检查耗时，单位毫秒
+ * @property message 错误说明，健康时为空
+ */
+data class DatabaseHealthResponse(
+    val status: String,
+    val database: String,
+    val latencyMs: Long,
+    val message: String? = null,
+)
+
+/**
  * 问候响应数据。
  *
  * @property message 问候消息
