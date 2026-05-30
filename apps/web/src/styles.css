@@ -16,135 +16,87 @@
 }
 
 @layer components {
-  .das-page {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 124px 16px 72px;
+  .app-page {
+    @apply min-h-screen bg-gray-50 px-6 py-10 text-gray-900;
   }
 
-  .das-header {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 10;
-    padding: 18px max(16px, calc((100vw - 720px) / 2)) 16px;
-    border-bottom: 1px solid #eaeaea;
-    background: rgba(255, 255, 255, 0.96);
-    backdrop-filter: blur(12px);
+  .app-center {
+    @apply flex items-center justify-center;
   }
 
-  .das-label {
-    font-size: 11px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.14em;
-    color: #888;
-    margin-bottom: 8px;
+  .app-stack {
+    @apply w-full;
   }
 
-  .das-title {
-    font-size: 24px;
-    font-weight: 700;
-    line-height: 1.2;
-    margin: 0;
+  .app-stack-sm {
+    @apply max-w-md;
   }
 
-  .das-desc {
-    margin-top: 8px;
-    font-size: 14px;
-    line-height: 1.5;
-    color: #555;
-    max-width: 520px;
+  .app-stack-md {
+    @apply max-w-2xl;
   }
 
-  .das-body {
-    margin-top: 40px;
-    border: 1px solid #e0e0e0;
-    padding: 24px;
+  .app-heading {
+    @apply mb-8 text-center;
   }
 
-  .das-form {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
+  .app-title {
+    @apply text-3xl font-bold text-gray-900;
   }
 
-  .das-input-label {
-    display: block;
-    width: 100%;
-    font-size: 13px;
-    font-weight: 600;
-    margin-bottom: 4px;
+  .app-subtitle {
+    @apply mt-2 text-gray-500;
   }
 
-  .das-input {
-    flex: 1 1 240px;
-    min-width: 0;
-    border: 1px solid #ccc;
-    padding: 10px 14px;
-    font-size: 14px;
-    outline: none;
-    transition: border-color 0.15s;
-    background: #fff;
-    color: #111;
+  .app-card {
+    @apply rounded-xl border border-gray-200 bg-white p-8 shadow-sm;
   }
 
-  .das-input:focus {
-    border-color: #111;
+  .app-field {
+    @apply mb-5;
   }
 
-  .das-btn {
-    border: 1px solid #111;
-    background: #111;
-    color: #fff;
-    padding: 10px 20px;
-    font-size: 14px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
+  .app-label {
+    @apply mb-1.5 block text-sm font-medium text-gray-700;
   }
 
-  .das-btn:hover {
-    background: #fff;
-    color: #111;
+  .app-input {
+    @apply w-full rounded-lg border border-gray-300 px-4 py-2.5 outline-none transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500;
   }
 
-  .das-status {
-    margin-top: 16px;
-    font-size: 12px;
-    color: #777;
+  .app-button-primary {
+    @apply w-full rounded-lg bg-blue-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50;
   }
 
-  .das-status[data-kind='error'] {
-    color: #c00;
+  .app-link {
+    @apply text-sm text-gray-500 hover:text-gray-700;
   }
 
-  .das-status[data-kind='loading'] {
-    color: #666;
+  .app-link-primary {
+    @apply text-blue-600 hover:underline;
   }
 
-  .das-status[data-kind='success'] {
-    color: #080;
+  .app-alert-error {
+    @apply mb-6 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600;
   }
 
-  .das-result {
-    margin-top: 6px;
-    font-size: 16px;
-    font-weight: 600;
+  .app-status {
+    @apply mt-6 rounded-lg border px-4 py-3 text-sm;
   }
 
-  .das-footer {
-    position: fixed;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 10;
-    padding: 12px max(16px, calc((100vw - 720px) / 2));
-    border-top: 1px solid #eaeaea;
-    background: rgba(255, 255, 255, 0.96);
-    backdrop-filter: blur(12px);
-    font-size: 12px;
-    color: #777;
+  .app-status[data-kind='error'] {
+    @apply border-red-200 bg-red-50 text-red-600;
+  }
+
+  .app-status[data-kind='loading'] {
+    @apply border-gray-200 bg-gray-50 text-gray-500;
+  }
+
+  .app-status[data-kind='success'] {
+    @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  }
+
+  .app-result {
+    @apply mt-3 rounded-lg bg-gray-50 px-4 py-3 text-sm font-medium text-gray-900;
   }
 }
