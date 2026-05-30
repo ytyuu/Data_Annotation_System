@@ -3,6 +3,7 @@ package com.example.api.service.auth
 import com.example.api.config.SecurityConfig
 import com.example.api.models.UserResponse
 import java.nio.charset.StandardCharsets
+import java.security.MessageDigest
 import java.time.OffsetDateTime
 import java.time.ZoneOffset
 import java.util.Base64
@@ -25,6 +26,42 @@ class JwtService(private val config: SecurityConfig) {
             token = "$unsignedToken.$signature",
             expiresAt = expiresAt,
         )
+    }
+
+    fun verify(token: String): JwtVerificationResult {
+        val parts = token.split('.')
+        if (parts.size != 3) {
+            return JwtVerificationResult.Invalid("Token 格式无效")
+        }
+
+        val unsignedToken = "${parts[0]}.${parts[1]}"
+        val expectedSignature = sign(unsignedToken)
+        if (!MessageDigest.isEqual(expectedSignature.toByteArray(), parts[2].toByteArray())) {
+            return JwtVerificationResult.Invalid("Token 签名无效")
+        }
+
+        val payload = runCatching {
+            String(Base64.getUrlDecoder().decode(parts[1]), StandardCharsets.UTF_8)
+        }.getOrElse {
+            return JwtVerificationResult.Invalid("Token 内容无效")
+        }
+
+        val expiresAt = extractLong(payload, "exp")
+            ?: return JwtVerificationResult.Invalid("Token 缺少过期时间")
+        val now = OffsetDateTime.now(ZoneOffset.UTC).toEpochSecond()
+        if (expiresAt <= now) {
+            return JwtVerificationResult.Invalid("Token 已过期")
+        }
+
+        val claims = JwtClaims(
+            userId = extractString(payload, "sub") ?: return JwtVerificationResult.Invalid("Token 缺少用户 ID"),
+            username = extractString(payload, "username") ?: return JwtVerificationResult.Invalid("Token 缺少用户名"),
+            displayName = extractString(payload, "displayName") ?: return JwtVerificationResult.Invalid("Token 缺少显示名称"),
+            role = extractString(payload, "role") ?: return JwtVerificationResult.Invalid("Token 缺少角色"),
+            expiresAt = expiresAt,
+        )
+
+        return JwtVerificationResult.Valid(claims)
     }
 
     private fun buildPayload(user: UserResponse, issuedAt: OffsetDateTime, expiresAt: OffsetDateTime): String {
@@ -79,9 +116,41 @@ class JwtService(private val config: SecurityConfig) {
         mac.init(SecretKeySpec(config.jwtSecret.toByteArray(StandardCharsets.UTF_8), "HmacSHA256"))
         return Base64.getUrlEncoder().withoutPadding().encodeToString(mac.doFinal(value.toByteArray(StandardCharsets.UTF_8)))
     }
+
+    private fun extractString(payload: String, key: String): String? {
+        val pattern = Regex(""""${Regex.escape(key)}"\s*:\s*"((?:\\.|[^"\\])*)"""")
+        return pattern.find(payload)?.groupValues?.get(1)?.unescapeJson()
+    }
+
+    private fun extractLong(payload: String, key: String): Long? {
+        val pattern = Regex(""""${Regex.escape(key)}"\s*:\s*(\d+)""")
+        return pattern.find(payload)?.groupValues?.get(1)?.toLongOrNull()
+    }
+
+    private fun String.unescapeJson(): String {
+        return replace("\\\"", "\"")
+            .replace("\\\\", "\\")
+            .replace("\\n", "\n")
+            .replace("\\r", "\r")
+            .replace("\\t", "\t")
+            .replace("\\b", "\b")
+    }
 }
 
 data class IssuedToken(
     val token: String,
     val expiresAt: OffsetDateTime,
 )
+
+data class JwtClaims(
+    val userId: String,
+    val username: String,
+    val displayName: String,
+    val role: String,
+    val expiresAt: Long,
+)
+
+sealed class JwtVerificationResult {
+    data class Valid(val claims: JwtClaims) : JwtVerificationResult()
+    data class Invalid(val message: String) : JwtVerificationResult()
+}

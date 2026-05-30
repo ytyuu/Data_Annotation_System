@@ -3,11 +3,13 @@ package com.example.api.routes
 import com.example.api.config.SecurityConfig
 import com.example.api.config.ServerConfig
 import com.example.api.handlers.auth.LoginHandler
+import com.example.api.handlers.auth.MeHandler
 import com.example.api.handlers.auth.RegisterHandler
 import com.example.api.handlers.demo.GreetingHandler
 import com.example.api.handlers.health.DatabaseHealthHandler
 import com.example.api.handlers.health.HealthHandler
 import com.example.api.handlers.system.RootHandler
+import com.example.api.middleware.auth.AuthMiddleware
 import com.example.api.service.auth.AuthService
 import io.javalin.apibuilder.ApiBuilder.get
 import io.javalin.apibuilder.ApiBuilder.path
@@ -34,6 +36,7 @@ fun registerApiRoutes(config: JavalinConfig, serverConfig: ServerConfig) {
 fun registerApiRoutes(config: JavalinConfig, serverConfig: ServerConfig, securityConfig: SecurityConfig?) {
     val rootHandler = RootHandler(serverConfig)
     val authService = securityConfig?.let(::AuthService)
+    val authMiddleware = authService?.let(::AuthMiddleware)
     val loginHandler = authService?.let(::LoginHandler)
     val registerHandler = authService?.let(::RegisterHandler)
 
@@ -44,6 +47,13 @@ fun registerApiRoutes(config: JavalinConfig, serverConfig: ServerConfig, securit
             get("/health") { ctx -> HealthHandler.show(ctx) }
             get("/health/database") { ctx -> DatabaseHealthHandler.show(ctx) }
             get("/hello") { ctx -> GreetingHandler.show(ctx) }
+            get("/me") { ctx ->
+                if (authMiddleware == null) {
+                    ctx.status(500).json(mapOf("message" to "认证服务未配置"))
+                } else if (authMiddleware.requireUser(ctx)) {
+                    MeHandler.show(ctx)
+                }
+            }
             post("/register") { ctx ->
                 if (registerHandler == null) {
                     ctx.status(500).json(mapOf("message" to "注册服务未配置"))

@@ -5,6 +5,7 @@ import { ApiTest } from './pages/ApiTest';
 import { RoleSelect } from './pages/RoleSelect';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
+import { Dashboard } from './pages/Dashboard';
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
         <Route path="/" element={<RoleSelect />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/api-test" element={<ApiTest />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

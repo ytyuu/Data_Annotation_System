@@ -133,6 +133,47 @@ class AuthService(securityConfig: SecurityConfig) {
         )
     }
 
+    fun currentUser(authorizationHeader: String?): AuthResult<UserResponse> {
+        val token = extractBearerToken(authorizationHeader)
+            ?: return AuthResult.Unauthorized("缺少访问令牌")
+
+        val verification = jwtService.verify(token)
+        if (verification is JwtVerificationResult.Invalid) {
+            return AuthResult.Unauthorized(verification.message)
+        }
+
+        val claims = (verification as JwtVerificationResult.Valid).claims
+        val userId = runCatching { UUID.fromString(claims.userId) }.getOrNull()
+            ?: return AuthResult.Unauthorized("Token 用户 ID 无效")
+
+        val user = transaction {
+            UsersTable
+                .selectAll()
+                .where { UsersTable.id eq userId }
+                .limit(1)
+                .firstOrNull()
+                ?.let { row ->
+                    UserResponse(
+                        id = row[UsersTable.id].toString(),
+                        username = row[UsersTable.username],
+                        displayName = row[UsersTable.displayName],
+                        role = row[UsersTable.role],
+                        status = row[UsersTable.status],
+                    )
+                }
+        } ?: return AuthResult.Unauthorized("用户不存在")
+
+        if (user.status != "active") {
+            return AuthResult.Forbidden("账号已被禁用")
+        }
+
+        if (user.role != claims.role) {
+            return AuthResult.Unauthorized("Token 角色信息无效")
+        }
+
+        return AuthResult.Success(user)
+    }
+
     private fun validateRegister(username: String, displayName: String, password: String, role: String): String? {
         return when {
             username.length !in 3..64 -> "用户名长度必须为 3 到 64 个字符"
@@ -142,5 +183,14 @@ class AuthService(securityConfig: SecurityConfig) {
             role !in publicRoles -> "只能注册数据集提供者或数据标注员"
             else -> null
         }
+    }
+
+    private fun extractBearerToken(authorizationHeader: String?): String? {
+        val header = authorizationHeader?.trim()?.takeIf { it.isNotEmpty() } ?: return null
+        if (!header.startsWith("Bearer ", ignoreCase = true)) {
+            return null
+        }
+
+        return header.substringAfter(' ').trim().takeIf { it.isNotEmpty() }
     }
 }
