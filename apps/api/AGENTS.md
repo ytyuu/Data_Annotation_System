@@ -54,3 +54,29 @@ mvnd exec:java -Dexec.args=8080
 - 响应模型优先放在 `models/`，避免在 handler 中散落匿名结构。
 - 保持 Javalin 配置集中在 `http/`，不要把跨域、序列化等全局 HTTP 配置分散到业务 handler。
 - 不要手动修改生成目录 `target/` 或 `build/`。
+
+## 路由组与中间件链
+
+- 路由按业务域拆分到 `routes/*/*Routes.kt`，由 `routes/ApiRoutes.kt` 统一聚合。
+- 公开路由可以直接使用 Javalin `get` / `post` / `put` / `patch` / `delete` 注册。
+- 需要认证、角色校验、审计等前置逻辑的路由，优先使用 `routeGroup(...)` 注册，不要在每个 handler 中重复手写前置判断。
+- 通用链式中间件定义在 `middleware/MiddlewareChain.kt`，中间件类型为 `RouteMiddleware`，形态是 `(ctx, next) -> Unit`。
+- `routeGroup(requireAuth(authMiddleware)) { ... }` 会为组内所有路由套上登录认证；认证通过时中间件调用 `next()`，否则直接写入错误响应并停止后续 handler。
+- `routeGroup` 内的 `get` / `post` 等方法来自 `routes/RouteGroup.kt`，它会在注册到 Javalin 前把原始 handler 包装成 `chain(middlewares, handler)`。
+
+示例：
+
+```kotlin
+routeGroup(requireAuth(authMiddleware)) {
+    get("/me", Handler { ctx -> MeHandler.show(ctx) })
+}
+```
+
+后续新增角色权限时，优先实现为新的 `RouteMiddleware`，再组合到业务路由组中：
+
+```kotlin
+routeGroup(requireAuth(authMiddleware), requireRole("provider")) {
+    post("/provider/datasets", Handler { ctx -> datasetHandler.create(ctx) })
+    get("/provider/datasets", Handler { ctx -> datasetHandler.list(ctx) })
+}
+```

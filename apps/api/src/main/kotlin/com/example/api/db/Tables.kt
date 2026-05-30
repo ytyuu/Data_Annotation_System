@@ -1,0 +1,105 @@
+package com.example.api.db
+
+import org.jetbrains.exposed.sql.ReferenceOption
+import org.jetbrains.exposed.sql.Table
+import org.jetbrains.exposed.sql.javatime.timestampWithTimeZone
+
+object UsersTable : Table("users") {
+    val id = uuid("id")
+    val username = varchar("username", 64).uniqueIndex()
+    val passwordHash = varchar("password_hash", 255)
+    val displayName = varchar("display_name", 80)
+    val role = varchar("role", 24)
+    val status = varchar("status", 24)
+    val createdAt = timestampWithTimeZone("created_at")
+    val updatedAt = timestampWithTimeZone("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+object DatasetsTable : Table("datasets") {
+    val id = uuid("id")
+    val providerId = uuid("provider_id").references(UsersTable.id)
+    val name = varchar("name", 120)
+    val description = text("description").nullable()
+    val annotationGuide = text("annotation_guide").nullable()
+    val annotationSchema = jsonb("annotation_schema")
+    val status = varchar("status", 32)
+    val targetCompletionRatio = decimal("target_completion_ratio", 5, 2)
+    val itemCount = integer("item_count")
+    val completedItemCount = integer("completed_item_count")
+    val createdAt = timestampWithTimeZone("created_at")
+    val updatedAt = timestampWithTimeZone("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+object DataItemsTable : Table("data_items") {
+    val id = uuid("id")
+    val datasetId = uuid("dataset_id").references(DatasetsTable.id, onDelete = ReferenceOption.CASCADE)
+    val externalKey = varchar("external_key", 120).nullable()
+    val content = text("content")
+    val contentType = varchar("content_type", 32)
+    val metadata = jsonb("metadata")
+    val status = varchar("status", 32)
+    val createdAt = timestampWithTimeZone("created_at")
+    val updatedAt = timestampWithTimeZone("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
+
+    init {
+        uniqueIndex(datasetId, externalKey)
+    }
+}
+
+object AnnotationTasksTable : Table("annotation_tasks") {
+    val id = uuid("id")
+    val datasetId = uuid("dataset_id").references(DatasetsTable.id, onDelete = ReferenceOption.CASCADE)
+    val itemId = uuid("item_id").references(DataItemsTable.id, onDelete = ReferenceOption.CASCADE)
+    val annotatorId = uuid("annotator_id").references(UsersTable.id)
+    val status = varchar("status", 32)
+    val assignedAt = timestampWithTimeZone("assigned_at")
+    val startedAt = timestampWithTimeZone("started_at").nullable()
+    val submittedAt = timestampWithTimeZone("submitted_at").nullable()
+    val dueAt = timestampWithTimeZone("due_at").nullable()
+    val createdAt = timestampWithTimeZone("created_at")
+    val updatedAt = timestampWithTimeZone("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
+
+    init {
+        uniqueIndex(itemId, annotatorId)
+    }
+}
+
+object AnnotationsTable : Table("annotations") {
+    val id = uuid("id")
+    val taskId = uuid("task_id").references(AnnotationTasksTable.id, onDelete = ReferenceOption.CASCADE).uniqueIndex()
+    val itemId = uuid("item_id").references(DataItemsTable.id, onDelete = ReferenceOption.CASCADE)
+    val annotatorId = uuid("annotator_id").references(UsersTable.id)
+    val result = jsonb("result")
+    val comment = text("comment").nullable()
+    val isDisputed = bool("is_disputed")
+    val status = varchar("status", 32)
+    val submittedAt = timestampWithTimeZone("submitted_at")
+    val reviewedAt = timestampWithTimeZone("reviewed_at").nullable()
+    val createdAt = timestampWithTimeZone("created_at")
+    val updatedAt = timestampWithTimeZone("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+object DatasetReviewsTable : Table("dataset_reviews") {
+    val id = uuid("id")
+    val datasetId = uuid("dataset_id").references(DatasetsTable.id, onDelete = ReferenceOption.CASCADE)
+    val providerId = uuid("provider_id").references(UsersTable.id)
+    val status = varchar("status", 32)
+    val sampledItemCount = integer("sampled_item_count")
+    val disputedItemCount = integer("disputed_item_count")
+    val opinion = text("opinion").nullable()
+    val reviewedAt = timestampWithTimeZone("reviewed_at").nullable()
+    val createdAt = timestampWithTimeZone("created_at")
+    val updatedAt = timestampWithTimeZone("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
+}

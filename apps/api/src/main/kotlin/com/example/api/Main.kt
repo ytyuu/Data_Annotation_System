@@ -1,6 +1,7 @@
 package com.example.api
 
-import com.example.api.config.ServerConfig
+import com.example.api.config.AppConfig
+import com.example.api.db.DatabaseFactory
 
 /**
  * 应用入口。
@@ -13,9 +14,11 @@ object Main {
      */
     @JvmStatic
     fun main(args: Array<String>) {
-        val serverConfig = ServerConfig.from(args)
-        createApp(serverConfig).start(serverConfig.port)
-        println("API server started at http://localhost:${serverConfig.port}")
+        val appConfig = AppConfig.from(args)
+
+        DatabaseFactory.init(appConfig.database)
+        createApp(appConfig).start(appConfig.server.port)
+        println("API server started at http://localhost:${appConfig.server.port}")
         Thread.currentThread().join()
     }
 }

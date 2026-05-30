@@ -9,6 +9,13 @@ interface GreetingResponse {
   message: string;
 }
 
+interface DatabaseHealthResponse {
+  status: string;
+  database: string;
+  latencyMs: number;
+  message?: string;
+}
+
 function Header() {
   return (
     <header className="app-heading">
@@ -25,6 +32,10 @@ export function ApiTest() {
   const [status, setStatus] = useState('等待连接 API...');
   const [statusKind, setStatusKind] = useState<StatusKind>('loading');
   const [result, setResult] = useState('点击按钮后这里会显示后端返回的消息。');
+  const [databaseStatus, setDatabaseStatus] = useState('等待测试数据库连接...');
+  const [databaseStatusKind, setDatabaseStatusKind] = useState<StatusKind>('loading');
+  const [databaseResult, setDatabaseResult] = useState('点击按钮后这里会显示数据库健康检查结果。');
+  const [databaseLoading, setDatabaseLoading] = useState(false);
 
   async function fetchGreeting(nextName = name): Promise<void> {
     const requestName = nextName.trim() || 'world';
@@ -52,6 +63,32 @@ export function ApiTest() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     fetchGreeting();
+  }
+
+  async function fetchDatabaseHealth(): Promise<void> {
+    setDatabaseLoading(true);
+    setDatabaseStatus('正在请求数据库健康接口...');
+    setDatabaseStatusKind('loading');
+    setDatabaseResult('');
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/health/database`);
+      const data = (await response.json().catch(() => null)) as DatabaseHealthResponse | null;
+
+      if (!response.ok) {
+        throw new Error(data?.message || `数据库健康检查失败：${response.status}`);
+      }
+
+      setDatabaseStatus('数据库连接正常');
+      setDatabaseStatusKind('success');
+      setDatabaseResult(`${data?.database || 'postgresql'} 响应正常，耗时 ${data?.latencyMs ?? 0} ms`);
+    } catch (error) {
+      setDatabaseStatus('数据库暂时不可用');
+      setDatabaseStatusKind('error');
+      setDatabaseResult(error instanceof Error ? error.message : String(error));
+    } finally {
+      setDatabaseLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -89,6 +126,22 @@ export function ApiTest() {
             {status}
           </div>
           <div className="app-result">{result}</div>
+
+          <div className="my-8 border-t border-gray-200" />
+
+          <button
+            type="button"
+            className="app-button-primary"
+            disabled={databaseLoading}
+            onClick={fetchDatabaseHealth}
+          >
+            {databaseLoading ? '测试中...' : '测试数据库'}
+          </button>
+
+          <div className="app-status" data-kind={databaseStatusKind}>
+            {databaseStatus}
+          </div>
+          <div className="app-result">{databaseResult}</div>
 
           <div className="mt-6 text-center">
             <Link to="/" className="app-link">

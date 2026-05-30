@@ -26,6 +26,8 @@ apps/**/dist/
 bin/
 dist/
 
-.claude
+
 
 mvnd.properties
+
+.env
