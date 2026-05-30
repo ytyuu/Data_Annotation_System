@@ -15,6 +15,7 @@
         <exposed.version>0.61.0</exposed.version>
         <hikaricp.version>6.3.0</hikaricp.version>
         <postgresql.version>42.7.5</postgresql.version>
+        <jbcrypt.version>0.4</jbcrypt.version>
         <maven.compiler.release>25</maven.compiler.release>
         <kotlin.jvm.target>25</kotlin.jvm.target>
         <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
@@ -56,6 +57,11 @@
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <version>${postgresql.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.mindrot</groupId>
+            <artifactId>jbcrypt</artifactId>
+            <version>${jbcrypt.version}</version>
         </dependency>
     </dependencies>
 

@@ -4,6 +4,7 @@ import './styles.css';
 import { ApiTest } from './pages/ApiTest';
 import { RoleSelect } from './pages/RoleSelect';
 import { Login } from './pages/Login';
+import { Register } from './pages/Register';
 
 function App() {
   return (
@@ -11,6 +12,7 @@ function App() {
       <Routes>
         <Route path="/" element={<RoleSelect />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
         <Route path="/api-test" element={<ApiTest />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

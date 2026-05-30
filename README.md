@@ -44,6 +44,7 @@ API 开发模式使用 `mvnd` 编译，保存 `apps/api/src/main/kotlin` 下的 
 | `GET` | `/api/health` | 健康检查 |
 | `GET` | `/api/health/database` | PostgreSQL 数据库健康检查 |
 | `GET` | `/api/hello?name=xxx` | 问候接口 |
+| `POST` | `/api/register` | 用户注册 |
 
 ## 常用命令
 

@@ -4,9 +4,11 @@ import com.example.api.config.ServerConfig
 import com.example.api.handlers.DatabaseHealthHandler
 import com.example.api.handlers.GreetingHandler
 import com.example.api.handlers.HealthHandler
+import com.example.api.handlers.RegisterHandler
 import com.example.api.handlers.RootHandler
 import io.javalin.apibuilder.ApiBuilder.get
 import io.javalin.apibuilder.ApiBuilder.path
+import io.javalin.apibuilder.ApiBuilder.post
 import io.javalin.config.JavalinConfig
 
 /**
@@ -25,6 +27,7 @@ fun registerApiRoutes(config: JavalinConfig, serverConfig: ServerConfig) {
             get("/health") { ctx -> HealthHandler.show(ctx) }
             get("/health/database") { ctx -> DatabaseHealthHandler.show(ctx) }
             get("/hello") { ctx -> GreetingHandler.show(ctx) }
+            post("/register") { ctx -> RegisterHandler.create(ctx) }
         }
     }
 }

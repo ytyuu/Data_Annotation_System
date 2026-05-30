@@ -36,6 +36,40 @@ data class DatabaseHealthResponse(
 )
 
 /**
+ * 注册请求数据。
+ */
+data class RegisterRequest(
+    val username: String = "",
+    val password: String = "",
+    val displayName: String = "",
+    val role: String = "",
+)
+
+/**
+ * 用户响应数据，不包含密码哈希。
+ */
+data class UserResponse(
+    val id: String,
+    val username: String,
+    val displayName: String,
+    val role: String,
+    val status: String,
+)
+
+/**
+ * 注册响应数据。
+ */
+data class RegisterResponse(
+    val message: String,
+    val user: UserResponse,
+)
+
+/**
+ * API 错误响应数据。
+ */
+data class ErrorResponse(val message: String)
+
+/**
  * 问候响应数据。
  *
  * @property message 问候消息

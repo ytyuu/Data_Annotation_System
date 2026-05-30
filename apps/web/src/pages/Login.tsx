@@ -113,6 +113,12 @@ export function Login() {
           </button>
 
           <div className="mt-6 text-center">
+            <Link to={`/register?role=${role}`} className="app-link-primary text-sm">
+              注册账号
+            </Link>
+          </div>
+
+          <div className="mt-3 text-center">
             <Link to="/" className="app-link">
               ← 返回选择身份
             </Link>
