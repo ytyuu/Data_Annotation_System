@@ -60,10 +60,10 @@ export function ApiTest() {
 
   return (
     <div className="app-page app-center">
-      <div className="app-stack app-stack-sm">
+      <div className="app-stack app-stack-md">
         <Header />
 
-        <main className="app-card">
+        <main className="app-card max-w-md mx-auto">
           <form id="hello-form" onSubmit={handleSubmit}>
             <div className="mb-6">
               <label htmlFor="name" className="app-label">
