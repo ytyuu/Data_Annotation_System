@@ -1,14 +1,12 @@
 package com.example.api.middleware.auth
 
+import com.example.api.middleware.RouteMiddleware
 import com.example.api.models.ErrorResponse
 import com.example.api.models.UserResponse
 import com.example.api.service.auth.AuthResult
 import com.example.api.service.auth.AuthService
 import io.javalin.http.Context
 
-/**
- * 认证中间件工具。
- */
 /**
  * 认证中间件，负责从请求中提取并验证 JWT Token。
  *
@@ -63,3 +61,19 @@ class AuthMiddleware(private val authService: AuthService) {
  * 必须在 [AuthMiddleware.requireUser] 成功后调用。
  */
 fun Context.currentUser(): UserResponse = attribute(AuthMiddleware.CURRENT_USER_KEY)!!
+
+/**
+ * 创建要求登录认证的路由中间件。
+ *
+ * @param authMiddleware 认证中间件实例，为 null 时返回 500
+ * @return 路由中间件
+ */
+fun requireAuth(authMiddleware: AuthMiddleware?): RouteMiddleware {
+    return { ctx, next ->
+        if (authMiddleware == null) {
+            ctx.status(500).json(ErrorResponse("认证服务未配置"))
+        } else if (authMiddleware.requireUser(ctx)) {
+            next()
+        }
+    }
+}

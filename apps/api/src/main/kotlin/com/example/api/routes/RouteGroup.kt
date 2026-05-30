@@ -1,7 +1,7 @@
 package com.example.api.routes
 
-import com.example.api.middleware.chain.RouteMiddleware
-import com.example.api.middleware.chain.chain
+import com.example.api.middleware.RouteMiddleware
+import com.example.api.middleware.chain
 import io.javalin.apibuilder.ApiBuilder
 import io.javalin.http.Handler
 

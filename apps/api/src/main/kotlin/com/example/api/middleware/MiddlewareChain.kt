@@ -1,4 +1,4 @@
-package com.example.api.middleware.chain
+package com.example.api.middleware
 
 import io.javalin.http.Context
 import io.javalin.http.Handler
@@ -34,13 +34,6 @@ fun chain(
     return Handler { ctx -> run(0, ctx) }
 }
 
-/**
- * 将可变参数中间件和端点 handler 组合成一条执行链。
- *
- * @param middlewares 中间件列表，按顺序执行
- * @param endpoint 最终的端点 handler
- * @return 组合后的 handler
- */
 fun chain(
     vararg middlewares: RouteMiddleware,
     endpoint: Handler,
