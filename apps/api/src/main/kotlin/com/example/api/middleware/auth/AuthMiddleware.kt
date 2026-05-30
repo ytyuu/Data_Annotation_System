@@ -1,7 +1,11 @@
 package com.example.api.middleware.auth
 
+import com.example.api.http.badRequest
+import com.example.api.http.conflict
+import com.example.api.http.forbidden
+import com.example.api.http.internalServerError
+import com.example.api.http.unauthorized
 import com.example.api.middleware.RouteMiddleware
-import com.example.api.models.ErrorResponse
 import com.example.api.models.UserResponse
 import com.example.api.service.auth.AuthResult
 import com.example.api.service.auth.AuthService
@@ -29,22 +33,22 @@ class AuthMiddleware(private val authService: AuthService) {
             }
 
             is AuthResult.BadRequest -> {
-                ctx.status(400).json(ErrorResponse(result.message))
+                ctx.badRequest(result.message)
                 false
             }
 
             is AuthResult.Unauthorized -> {
-                ctx.status(401).json(ErrorResponse(result.message))
+                ctx.unauthorized(result.message)
                 false
             }
 
             is AuthResult.Forbidden -> {
-                ctx.status(403).json(ErrorResponse(result.message))
+                ctx.forbidden(result.message)
                 false
             }
 
             is AuthResult.Conflict -> {
-                ctx.status(409).json(ErrorResponse(result.message))
+                ctx.conflict(result.message)
                 false
             }
         }
@@ -63,6 +67,11 @@ class AuthMiddleware(private val authService: AuthService) {
 fun Context.currentUser(): UserResponse = attribute(AuthMiddleware.CURRENT_USER_KEY)!!
 
 /**
+ * 从上下文中获取当前登录用户信息，没有认证用户时返回 null。
+ */
+fun Context.currentUserOrNull(): UserResponse? = attribute(AuthMiddleware.CURRENT_USER_KEY)
+
+/**
  * 创建要求登录认证的路由中间件。
  *
  * @param authMiddleware 认证中间件实例，为 null 时返回 500
@@ -71,9 +80,36 @@ fun Context.currentUser(): UserResponse = attribute(AuthMiddleware.CURRENT_USER_
 fun requireAuth(authMiddleware: AuthMiddleware?): RouteMiddleware {
     return { ctx, next ->
         if (authMiddleware == null) {
-            ctx.status(500).json(ErrorResponse("认证服务未配置"))
+            ctx.internalServerError("认证服务未配置")
         } else if (authMiddleware.requireUser(ctx)) {
             next()
+        }
+    }
+}
+
+/**
+ * 创建要求当前用户具备指定角色之一的路由中间件。
+ *
+ * 应放在 [requireAuth] 之后使用，例如：
+ * routeGroup(requireAuth(authMiddleware), requireRole("provider")) { ... }
+ *
+ * @param roles 允许访问的角色
+ * @return 路由中间件
+ */
+fun requireRole(vararg roles: String): RouteMiddleware {
+    val allowedRoles = roles
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .toSet()
+
+    return { ctx, next ->
+        val currentUser = ctx.currentUserOrNull()
+
+        when {
+            allowedRoles.isEmpty() -> ctx.internalServerError("未配置允许访问的角色")
+            currentUser == null -> ctx.unauthorized("请先登录")
+            currentUser.role in allowedRoles -> next()
+            else -> ctx.forbidden("权限不足")
         }
     }
 }

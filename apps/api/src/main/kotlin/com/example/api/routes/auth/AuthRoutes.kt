@@ -6,6 +6,7 @@ package com.example.api.routes.auth
 import com.example.api.handlers.auth.LoginHandler
 import com.example.api.handlers.auth.MeHandler
 import com.example.api.handlers.auth.RegisterHandler
+import com.example.api.http.internalServerError
 import com.example.api.middleware.auth.AuthMiddleware
 import com.example.api.middleware.auth.requireAuth
 import com.example.api.routes.routeGroup
@@ -29,7 +30,7 @@ fun registerAuthRoutes(authService: AuthService?) {
 
     post("/register") { ctx ->
         if (registerHandler == null) {
-            ctx.status(500).json(mapOf("message" to "注册服务未配置"))
+            ctx.internalServerError("注册服务未配置")
         } else {
             registerHandler.create(ctx)
         }
@@ -37,7 +38,7 @@ fun registerAuthRoutes(authService: AuthService?) {
 
     post("/login") { ctx ->
         if (loginHandler == null) {
-            ctx.status(500).json(mapOf("message" to "登录服务未配置"))
+            ctx.internalServerError("登录服务未配置")
         } else {
             loginHandler.create(ctx)
         }

@@ -1,6 +1,9 @@
 package com.example.api.handlers.auth
 
-import com.example.api.models.ErrorResponse
+import com.example.api.http.badRequest
+import com.example.api.http.conflict
+import com.example.api.http.forbidden
+import com.example.api.http.unauthorized
 import com.example.api.models.LoginRequest
 import com.example.api.service.auth.AuthResult
 import com.example.api.service.auth.AuthService
@@ -19,10 +22,10 @@ class LoginHandler(private val authService: AuthService) {
         val request = ctx.bodyAsClass(LoginRequest::class.java)
         when (val result = authService.login(request)) {
             is AuthResult.Success -> ctx.json(result.value)
-            is AuthResult.BadRequest -> ctx.status(400).json(ErrorResponse(result.message))
-            is AuthResult.Unauthorized -> ctx.status(401).json(ErrorResponse(result.message))
-            is AuthResult.Forbidden -> ctx.status(403).json(ErrorResponse(result.message))
-            is AuthResult.Conflict -> ctx.status(409).json(ErrorResponse(result.message))
+            is AuthResult.BadRequest -> ctx.badRequest(result.message)
+            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
+            is AuthResult.Forbidden -> ctx.forbidden(result.message)
+            is AuthResult.Conflict -> ctx.conflict(result.message)
         }
     }
 }
