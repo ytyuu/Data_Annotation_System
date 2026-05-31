@@ -8,16 +8,16 @@ import com.example.api.middleware.auth.currentUser
 import com.example.api.models.ClaimTasksRequest
 import com.example.api.models.SubmitAnnotationBatchRequest
 import com.example.api.service.auth.AuthResult
-import com.example.api.service.dataset.DatasetService
+import com.example.api.service.dataset.AnnotatorDatasetService
 import io.javalin.http.Context
 import java.util.UUID
 
 /**
  * 数据标注员可访问的数据集请求处理器。
  *
- * @property datasetService 数据集业务服务
+ * @property datasetService 数据标注员业务服务
  */
-class AnnotatorDatasetHandler(private val datasetService: DatasetService) {
+class AnnotatorDatasetHandler(private val datasetService: AnnotatorDatasetService) {
     /**
      * 处理 `GET /api/annotator/datasets` 请求。
      *

@@ -6,7 +6,8 @@ import com.example.api.middleware.auth.AuthMiddleware
 import com.example.api.middleware.auth.requireAuth
 import com.example.api.middleware.auth.requireRole
 import com.example.api.routes.routeGroup
-import com.example.api.service.dataset.DatasetService
+import com.example.api.service.dataset.AnnotatorDatasetService
+import com.example.api.service.dataset.ProviderDatasetService
 
 /**
  * 注册数据集相关路由。
@@ -14,8 +15,8 @@ import com.example.api.service.dataset.DatasetService
  * @param authMiddleware 认证中间件，为 null 时受保护路由返回 500
  */
 fun registerDatasetRoutes(authMiddleware: AuthMiddleware?) {
-    val providerDatasetHandler = ProviderDatasetHandler(DatasetService())
-    val annotatorDatasetHandler = AnnotatorDatasetHandler(DatasetService())
+    val providerDatasetHandler = ProviderDatasetHandler(ProviderDatasetService())
+    val annotatorDatasetHandler = AnnotatorDatasetHandler(AnnotatorDatasetService())
 
     routeGroup(requireAuth(authMiddleware), requireRole("provider")) {
         get("/provider/datasets") { ctx -> providerDatasetHandler.list(ctx) }

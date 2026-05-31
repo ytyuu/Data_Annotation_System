@@ -86,7 +86,7 @@ class AuthService(securityConfig: SecurityConfig) {
             } else {
                 AuthResult.Success(RegisterResponse(message = "注册成功", user = user))
             }
-        } catch (error: ExposedSQLException) {
+        } catch (_: ExposedSQLException) {
             AuthResult.Conflict("用户名已存在或注册信息不符合要求")
         }
     }
