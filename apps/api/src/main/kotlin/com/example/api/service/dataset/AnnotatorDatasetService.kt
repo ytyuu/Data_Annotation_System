@@ -36,6 +36,15 @@ class AnnotatorDatasetService {
     private val activeTaskStatuses = listOf("assigned", "in_progress")
     private val activeBatchStatuses = listOf("assigned", "in_progress")
 
+    /**
+     * 查询标注员可领取任务的开放数据集列表。
+     *
+     * 返回每个数据集的标注余量（pending 数据项数量）和互查余量（annotated/disputed
+     * 且当前标注员未参与过的数据项数量），用于前端展示和领取数量限制。
+     *
+     * @param annotatorId 标注员用户 ID
+     * @return 查询结果，成功时返回数据集列表
+     */
     fun listOpenDatasets(annotatorId: UUID): AuthResult<List<DatasetResponse>> {
         val datasets = transaction {
             // 查询所有已开放的数据集，作为标注员可领取任务的候选列表。
@@ -804,6 +813,10 @@ class AnnotatorDatasetService {
 
     /**
      * 批量提交标注员在任务单下的标注结果。
+     *
+     * 标注任务提交时会更新 `data_items.status` 为 `annotated` 或 `disputed`。
+     * 互查任务（`batch_type = 'review'`）提交时不改变 `data_items.status`，
+     * 仅将互查结果写入 `annotations.review_result`。
      *
      * @param annotatorId 标注员用户 ID
      * @param batchId 任务单 ID
