@@ -11,8 +11,6 @@ import com.example.api.service.dataset.DatasetService
 /**
  * 注册数据集相关路由。
  *
- * 当前仅包含数据集提供者可访问的创建和列表接口。
- *
  * @param authMiddleware 认证中间件，为 null 时受保护路由返回 500
  */
 fun registerDatasetRoutes(authMiddleware: AuthMiddleware?) {
@@ -32,5 +30,8 @@ fun registerDatasetRoutes(authMiddleware: AuthMiddleware?) {
 
     routeGroup(requireAuth(authMiddleware), requireRole("annotator")) {
         get("/annotator/datasets") { ctx -> annotatorDatasetHandler.listOpen(ctx) }
+        post("/annotator/datasets/{datasetId}/claim") { ctx -> annotatorDatasetHandler.claim(ctx) }
+        get("/annotator/datasets/{datasetId}/tasks") { ctx -> annotatorDatasetHandler.listDatasetTasks(ctx) }
+        get("/annotator/tasks") { ctx -> annotatorDatasetHandler.listTasks(ctx) }
     }
 }

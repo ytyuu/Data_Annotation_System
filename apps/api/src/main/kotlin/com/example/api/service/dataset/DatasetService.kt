@@ -2,6 +2,7 @@ package com.example.api.service.dataset
 
 import com.example.api.db.DatasetsTable
 import com.example.api.db.DataItemsTable
+import com.example.api.db.AnnotationTasksTable
 import com.example.api.models.CreateDatasetRequest
 import com.example.api.models.DataItemResponse
 import com.example.api.models.DeleteDataItemResponse
@@ -122,15 +123,63 @@ class DatasetService {
     /**
      * 查询所有对标注员开放的数据集列表。
      *
+     * @param annotatorId 标注员用户 ID
      * @return 查询结果，成功时返回按更新时间倒序排列的数据集列表
      */
-    fun listOpenDatasets(): AuthResult<List<DatasetResponse>> {
+    fun listOpenDatasets(annotatorId: UUID): AuthResult<List<DatasetResponse>> {
         val datasets = transaction {
-            DatasetsTable
+            val datasetRows = DatasetsTable
                 .selectAll()
                 .where { DatasetsTable.status eq "open" }
                 .orderBy(DatasetsTable.updatedAt to SortOrder.DESC)
-                .map(::toDatasetResponse)
+                .toList()
+
+            val datasetIds = datasetRows.map { it[DatasetsTable.id] }
+            val activeStatuses = listOf("assigned", "in_progress")
+
+            val pendingCounts = if (datasetIds.isEmpty()) {
+                emptyMap()
+            } else {
+                DataItemsTable
+                    .select(DataItemsTable.datasetId, DataItemsTable.id.count())
+                    .where {
+                        (DataItemsTable.datasetId inList datasetIds) and
+                            (DataItemsTable.status eq "pending")
+                    }
+                    .groupBy(DataItemsTable.datasetId)
+                    .associate { it[DataItemsTable.datasetId] to it[DataItemsTable.id.count()] }
+            }
+
+            val activeByDataset = if (datasetIds.isEmpty()) {
+                emptyMap()
+            } else {
+                AnnotationTasksTable
+                    .selectAll()
+                    .where {
+                        (AnnotationTasksTable.annotatorId eq annotatorId) and
+                            (AnnotationTasksTable.datasetId inList datasetIds) and
+                            (AnnotationTasksTable.status inList activeStatuses)
+                    }
+                    .groupBy { it[AnnotationTasksTable.datasetId] }
+                    .mapValues { it.value.size.toLong() }
+            }
+
+            val totalActive = AnnotationTasksTable
+                .selectAll()
+                .where {
+                    (AnnotationTasksTable.annotatorId eq annotatorId) and
+                        (AnnotationTasksTable.status inList activeStatuses)
+                }
+                .count()
+
+            datasetRows.map { row ->
+                val datasetId = row[DatasetsTable.id]
+                val hasPending = (pendingCounts[datasetId] ?: 0) > 0
+                val hasActiveInDataset = (activeByDataset[datasetId] ?: 0) > 0
+                val canClaim = hasPending && !hasActiveInDataset && totalActive < 5
+
+                toDatasetResponse(row, canClaim)
+            }
         }
 
         return AuthResult.Success(datasets)
@@ -505,7 +554,7 @@ class DatasetService {
      * @param row 数据集表查询结果行
      * @return 数据集响应数据
      */
-    private fun toDatasetResponse(row: ResultRow): DatasetResponse {
+    private fun toDatasetResponse(row: ResultRow, canClaim: Boolean? = null): DatasetResponse {
         return DatasetResponse(
             id = row[DatasetsTable.id].toString(),
             providerId = row[DatasetsTable.providerId].toString(),
@@ -519,6 +568,7 @@ class DatasetService {
             completedItemCount = row[DatasetsTable.completedItemCount],
             createdAt = row[DatasetsTable.createdAt].toString(),
             updatedAt = row[DatasetsTable.updatedAt].toString(),
+            canClaim = canClaim,
         )
     }
 
@@ -588,5 +638,275 @@ class DatasetService {
         data class Success(val itemCount: Int) : DeleteDataItemTransactionResult()
         data object NotFound : DeleteDataItemTransactionResult()
         data object InvalidStatus : DeleteDataItemTransactionResult()
+    }
+
+    /**
+     * 查询指定标注员已领取的任务列表。
+     *
+     * @param annotatorId 标注员用户 ID
+     * @param statusFilter 任务状态筛选，null 时不筛选
+     * @return 查询结果，成功时返回任务列表
+     */
+    fun listAnnotatorTasks(
+        annotatorId: UUID,
+        statusFilter: String?,
+    ): AuthResult<List<com.example.api.models.AnnotatorTaskResponse>> {
+        val tasks = transaction {
+            val baseCondition = AnnotationTasksTable.annotatorId eq annotatorId
+            val condition = statusFilter?.let {
+                baseCondition and (AnnotationTasksTable.status eq it)
+            } ?: baseCondition
+
+            val taskRows = AnnotationTasksTable
+                .selectAll()
+                .where { condition }
+                .orderBy(AnnotationTasksTable.assignedAt to SortOrder.DESC)
+                .toList()
+
+            val datasetIds = taskRows.map { it[AnnotationTasksTable.datasetId] }.toSet()
+
+            val datasets = if (datasetIds.isEmpty()) {
+                emptyMap()
+            } else {
+                DatasetsTable
+                    .selectAll()
+                    .where { DatasetsTable.id inList datasetIds }
+                    .associateBy { it[DatasetsTable.id] }
+            }
+
+            taskRows
+                .groupBy { it[AnnotationTasksTable.datasetId] }
+                .mapNotNull { (datasetId, tasks) ->
+                    val dataset = datasets[datasetId] ?: return@mapNotNull null
+
+                    com.example.api.models.AnnotatorTaskResponse(
+                        datasetId = datasetId.toString(),
+                        datasetName = dataset[DatasetsTable.name],
+                        totalCount = tasks.size,
+                        assignedCount = tasks.count { it[AnnotationTasksTable.status] == "assigned" },
+                        inProgressCount = tasks.count { it[AnnotationTasksTable.status] == "in_progress" },
+                        submittedCount = tasks.count { it[AnnotationTasksTable.status] == "submitted" },
+                        lastAssignedAt = tasks.maxOf { it[AnnotationTasksTable.assignedAt] }.toString(),
+                    )
+                }
+        }
+
+        return AuthResult.Success(tasks)
+    }
+
+    /**
+     * 查询标注员在指定数据集下的任务详情列表。
+     *
+     * @param annotatorId 标注员用户 ID
+     * @param datasetId 数据集 ID
+     * @return 查询结果，成功时返回任务详情列表
+     */
+    fun listDatasetTasks(
+        annotatorId: UUID,
+        datasetId: UUID,
+    ): AuthResult<List<com.example.api.models.AnnotatorTaskDetailResponse>> {
+        val tasks = transaction {
+            val taskRows = AnnotationTasksTable
+                .selectAll()
+                .where {
+                    (AnnotationTasksTable.annotatorId eq annotatorId) and
+                        (AnnotationTasksTable.datasetId eq datasetId)
+                }
+                .orderBy(AnnotationTasksTable.assignedAt to SortOrder.ASC)
+                .toList()
+
+            val itemIds = taskRows.map { it[AnnotationTasksTable.itemId] }.toSet()
+
+            val items = if (itemIds.isEmpty()) {
+                emptyMap()
+            } else {
+                DataItemsTable
+                    .selectAll()
+                    .where { DataItemsTable.id inList itemIds }
+                    .associateBy { it[DataItemsTable.id] }
+            }
+
+            taskRows.mapNotNull { taskRow ->
+                val itemId = taskRow[AnnotationTasksTable.itemId]
+                val item = items[itemId] ?: return@mapNotNull null
+
+                com.example.api.models.AnnotatorTaskDetailResponse(
+                    taskId = taskRow[AnnotationTasksTable.id].toString(),
+                    item = DataItemResponse(
+                        id = item[DataItemsTable.id].toString(),
+                        datasetId = item[DataItemsTable.datasetId].toString(),
+                        content = item[DataItemsTable.content],
+                        contentType = item[DataItemsTable.contentType],
+                        metadata = item[DataItemsTable.metadata],
+                        status = item[DataItemsTable.status],
+                        createdAt = item[DataItemsTable.createdAt].toString(),
+                        updatedAt = item[DataItemsTable.updatedAt].toString(),
+                    ),
+                    status = taskRow[AnnotationTasksTable.status],
+                    assignedAt = taskRow[AnnotationTasksTable.assignedAt].toString(),
+                    startedAt = taskRow[AnnotationTasksTable.startedAt]?.toString(),
+                    submittedAt = taskRow[AnnotationTasksTable.submittedAt]?.toString(),
+                )
+            }
+        }
+
+        return AuthResult.Success(tasks)
+    }
+
+    /**
+     * 为标注员领取指定数据集的待标注任务。
+     *
+     * @param annotatorId 标注员用户 ID
+     * @param datasetId 数据集 ID
+     * @param requestedCount 期望领取的任务数量
+     * @return 领取结果
+     */
+    fun claimAnnotatorTasks(
+        annotatorId: UUID,
+        datasetId: UUID,
+        requestedCount: Int,
+    ): AuthResult<com.example.api.models.ClaimTasksResponse> {
+        if (requestedCount <= 0) {
+            return AuthResult.BadRequest("领取数量必须大于 0")
+        }
+
+        val result = transaction {
+            val dataset = DatasetsTable
+                .selectAll()
+                .where { DatasetsTable.id eq datasetId }
+                .limit(1)
+                .firstOrNull()
+                ?: return@transaction ClaimTasksTransactionResult.NotFound
+
+            if (dataset[DatasetsTable.status] != "open") {
+                return@transaction ClaimTasksTransactionResult.InvalidStatus
+            }
+
+            val activeStatuses = listOf("assigned", "in_progress")
+
+            val existingInDataset = AnnotationTasksTable
+                .selectAll()
+                .where {
+                    (AnnotationTasksTable.annotatorId eq annotatorId) and
+                        (AnnotationTasksTable.datasetId eq datasetId) and
+                        (AnnotationTasksTable.status inList activeStatuses)
+                }
+                .count()
+
+            if (existingInDataset > 0) {
+                return@transaction ClaimTasksTransactionResult.AlreadyClaimed
+            }
+
+            val activeCount = AnnotationTasksTable
+                .selectAll()
+                .where {
+                    (AnnotationTasksTable.annotatorId eq annotatorId) and
+                        (AnnotationTasksTable.status inList activeStatuses)
+                }
+                .count()
+                .toInt()
+
+            if (activeCount >= 5) {
+                return@transaction ClaimTasksTransactionResult.TooManyActive
+            }
+
+            val maxClaimable = 5 - activeCount
+            if (requestedCount > maxClaimable) {
+                return@transaction ClaimTasksTransactionResult.InvalidCount(maxClaimable)
+            }
+
+            val itemCountLimit = dataset[DatasetsTable.itemCount]
+            if (requestedCount > itemCountLimit) {
+                return@transaction ClaimTasksTransactionResult.InvalidCount(itemCountLimit)
+            }
+
+            val now = OffsetDateTime.now()
+            val candidateItems = DataItemsTable
+                .selectAll()
+                .where {
+                    (DataItemsTable.datasetId eq datasetId) and (DataItemsTable.status eq "pending")
+                }
+                .orderBy(DataItemsTable.createdAt to SortOrder.ASC)
+                .limit(requestedCount)
+                .map { row ->
+                    row[DataItemsTable.id] to toDataItemResponse(row)
+                }
+
+            if (candidateItems.isEmpty()) {
+                return@transaction ClaimTasksTransactionResult.NoAvailable
+            }
+
+            val assignments = mutableListOf<com.example.api.models.TaskAssignmentResponse>()
+            candidateItems.forEach { (itemId, item) ->
+                val updated = DataItemsTable.update({
+                    (DataItemsTable.id eq itemId) and (DataItemsTable.status eq "pending")
+                }) {
+                    it[status] = "assigned"
+                    it[updatedAt] = now
+                }
+
+                if (updated == 1) {
+                    val taskId = UUID.randomUUID()
+                    AnnotationTasksTable.insert {
+                        it[id] = taskId
+                        it[AnnotationTasksTable.datasetId] = datasetId
+                        it[AnnotationTasksTable.itemId] = itemId
+                        it[AnnotationTasksTable.annotatorId] = annotatorId
+                        it[status] = "assigned"
+                        it[assignedAt] = now
+                        it[startedAt] = null
+                        it[submittedAt] = null
+                        it[dueAt] = null
+                        it[createdAt] = now
+                        it[updatedAt] = now
+                    }
+
+                    val assignedItem = item.copy(status = "assigned", updatedAt = now.toString())
+                    assignments.add(
+                        com.example.api.models.TaskAssignmentResponse(
+                            taskId = taskId.toString(),
+                            item = assignedItem,
+                        )
+                    )
+                }
+            }
+
+            if (assignments.isEmpty()) {
+                return@transaction ClaimTasksTransactionResult.NoAvailable
+            }
+
+            ClaimTasksTransactionResult.Success(
+                com.example.api.models.ClaimTasksResponse(
+                    assignedCount = assignments.size,
+                    tasks = assignments,
+                )
+            )
+        }
+
+        return when (result) {
+            ClaimTasksTransactionResult.NotFound -> AuthResult.BadRequest("数据集不存在")
+            ClaimTasksTransactionResult.InvalidStatus -> AuthResult.BadRequest("仅可领取已开放数据集的任务")
+            ClaimTasksTransactionResult.AlreadyClaimed -> AuthResult.BadRequest(
+                "您已持有该数据集的任务，请先完成或提交后再领取"
+            )
+            ClaimTasksTransactionResult.TooManyActive -> AuthResult.BadRequest(
+                "您最多可同时持有 5 个进行中任务"
+            )
+            is ClaimTasksTransactionResult.InvalidCount -> AuthResult.BadRequest(
+                "领取数量不能超过上限（${result.maxCount}）"
+            )
+            ClaimTasksTransactionResult.NoAvailable -> AuthResult.BadRequest("暂无可领取的数据项")
+            is ClaimTasksTransactionResult.Success -> AuthResult.Success(result.value)
+        }
+    }
+
+    private sealed class ClaimTasksTransactionResult {
+        data object NotFound : ClaimTasksTransactionResult()
+        data object InvalidStatus : ClaimTasksTransactionResult()
+        data object AlreadyClaimed : ClaimTasksTransactionResult()
+        data object TooManyActive : ClaimTasksTransactionResult()
+        data class InvalidCount(val maxCount: Int) : ClaimTasksTransactionResult()
+        data object NoAvailable : ClaimTasksTransactionResult()
+        data class Success(val value: com.example.api.models.ClaimTasksResponse) : ClaimTasksTransactionResult()
     }
 }

@@ -26,6 +26,7 @@ interface Dataset {
   completedItemCount: number;
   createdAt: string;
   updatedAt: string;
+  canClaim: boolean;
 }
 
 export function AnnotatorOpenDatasetsPage() {
@@ -33,6 +34,11 @@ export function AnnotatorOpenDatasetsPage() {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [claimingDatasetId, setClaimingDatasetId] = useState<string | null>(null);
+  const [claimCount, setClaimCount] = useState(20);
+  const [claimLoading, setClaimLoading] = useState(false);
+  const [claimError, setClaimError] = useState('');
+  const [claimSuccess, setClaimSuccess] = useState('');
 
   useEffect(() => {
     loadOpenDatasets();
@@ -66,6 +72,42 @@ export function AnnotatorOpenDatasetsPage() {
     }
   }
 
+  async function handleClaim(datasetId: string) {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/', { replace: true });
+      return;
+    }
+
+    setClaimLoading(true);
+    setClaimError('');
+    setClaimSuccess('');
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/annotator/datasets/${datasetId}/claim`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ count: claimCount }),
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.message || `领取失败 (${response.status})`);
+      }
+
+      setClaimSuccess(`成功领取 ${data?.assignedCount || 0} 条任务`);
+      setClaimingDatasetId(null);
+      loadOpenDatasets();
+    } catch (err) {
+      setClaimError(err instanceof Error ? err.message : '领取失败');
+    } finally {
+      setClaimLoading(false);
+    }
+  }
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
@@ -80,6 +122,7 @@ export function AnnotatorOpenDatasetsPage() {
       </div>
 
       {error && <div className="app-alert-error">{error}</div>}
+      {claimSuccess && <div className="app-alert-success">{claimSuccess}</div>}
 
       {loading ? (
         <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
@@ -99,6 +142,7 @@ export function AnnotatorOpenDatasetsPage() {
                 <th className="px-4 py-3">标注方式</th>
                 <th className="px-4 py-3">数据项</th>
                 <th className="px-4 py-3">更新时间</th>
+                <th className="px-4 py-3 text-right">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
@@ -126,11 +170,68 @@ export function AnnotatorOpenDatasetsPage() {
                   <td className="px-4 py-3 text-gray-500">
                     {new Date(dataset.updatedAt).toLocaleString()}
                   </td>
+                  <td className="px-4 py-3 text-right">
+                    {!dataset.canClaim ? (
+                      <button
+                        type="button"
+                        disabled
+                        className="rounded bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-400 cursor-not-allowed"
+                        title="已持有该数据集任务或已达上限"
+                      >
+                        不可领取
+                      </button>
+                    ) : claimingDatasetId === dataset.id ? (
+                      <div className="flex items-center justify-end gap-2">
+                        <input
+                          type="number"
+                          min={1}
+                          max={1}
+                          value={claimCount}
+                          onChange={(e) => setClaimCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                          className="w-16 rounded border border-gray-300 px-2 py-1 text-right text-sm"
+                        />
+                        <button
+                          type="button"
+                          className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                          onClick={() => handleClaim(dataset.id)}
+                          disabled={claimLoading}
+                        >
+                          {claimLoading ? '...' : '确认'}
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-600 hover:bg-gray-50"
+                          onClick={() => {
+                            setClaimingDatasetId(null);
+                            setClaimError('');
+                          }}
+                        >
+                          取消
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+                        onClick={() => {
+                          setClaimingDatasetId(dataset.id);
+                          setClaimCount(1);
+                          setClaimError('');
+                        }}
+                      >
+                        领取任务
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {claimError && (
+        <div className="mt-3 app-alert-error">{claimError}</div>
       )}
     </div>
   );
