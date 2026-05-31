@@ -13,6 +13,7 @@ import com.example.api.models.DeleteDatasetResponse
 import com.example.api.models.DatasetResponse
 import com.example.api.models.AnnotatorTaskWorkspaceResponse
 import com.example.api.models.AnnotationSubmissionInput
+import com.example.api.models.AnnotatorTaskResponse
 import com.example.api.models.ImportDataItemsRequest
 import com.example.api.models.ImportDataItemsResponse
 import com.example.api.models.PublishDatasetResponse
@@ -108,7 +109,7 @@ class DatasetService {
             }
 
             AuthResult.Success(dataset)
-        } catch (error: ExposedSQLException) {
+        } catch (_: ExposedSQLException) {
             AuthResult.BadRequest("数据集信息不符合数据库约束")
         }
     }
@@ -121,6 +122,7 @@ class DatasetService {
      */
     fun listProviderDatasets(providerId: UUID): AuthResult<List<DatasetResponse>> {
         val datasets = transaction {
+            // 查询当前提供者创建的数据集，并按最近更新时间倒序展示。
             DatasetsTable
                 .selectAll()
                 .where { DatasetsTable.providerId eq providerId }
@@ -139,6 +141,7 @@ class DatasetService {
      */
     fun listOpenDatasets(annotatorId: UUID): AuthResult<List<DatasetResponse>> {
         val datasets = transaction {
+            // 查询所有已开放的数据集，作为标注员可领取任务的候选列表。
             val datasetRows = DatasetsTable
                 .selectAll()
                 .where { DatasetsTable.status eq "open" }
@@ -149,8 +152,9 @@ class DatasetService {
             val pendingItemCount = DataItemsTable.id.count()
 
             val pendingCounts = if (datasetIds.isEmpty()) {
-                emptyMap<UUID, Long>()
+                emptyMap()
             } else {
+                // 查询每个开放数据集下仍处于 pending 的数据项数量。
                 DataItemsTable
                     .select(DataItemsTable.datasetId, pendingItemCount)
                     .where {
@@ -162,8 +166,9 @@ class DatasetService {
             }
 
             val activeByDataset = if (datasetIds.isEmpty()) {
-                emptyMap<UUID, Long>()
+                emptyMap()
             } else {
+                // 查询当前标注员在每个数据集下是否已有活跃任务单。
                 AnnotationTaskBatchesTable
                     .selectAll()
                     .where {
@@ -175,6 +180,7 @@ class DatasetService {
                     .mapValues { it.value.size.toLong() }
             }
 
+            // 查询当前标注员所有活跃任务单的任务项总量，用于限制同时持有数量。
             val totalActive = AnnotationTaskBatchesTable
                 .selectAll()
                 .where {
@@ -214,6 +220,7 @@ class DatasetService {
         }
 
         val result = transaction {
+            // 查询目标数据集，确认数据集存在且可被领取。
             val dataset = DatasetsTable
                 .selectAll()
                 .where { DatasetsTable.id eq datasetId }
@@ -225,6 +232,7 @@ class DatasetService {
                 return@transaction ClaimTasksTransactionResult.InvalidStatus
             }
 
+            // 查询当前标注员是否已持有该数据集的活跃任务单。
             val existingInDataset = AnnotationTaskBatchesTable
                 .selectAll()
                 .where {
@@ -238,6 +246,7 @@ class DatasetService {
                 return@transaction ClaimTasksTransactionResult.AlreadyClaimed
             }
 
+            // 查询当前标注员所有活跃任务单的任务项总数，控制并发持有上限。
             val totalActive = AnnotationTaskBatchesTable
                 .selectAll()
                 .where {
@@ -250,6 +259,7 @@ class DatasetService {
                 return@transaction ClaimTasksTransactionResult.TooManyActive
             }
 
+            // 查询数据集中最早创建的 pending 数据项，作为本次领取的任务项来源。
             val pendingItems = DataItemsTable
                 .selectAll()
                 .where {
@@ -268,6 +278,7 @@ class DatasetService {
             val batchId = UUID.randomUUID()
             val orderNo = generateOrderNo(now)
 
+            // 创建标注任务单记录，关联标注员和数据集，并记录领取数量和时间。
             AnnotationTaskBatchesTable.insert {
                 it[id] = batchId
                 it[AnnotationTaskBatchesTable.orderNo] = orderNo
@@ -283,6 +294,7 @@ class DatasetService {
             val tasks = pendingItems.map { item ->
                 val taskId = UUID.randomUUID()
 
+                // 为本次任务单下的每个数据项创建独立任务项。
                 AnnotationTasksTable.insert {
                     it[id] = taskId
                     it[AnnotationTasksTable.batchId] = batchId
@@ -295,6 +307,7 @@ class DatasetService {
                     it[updatedAt] = now
                 }
 
+                // 数据项已被领取后标记为 assigned，避免再次被其他领取请求选中。
                 DataItemsTable.update({ DataItemsTable.id eq item[DataItemsTable.id] }) {
                     it[status] = "assigned"
                     it[updatedAt] = now
@@ -373,6 +386,7 @@ class DatasetService {
 
                 val now = OffsetDateTime.now()
 
+                // 插入数据项
                 items.forEach { item ->
                     DataItemsTable.insert {
                         it[id] = UUID.randomUUID()
@@ -386,6 +400,7 @@ class DatasetService {
                     }
                 }
 
+                // 重新查询数据集的数据项总数，并同步写回 datasets.item_count。
                 val itemCount = DataItemsTable
                     .selectAll()
                     .where { DataItemsTable.datasetId eq datasetId }
@@ -410,7 +425,7 @@ class DatasetService {
                 ImportDataItemsTransactionResult.InvalidStatus -> AuthResult.BadRequest("只能向草稿状态的数据集导入数据项")
                 is ImportDataItemsTransactionResult.Success -> AuthResult.Success(response.value)
             }
-        } catch (error: ExposedSQLException) {
+        } catch (_: ExposedSQLException) {
             AuthResult.Conflict("数据项导入失败，请检查外部编号是否重复")
         }
     }
@@ -427,6 +442,7 @@ class DatasetService {
             findProviderDataset(providerId, datasetId)
                 ?: return@transaction null
 
+            // 查询指定数据集下的全部数据项，供提供者查看导入内容。
             DataItemsTable
                 .selectAll()
                 .where { DataItemsTable.datasetId eq datasetId }
@@ -556,6 +572,7 @@ class DatasetService {
                 return@transaction PublishDatasetTransactionResult.InvalidStatus
             }
 
+            // 查询数据集的数据项总数，发布前必须确保至少有一条数据。
             val itemCount = DataItemsTable
                 .selectAll()
                 .where { DataItemsTable.datasetId eq datasetId }
@@ -672,6 +689,7 @@ class DatasetService {
      * @return 最新数据项总数
      */
     private fun refreshDatasetItemCount(datasetId: UUID): Int {
+        // 查询数据集当前实际数据项数量，用于删除后刷新冗余计数字段。
         val itemCount = DataItemsTable
             .selectAll()
             .where { DataItemsTable.datasetId eq datasetId }
@@ -737,6 +755,7 @@ class DatasetService {
      * @return 查找到的数据集状态信息，不存在时返回 null
      */
     private fun findProviderDataset(providerId: UUID, datasetId: UUID): ProviderDatasetRecord? {
+        // 查询提供者名下的指定数据集，用于校验归属和读取状态。
         return DatasetsTable
             .selectAll()
             .where {
@@ -828,13 +847,14 @@ class DatasetService {
     fun listAnnotatorTasks(
         annotatorId: UUID,
         statusFilter: String?,
-    ): AuthResult<List<com.example.api.models.AnnotatorTaskResponse>> {
+    ): AuthResult<List<AnnotatorTaskResponse>> {
         val taskBatches = transaction {
             val baseCondition = AnnotationTaskBatchesTable.annotatorId eq annotatorId
             val condition = statusFilter?.let {
                 baseCondition and (AnnotationTaskBatchesTable.status eq it)
             } ?: baseCondition
 
+            // 查询当前标注员的任务单列表，可按任务单状态筛选。
             val batchRows = AnnotationTaskBatchesTable
                 .selectAll()
                 .where { condition }
@@ -847,6 +867,7 @@ class DatasetService {
             val datasets = if (datasetIds.isEmpty()) {
                 emptyMap()
             } else {
+                // 批量查询任务单关联的数据集名称，避免逐条查数据集。
                 DatasetsTable
                     .selectAll()
                     .where { DatasetsTable.id inList datasetIds }
@@ -856,6 +877,7 @@ class DatasetService {
             val tasksByBatch = if (batchIds.isEmpty()) {
                 emptyMap()
             } else {
+                // 批量查询任务单下的任务项，用于统计各状态数量。
                 AnnotationTasksTable
                     .selectAll()
                     .where { AnnotationTasksTable.batchId inList batchIds }
@@ -899,6 +921,7 @@ class DatasetService {
         batchId: UUID,
     ): AuthResult<List<com.example.api.models.AnnotatorTaskDetailResponse>> {
         val result = transaction {
+            // 查询任务单并校验其属于当前标注员。
             val batch = AnnotationTaskBatchesTable
                 .selectAll()
                 .where {
@@ -909,6 +932,7 @@ class DatasetService {
                 .firstOrNull()
                 ?: return@transaction null
 
+            // 查询任务单下的全部任务项，作为详情列表的主体数据。
             val taskRows = AnnotationTasksTable
                 .selectAll()
                 .where {
@@ -924,6 +948,7 @@ class DatasetService {
             val annotationsByTask = if (taskIds.isEmpty()) {
                 emptyMap()
             } else {
+                // 批量查询任务项已有标注结果，用于详情回显。
                 AnnotationsTable
                     .selectAll()
                     .where { AnnotationsTable.taskId inList taskIds }
@@ -933,6 +958,7 @@ class DatasetService {
             val items = if (itemIds.isEmpty()) {
                 emptyMap()
             } else {
+                // 批量查询任务项绑定的数据项内容。
                 DataItemsTable
                     .selectAll()
                     .where { DataItemsTable.id inList itemIds }
@@ -987,6 +1013,7 @@ class DatasetService {
         batchId: UUID,
     ): AuthResult<UpdateDatasetResponse> {
         val result = transaction {
+            // 查询任务单并校验其属于当前标注员。
             val batch = AnnotationTaskBatchesTable
                 .selectAll()
                 .where {
@@ -1001,6 +1028,7 @@ class DatasetService {
                 return@transaction ReturnTaskTransactionResult.InvalidStatus
             }
 
+            // 查询任务单下仍可退回的活跃任务项。
             val tasks = AnnotationTasksTable
                 .selectAll()
                 .where {
@@ -1057,6 +1085,7 @@ class DatasetService {
         batchId: UUID,
     ): AuthResult<UpdateDatasetResponse> {
         val result = transaction {
+            // 查询任务单并校验其属于当前标注员。
             val batch = AnnotationTaskBatchesTable
                 .selectAll()
                 .where {
@@ -1112,6 +1141,7 @@ class DatasetService {
         batchId: UUID,
     ): AuthResult<AnnotatorTaskWorkspaceResponse> {
         val result = transaction {
+            // 查询任务单并校验其属于当前标注员。
             val batch = AnnotationTaskBatchesTable
                 .selectAll()
                 .where {
@@ -1122,6 +1152,7 @@ class DatasetService {
                 .firstOrNull()
                 ?: return@transaction null
 
+            // 查询任务单所属的数据集，获取标注说明和标注配置。
             val dataset = DatasetsTable
                 .selectAll()
                 .where { DatasetsTable.id eq batch[AnnotationTaskBatchesTable.datasetId] }
@@ -1129,6 +1160,7 @@ class DatasetService {
                 .firstOrNull()
                 ?: return@transaction null
 
+            // 查询任务单下的任务项，作为工作台待标注列表。
             val taskRows = AnnotationTasksTable
                 .selectAll()
                 .where {
@@ -1144,6 +1176,7 @@ class DatasetService {
             val annotationsByTask = if (taskIds.isEmpty()) {
                 emptyMap()
             } else {
+                // 批量查询任务项已有标注结果，用于工作台恢复草稿/已提交内容。
                 AnnotationsTable
                     .selectAll()
                     .where { AnnotationsTable.taskId inList taskIds }
@@ -1153,6 +1186,7 @@ class DatasetService {
             val items = if (itemIds.isEmpty()) {
                 emptyMap()
             } else {
+                // 批量查询任务项绑定的数据项内容，避免在循环内查询。
                 DataItemsTable
                     .selectAll()
                     .where { DataItemsTable.id inList itemIds }
@@ -1241,6 +1275,7 @@ class DatasetService {
         }
 
         val result = transaction {
+            // 查询任务单并校验其属于当前标注员。
             val batch = AnnotationTaskBatchesTable
                 .selectAll()
                 .where {
@@ -1257,6 +1292,7 @@ class DatasetService {
 
             val taskIds = parsedSubmissions.map { it.taskId }
 
+            // 查询本次提交涉及的任务项，确保都属于当前任务单和标注员。
             val taskRows = AnnotationTasksTable
                 .selectAll()
                 .where {
@@ -1281,6 +1317,7 @@ class DatasetService {
                     return@transaction SubmitAnnotationBatchResult.InvalidTasks
                 }
 
+                // 查询任务项是否已有标注结果，决定后续插入还是覆盖更新。
                 val existingAnnotation = AnnotationsTable
                     .selectAll()
                     .where { AnnotationsTable.taskId eq submission.taskId }
@@ -1324,6 +1361,7 @@ class DatasetService {
                 }
             }
 
+            // 查询任务单下已提交的任务项数量，用于判断整单是否完成。
             val submittedCount = AnnotationTasksTable
                 .selectAll()
                 .where {

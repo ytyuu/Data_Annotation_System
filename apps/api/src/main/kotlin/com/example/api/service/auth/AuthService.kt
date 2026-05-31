@@ -46,6 +46,7 @@ class AuthService(securityConfig: SecurityConfig) {
 
         return try {
             val user = transaction {
+                // 查询用户名是否已存在，避免重复注册。
                 val exists = UsersTable
                     .selectAll()
                     .where { UsersTable.username eq username }
@@ -106,6 +107,7 @@ class AuthService(securityConfig: SecurityConfig) {
         }
 
         val loginUser = transaction {
+            // 查询登录用户名对应的账号记录，再在内存中校验密码。
             UsersTable
                 .selectAll()
                 .where { UsersTable.username eq username }
@@ -170,6 +172,7 @@ class AuthService(securityConfig: SecurityConfig) {
             ?: return AuthResult.Unauthorized("Token 用户 ID 无效")
 
         val user = transaction {
+            // 根据 Token 中的用户 ID 查询当前用户，确保账号仍然存在。
             UsersTable
                 .selectAll()
                 .where { UsersTable.id eq userId }
