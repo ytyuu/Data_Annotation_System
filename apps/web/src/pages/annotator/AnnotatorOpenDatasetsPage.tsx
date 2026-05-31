@@ -35,6 +35,8 @@ export function AnnotatorOpenDatasetsPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [claimingDatasetId, setClaimingDatasetId] = useState<string | null>(null);
+  const [claimStep, setClaimStep] = useState<1 | 2>(1);
+  const [claimTaskType, setClaimTaskType] = useState<'annotation' | 'review'>('annotation');
   const [claimCount, setClaimCount] = useState(20);
   const [claimLoading, setClaimLoading] = useState(false);
   const [claimError, setClaimError] = useState('');
@@ -90,7 +92,7 @@ export function AnnotatorOpenDatasetsPage() {
           Authorization: `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ count: claimCount }),
+        body: JSON.stringify({ count: claimCount, taskType: claimTaskType }),
       });
       const data = await response.json().catch(() => null);
 
@@ -181,40 +183,98 @@ export function AnnotatorOpenDatasetsPage() {
                         不可领取
                       </button>
                     ) : claimingDatasetId === dataset.id ? (
-                      <div className="flex items-center justify-end gap-2">
-                        <input
-                          type="number"
-                          min={1}
-                          max={1}
-                          value={claimCount}
-                          onChange={(e) => setClaimCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
-                          className="w-16 rounded border border-gray-300 px-2 py-1 text-right text-sm"
-                        />
-                        <button
-                          type="button"
-                          className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                          onClick={() => handleClaim(dataset.id)}
-                          disabled={claimLoading}
-                        >
-                          {claimLoading ? '...' : '确认'}
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-600 hover:bg-gray-50"
-                          onClick={() => {
-                            setClaimingDatasetId(null);
-                            setClaimError('');
-                          }}
-                        >
-                          取消
-                        </button>
-                      </div>
+                      claimStep === 1 ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            className={`rounded px-3 py-1 text-sm font-medium transition-colors ${
+                              claimTaskType === 'annotation'
+                                ? 'bg-blue-600 text-white'
+                                : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
+                            }`}
+                            onClick={() => setClaimTaskType('annotation')}
+                          >
+                            标注任务
+                          </button>
+                          <button
+                            type="button"
+                            className={`rounded px-3 py-1 text-sm font-medium transition-colors ${
+                              claimTaskType === 'review'
+                                ? 'bg-purple-600 text-white'
+                                : 'border border-gray-300 text-gray-600 hover:bg-gray-50'
+                            }`}
+                            onClick={() => setClaimTaskType('review')}
+                          >
+                            互查任务
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700"
+                            onClick={() => setClaimStep(2)}
+                          >
+                            下一步
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-600 hover:bg-gray-50"
+                            onClick={() => {
+                              setClaimingDatasetId(null);
+                              setClaimStep(1);
+                              setClaimError('');
+                            }}
+                          >
+                            取消
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-end gap-2">
+                          <span className="text-xs text-gray-500">
+                            {claimTaskType === 'annotation' ? '标注任务' : '互查任务'}
+                          </span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={100}
+                            value={claimCount}
+                            onChange={(e) => setClaimCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                            className="w-16 rounded border border-gray-300 px-2 py-1 text-right text-sm"
+                          />
+                          <button
+                            type="button"
+                            className="rounded bg-blue-600 px-3 py-1 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                            onClick={() => handleClaim(dataset.id)}
+                            disabled={claimLoading}
+                          >
+                            {claimLoading ? '...' : '确认'}
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-600 hover:bg-gray-50"
+                            onClick={() => setClaimStep(1)}
+                          >
+                            返回
+                          </button>
+                          <button
+                            type="button"
+                            className="rounded border border-gray-300 px-3 py-1 text-sm text-gray-600 hover:bg-gray-50"
+                            onClick={() => {
+                              setClaimingDatasetId(null);
+                              setClaimStep(1);
+                              setClaimError('');
+                            }}
+                          >
+                            取消
+                          </button>
+                        </div>
+                      )
                     ) : (
                       <button
                         type="button"
                         className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
                         onClick={() => {
                           setClaimingDatasetId(dataset.id);
+                          setClaimStep(1);
+                          setClaimTaskType('annotation');
                           setClaimCount(1);
                           setClaimError('');
                         }}

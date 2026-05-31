@@ -52,6 +52,7 @@ object AnnotationTaskBatchesTable : Table("annotation_task_batches") {
     val orderNo = varchar("order_no", 40).uniqueIndex()
     val datasetId = uuid("dataset_id").references(DatasetsTable.id, onDelete = ReferenceOption.CASCADE)
     val annotatorId = uuid("annotator_id").references(UsersTable.id)
+    val batchType = varchar("batch_type", 32).default("annotation")
     val status = varchar("status", 32)
     val totalCount = integer("total_count")
     val assignedAt = timestampWithTimeZone("assigned_at")

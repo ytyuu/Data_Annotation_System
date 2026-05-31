@@ -167,9 +167,11 @@ data class PublishDatasetResponse(
  * 标注员领取任务请求数据。
  *
  * @property count 期望领取的任务数量
+ * @property taskType 任务类别：`annotation` 标注任务，`review` 互查任务
  */
 data class ClaimTasksRequest(
     val count: Int = 1,
+    val taskType: String = "annotation",
 )
 
 /**

@@ -45,7 +45,7 @@ class AnnotatorDatasetHandler(private val datasetService: AnnotatorDatasetServic
         val datasetId = UUID.fromString(ctx.pathParam("datasetId"))
         val request = ctx.bodyAsClass(ClaimTasksRequest::class.java)
 
-        when (val result = datasetService.claimAnnotatorTasks(annotatorId, datasetId, request.count)) {
+        when (val result = datasetService.claimAnnotatorTasks(annotatorId, datasetId, request.count, request.taskType)) {
             is AuthResult.Success -> ctx.status(201).json(result.value)
             is AuthResult.BadRequest -> ctx.badRequest(result.message)
             is AuthResult.Unauthorized -> ctx.unauthorized(result.message)

@@ -16,6 +16,7 @@ import com.example.api.models.TaskAssignmentResponse
 import com.example.api.models.UpdateDatasetResponse
 import com.example.api.service.auth.AuthResult
 import org.jetbrains.exposed.sql.SortOrder
+import org.jetbrains.exposed.sql.Op
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.and
@@ -76,6 +77,22 @@ class AnnotatorDatasetService {
                     .mapValues { it.value.size.toLong() }
             }
 
+            // 查询当前标注员在每个数据集下是否已有互查类型的活跃任务单。
+            val activeReviewByDataset = if (datasetIds.isEmpty()) {
+                emptyMap()
+            } else {
+                AnnotationTaskBatchesTable
+                    .selectAll()
+                    .where {
+                        (AnnotationTaskBatchesTable.annotatorId eq annotatorId) and
+                            (AnnotationTaskBatchesTable.datasetId inList datasetIds) and
+                            (AnnotationTaskBatchesTable.batchType eq "review") and
+                            (AnnotationTaskBatchesTable.status inList activeBatchStatuses)
+                    }
+                    .groupBy { it[AnnotationTaskBatchesTable.datasetId] }
+                    .mapValues { it.value.size.toLong() }
+            }
+
             // 查询当前标注员所有活跃任务单的任务项总量，用于限制同时持有数量。
             val totalActive = AnnotationTaskBatchesTable
                 .selectAll()
@@ -85,11 +102,44 @@ class AnnotatorDatasetService {
                 }
                 .sumOf { it[AnnotationTaskBatchesTable.totalCount] }
 
+            // 查询每个数据集下已被标注、且当前标注员未参与过的数据项数量（互查任务来源）。
+            val reviewableCounts = if (datasetIds.isEmpty()) {
+                emptyMap()
+            } else {
+                val alreadyReviewedItemIds = AnnotationTasksTable
+                    .select(AnnotationTasksTable.itemId)
+                    .where {
+                        (AnnotationTasksTable.annotatorId eq annotatorId) and
+                            (AnnotationTasksTable.datasetId inList datasetIds)
+                    }
+                    .map { it[AnnotationTasksTable.itemId] }
+                    .toSet()
+
+                val reviewableItemCount = DataItemsTable.id.count()
+                DataItemsTable
+                    .select(DataItemsTable.datasetId, reviewableItemCount)
+                    .where {
+                        (DataItemsTable.datasetId inList datasetIds) and
+                            (DataItemsTable.status inList listOf("annotated", "disputed")) and
+                            if (alreadyReviewedItemIds.isEmpty()) {
+                                Op.TRUE
+                            } else {
+                                DataItemsTable.id notInList alreadyReviewedItemIds
+                            }
+                    }
+                    .groupBy(DataItemsTable.datasetId)
+                    .associate { it[DataItemsTable.datasetId] to it[reviewableItemCount] }
+            }
+
             datasetRows.map { row ->
                 val datasetId = row[DatasetsTable.id]
                 val hasPending = (pendingCounts[datasetId] ?: 0) > 0
+                val hasReviewable = (reviewableCounts[datasetId] ?: 0) > 0
                 val hasActiveInDataset = (activeByDataset[datasetId] ?: 0) > 0
-                val canClaim = hasPending && !hasActiveInDataset && totalActive < 5
+                val hasActiveReviewInDataset = (activeReviewByDataset[datasetId] ?: 0) > 0
+                val canClaimAnnotation = hasPending && !hasActiveInDataset && totalActive < 5
+                val canClaimReview = hasReviewable && !hasActiveReviewInDataset && totalActive < 5
+                val canClaim = canClaimAnnotation || canClaimReview
 
                 toDatasetResponse(row, canClaim)
             }
@@ -99,20 +149,25 @@ class AnnotatorDatasetService {
     }
 
     /**
-     * 为标注员领取指定数据集的待标注任务。
+     * 为标注员领取指定数据集的任务。
      *
      * @param annotatorId 标注员用户 ID
      * @param datasetId 数据集 ID
      * @param requestedCount 期望领取的任务数量
+     * @param taskType 任务类别：`annotation` 标注任务，`review` 互查任务
      * @return 领取结果
      */
     fun claimAnnotatorTasks(
         annotatorId: UUID,
         datasetId: UUID,
         requestedCount: Int,
+        taskType: String,
     ): AuthResult<ClaimTasksResponse> {
         if (requestedCount <= 0) {
             return AuthResult.BadRequest("领取数量必须大于 0")
+        }
+        if (taskType !in listOf("annotation", "review")) {
+            return AuthResult.BadRequest("任务类别必须是 annotation 或 review")
         }
 
         val result = transaction {
@@ -128,12 +183,13 @@ class AnnotatorDatasetService {
                 return@transaction ClaimTasksTransactionResult.InvalidStatus
             }
 
-            // 查询当前标注员是否已持有该数据集的活跃任务单。
+            // 查询当前标注员是否已持有该数据集同类型的活跃任务单。
             val existingInDataset = AnnotationTaskBatchesTable
                 .selectAll()
                 .where {
                     (AnnotationTaskBatchesTable.annotatorId eq annotatorId) and
                         (AnnotationTaskBatchesTable.datasetId eq datasetId) and
+                        (AnnotationTaskBatchesTable.batchType eq taskType) and
                         (AnnotationTaskBatchesTable.status inList activeBatchStatuses)
                 }
                 .count()
@@ -155,42 +211,65 @@ class AnnotatorDatasetService {
                 return@transaction ClaimTasksTransactionResult.TooManyActive
             }
 
-            // 查询数据集中最早创建的 pending 数据项，作为本次领取的任务项来源。
-            val pendingItems = DataItemsTable
-                .selectAll()
-                .where {
-                    (DataItemsTable.datasetId eq datasetId) and
-                        (DataItemsTable.status eq "pending")
-                }
-                .orderBy(DataItemsTable.createdAt to SortOrder.ASC)
-                .limit(requestedCount)
-                .toList()
+            val items = if (taskType == "review") {
+                // 互查任务：查询已被标注的数据项，排除当前标注员已参与过的。
+                val alreadyReviewedItemIds = AnnotationTasksTable
+                    .select(AnnotationTasksTable.itemId)
+                    .where {
+                        (AnnotationTasksTable.annotatorId eq annotatorId) and
+                            (AnnotationTasksTable.datasetId eq datasetId)
+                    }
+                    .map { it[AnnotationTasksTable.itemId] }
+                    .toSet()
 
-            if (pendingItems.isEmpty()) {
+                DataItemsTable
+                    .selectAll()
+                    .where {
+                        (DataItemsTable.datasetId eq datasetId) and
+                            (DataItemsTable.status inList listOf("annotated", "disputed")) and
+                            (DataItemsTable.id notInList alreadyReviewedItemIds)
+                    }
+                    .orderBy(DataItemsTable.createdAt to SortOrder.ASC)
+                    .limit(requestedCount)
+                    .toList()
+            } else {
+                // 标注任务：查询 pending 数据项。
+                DataItemsTable
+                    .selectAll()
+                    .where {
+                        (DataItemsTable.datasetId eq datasetId) and
+                            (DataItemsTable.status eq "pending")
+                    }
+                    .orderBy(DataItemsTable.createdAt to SortOrder.ASC)
+                    .limit(requestedCount)
+                    .toList()
+            }
+
+            if (items.isEmpty()) {
                 return@transaction ClaimTasksTransactionResult.EmptyDataset
             }
 
             val now = OffsetDateTime.now()
             val batchId = UUID.randomUUID()
-            val orderNo = generateOrderNo(now)
+            val orderNo = generateOrderNo(now, taskType)
 
-            // 创建标注任务单记录，关联标注员和数据集，并记录领取数量和时间。
+            // 创建任务单记录。
             AnnotationTaskBatchesTable.insert {
                 it[id] = batchId
                 it[AnnotationTaskBatchesTable.orderNo] = orderNo
                 it[AnnotationTaskBatchesTable.datasetId] = datasetId
                 it[AnnotationTaskBatchesTable.annotatorId] = annotatorId
+                it[batchType] = taskType
                 it[status] = "assigned"
-                it[totalCount] = pendingItems.size
+                it[totalCount] = items.size
                 it[assignedAt] = now
                 it[createdAt] = now
                 it[updatedAt] = now
             }
 
-            val tasks = pendingItems.map { item ->
+            val tasks = items.map { item ->
                 val taskId = UUID.randomUUID()
 
-                // 为本次任务单下的每个数据项创建独立任务项。
                 AnnotationTasksTable.insert {
                     it[id] = taskId
                     it[AnnotationTasksTable.batchId] = batchId
@@ -203,10 +282,12 @@ class AnnotatorDatasetService {
                     it[updatedAt] = now
                 }
 
-                // 数据项已被领取后标记为 assigned，避免再次被其他领取请求选中。
-                DataItemsTable.update({ DataItemsTable.id eq item[DataItemsTable.id] }) {
-                    it[status] = "assigned"
-                    it[updatedAt] = now
+                // 标注任务才需要改变数据项状态；互查任务保持原状态。
+                if (taskType == "annotation") {
+                    DataItemsTable.update({ DataItemsTable.id eq item[DataItemsTable.id] }) {
+                        it[status] = "assigned"
+                        it[updatedAt] = now
+                    }
                 }
 
                 TaskAssignmentResponse(
@@ -217,7 +298,7 @@ class AnnotatorDatasetService {
                         content = item[DataItemsTable.content],
                         contentType = item[DataItemsTable.contentType],
                         metadata = item[DataItemsTable.metadata],
-                        status = "assigned",
+                        status = item[DataItemsTable.status],
                         createdAt = item[DataItemsTable.createdAt].toString(),
                         updatedAt = now.toString(),
                     )
@@ -245,10 +326,11 @@ class AnnotatorDatasetService {
         }
     }
 
-    private fun generateOrderNo(now: OffsetDateTime): String {
+    private fun generateOrderNo(now: OffsetDateTime, taskType: String = "annotation"): String {
         val timestamp = now.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
         val suffix = UUID.randomUUID().toString().take(6).uppercase()
-        return "TASK-${timestamp}-${suffix}"
+        val prefix = if (taskType == "review") "REVIEW" else "TASK"
+        return "$prefix-${timestamp}-${suffix}"
     }
 
     /**
@@ -502,6 +584,8 @@ class AnnotatorDatasetService {
             }
 
             val now = OffsetDateTime.now()
+            val isReviewBatch = batch[AnnotationTaskBatchesTable.batchType] == "review"
+
             tasks.forEach { task ->
                 val taskId = task[AnnotationTasksTable.id]
                 val itemId = task[AnnotationTasksTable.itemId]
@@ -511,9 +595,12 @@ class AnnotatorDatasetService {
                     it[updatedAt] = now
                 }
 
-                DataItemsTable.update({ DataItemsTable.id eq itemId }) {
-                    it[status] = "pending"
-                    it[updatedAt] = now
+                // 仅标注任务退回时才恢复数据项状态为 pending；互查任务不影响原标注状态。
+                if (!isReviewBatch) {
+                    DataItemsTable.update({ DataItemsTable.id eq itemId }) {
+                        it[status] = "pending"
+                        it[updatedAt] = now
+                    }
                 }
             }
 
