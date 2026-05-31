@@ -32,6 +32,7 @@ fun registerDatasetRoutes(authMiddleware: AuthMiddleware?) {
         get("/annotator/datasets") { ctx -> annotatorDatasetHandler.listOpen(ctx) }
         post("/annotator/datasets/{datasetId}/claim") { ctx -> annotatorDatasetHandler.claim(ctx) }
         get("/annotator/datasets/{datasetId}/tasks") { ctx -> annotatorDatasetHandler.listDatasetTasks(ctx) }
+        post("/annotator/datasets/{datasetId}/return-all") { ctx -> annotatorDatasetHandler.returnDatasetTasks(ctx) }
         get("/annotator/tasks") { ctx -> annotatorDatasetHandler.listTasks(ctx) }
     }
 }

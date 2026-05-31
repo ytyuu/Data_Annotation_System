@@ -19,6 +19,8 @@ export function AnnotatorMyTasksPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [startMessage, setStartMessage] = useState('');
+  const [returningDatasetId, setReturningDatasetId] = useState<string | null>(null);
+  const [returnLoading, setReturnLoading] = useState(false);
 
   useEffect(() => {
     loadGroups();
@@ -54,6 +56,44 @@ export function AnnotatorMyTasksPage() {
 
   function handleStartAnnotating() {
     setStartMessage('标注工作台接入后，开始标注才会加载具体数据内容。');
+  }
+
+  function openReturnDialog(datasetId: string) {
+    setReturningDatasetId(datasetId);
+  }
+
+  function closeReturnDialog() {
+    setReturningDatasetId(null);
+  }
+
+  async function handleReturn(datasetId: string) {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/', { replace: true });
+      return;
+    }
+
+    setReturnLoading(true);
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/annotator/datasets/${datasetId}/return-all`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.message || `退回失败 (${response.status})`);
+      }
+
+      setReturningDatasetId(null);
+      loadGroups();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '退回失败');
+      setReturningDatasetId(null);
+    } finally {
+      setReturnLoading(false);
+    }
   }
 
   return (
@@ -109,10 +149,17 @@ export function AnnotatorMyTasksPage() {
                     )}
                   </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2">
                   <span className="text-xs text-gray-400">
                     最近分配 {new Date(group.lastAssignedAt).toLocaleString()}
                   </span>
+                  <button
+                    type="button"
+                    className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+                    onClick={() => openReturnDialog(group.datasetId)}
+                  >
+                    退回
+                  </button>
                   <button
                     type="button"
                     className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
@@ -124,6 +171,35 @@ export function AnnotatorMyTasksPage() {
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {returningDatasetId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg">
+            <h3 className="text-lg font-medium text-gray-900">确认退回</h3>
+            <p className="mt-2 text-sm text-gray-600">
+              确定要退回数据集「{groups.find((g) => g.datasetId === returningDatasetId)?.datasetName}」下的所有任务吗？
+            </p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                type="button"
+                className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                onClick={closeReturnDialog}
+                disabled={returnLoading}
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                onClick={() => handleReturn(returningDatasetId)}
+                disabled={returnLoading}
+              >
+                {returnLoading ? '退回中...' : '确认退回'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

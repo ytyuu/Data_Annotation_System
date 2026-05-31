@@ -22,6 +22,7 @@ import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
+import org.jetbrains.exposed.sql.count
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
@@ -136,22 +137,23 @@ class DatasetService {
 
             val datasetIds = datasetRows.map { it[DatasetsTable.id] }
             val activeStatuses = listOf("assigned", "in_progress")
+            val pendingItemCount = DataItemsTable.id.count()
 
             val pendingCounts = if (datasetIds.isEmpty()) {
-                emptyMap()
+                emptyMap<UUID, Long>()
             } else {
                 DataItemsTable
-                    .select(DataItemsTable.datasetId, DataItemsTable.id.count())
+                    .select(DataItemsTable.datasetId, pendingItemCount)
                     .where {
                         (DataItemsTable.datasetId inList datasetIds) and
                             (DataItemsTable.status eq "pending")
                     }
                     .groupBy(DataItemsTable.datasetId)
-                    .associate { it[DataItemsTable.datasetId] to it[DataItemsTable.id.count()] }
+                    .associate { it[DataItemsTable.datasetId] to it[pendingItemCount] }
             }
 
             val activeByDataset = if (datasetIds.isEmpty()) {
-                emptyMap()
+                emptyMap<UUID, Long>()
             } else {
                 AnnotationTasksTable
                     .selectAll()
@@ -908,5 +910,67 @@ class DatasetService {
         data class InvalidCount(val maxCount: Int) : ClaimTasksTransactionResult()
         data object NoAvailable : ClaimTasksTransactionResult()
         data class Success(val value: com.example.api.models.ClaimTasksResponse) : ClaimTasksTransactionResult()
+    }
+
+    /**
+     * 标注员批量退回指定数据集下的所有活跃任务。
+     *
+     * @param annotatorId 标注员用户 ID
+     * @param datasetId 数据集 ID
+     * @return 退回结果
+     */
+    fun returnDatasetTasks(
+        annotatorId: UUID,
+        datasetId: UUID,
+    ): AuthResult<com.example.api.models.UpdateDatasetResponse> {
+        val result = transaction {
+            val activeStatuses = listOf("assigned", "in_progress")
+
+            val tasks = AnnotationTasksTable
+                .selectAll()
+                .where {
+                    (AnnotationTasksTable.annotatorId eq annotatorId) and
+                        (AnnotationTasksTable.datasetId eq datasetId) and
+                        (AnnotationTasksTable.status inList activeStatuses)
+                }
+                .toList()
+
+            if (tasks.isEmpty()) {
+                return@transaction ReturnTaskTransactionResult.NotFound
+            }
+
+            val now = OffsetDateTime.now()
+
+            tasks.forEach { task ->
+                val taskId = task[AnnotationTasksTable.id]
+                val itemId = task[AnnotationTasksTable.itemId]
+
+                AnnotationTasksTable.update({ AnnotationTasksTable.id eq taskId }) {
+                    it[status] = "cancelled"
+                    it[updatedAt] = now
+                }
+
+                DataItemsTable.update({ DataItemsTable.id eq itemId }) {
+                    it[status] = "pending"
+                    it[updatedAt] = now
+                }
+            }
+
+            ReturnTaskTransactionResult.Success
+        }
+
+        return when (result) {
+            ReturnTaskTransactionResult.NotFound -> AuthResult.BadRequest("该数据集下没有可退回的任务")
+            ReturnTaskTransactionResult.InvalidStatus -> AuthResult.BadRequest("仅可退回已分配或进行中的任务")
+            ReturnTaskTransactionResult.Success -> AuthResult.Success(
+                com.example.api.models.UpdateDatasetResponse("任务已退回")
+            )
+        }
+    }
+
+    private enum class ReturnTaskTransactionResult {
+        Success,
+        NotFound,
+        InvalidStatus,
     }
 }

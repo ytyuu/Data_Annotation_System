@@ -12,7 +12,6 @@ import { ProviderReviewsPage } from './pages/provider/ProviderReviewsPage';
 import { ProviderDisputesPage } from './pages/provider/ProviderDisputesPage';
 import { AnnotatorOpenDatasetsPage } from './pages/annotator/AnnotatorOpenDatasetsPage';
 import { AnnotatorMyTasksPage } from './pages/annotator/AnnotatorMyTasksPage';
-import { AnnotatorReturnedTasksPage } from './pages/annotator/AnnotatorReturnedTasksPage';
 import { AnnotatorSubmissionsPage } from './pages/annotator/AnnotatorSubmissionsPage';
 
 function App() {
@@ -32,7 +31,6 @@ function App() {
           <Route index element={<Navigate to="open-datasets" replace />} />
           <Route path="open-datasets" element={<AnnotatorOpenDatasetsPage />} />
           <Route path="my-tasks" element={<AnnotatorMyTasksPage />} />
-          <Route path="returned-tasks" element={<AnnotatorReturnedTasksPage />} />
           <Route path="submissions" element={<AnnotatorSubmissionsPage />} />
         </Route>
         <Route path="/dashboard" element={<Navigate to="/" replace />} />

@@ -88,4 +88,22 @@ class AnnotatorDatasetHandler(private val datasetService: DatasetService) {
             is AuthResult.Conflict -> ctx.conflict(result.message)
         }
     }
+
+    /**
+     * 处理 `POST /api/annotator/datasets/{datasetId}/return-all` 请求。
+     *
+     * @param ctx Javalin 请求上下文
+     */
+    fun returnDatasetTasks(ctx: Context) {
+        val annotatorId = UUID.fromString(ctx.currentUser().id)
+        val datasetId = UUID.fromString(ctx.pathParam("datasetId"))
+
+        when (val result = datasetService.returnDatasetTasks(annotatorId, datasetId)) {
+            is AuthResult.Success -> ctx.json(result.value)
+            is AuthResult.BadRequest -> ctx.badRequest(result.message)
+            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
+            is AuthResult.Forbidden -> ctx.forbidden(result.message)
+            is AuthResult.Conflict -> ctx.conflict(result.message)
+        }
+    }
 }
