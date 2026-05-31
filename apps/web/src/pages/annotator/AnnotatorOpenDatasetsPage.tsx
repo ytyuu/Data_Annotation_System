@@ -98,7 +98,7 @@ export function AnnotatorOpenDatasetsPage() {
         throw new Error(data?.message || `领取失败 (${response.status})`);
       }
 
-      setClaimSuccess(`成功领取 ${data?.assignedCount || 0} 条任务`);
+      setClaimSuccess(`成功领取任务单 ${data?.orderNo || ''}，共 ${data?.assignedCount || 0} 条任务`);
       setClaimingDatasetId(null);
       loadOpenDatasets();
     } catch (err) {

@@ -175,7 +175,7 @@ data class ClaimTasksRequest(
 /**
  * 单条任务分配响应数据。
  *
- * @property taskId 标注任务 ID
+ * @property taskId 标注任务项 ID
  * @property item 数据项信息
  */
 data class TaskAssignmentResponse(
@@ -186,39 +186,57 @@ data class TaskAssignmentResponse(
 /**
  * 标注员领取任务响应数据。
  *
+ * @property batchId 任务单 ID
+ * @property orderNo 任务单号
+ * @property datasetId 数据集 ID
  * @property assignedCount 实际领取到的任务数量
  * @property tasks 领取到的任务列表
  */
 data class ClaimTasksResponse(
+    val batchId: String,
+    val orderNo: String,
+    val datasetId: String,
     val assignedCount: Int,
     val tasks: List<TaskAssignmentResponse>,
 )
 
 /**
- * 标注员任务按数据集分组响应数据。
+ * 标注员任务单响应数据。
  *
+ * @property batchId 任务单 ID
+ * @property orderNo 任务单号
  * @property datasetId 数据集 ID
  * @property datasetName 数据集名称
+ * @property status 任务单状态
  * @property totalCount 任务总数
  * @property assignedCount 已分配数量
  * @property inProgressCount 进行中数量
  * @property submittedCount 已提交数量
- * @property lastAssignedAt 最近分配时间
+ * @property assignedAt 领取时间
+ * @property startedAt 开始时间
+ * @property submittedAt 提交时间
  */
 data class AnnotatorTaskResponse(
+    val batchId: String,
+    val orderNo: String,
     val datasetId: String,
     val datasetName: String,
+    val status: String,
     val totalCount: Int,
     val assignedCount: Int,
     val inProgressCount: Int,
     val submittedCount: Int,
-    val lastAssignedAt: String,
+    val assignedAt: String,
+    val startedAt: String?,
+    val submittedAt: String?,
 )
 
 /**
  * 标注员单条任务详情响应数据（含数据项内容）。
  *
- * @property taskId 标注任务 ID
+ * @property batchId 任务单 ID
+ * @property orderNo 任务单号
+ * @property taskId 标注任务项 ID
  * @property item 数据项信息
  * @property status 任务状态
  * @property assignedAt 分配时间
@@ -226,6 +244,8 @@ data class AnnotatorTaskResponse(
  * @property submittedAt 提交时间
  */
 data class AnnotatorTaskDetailResponse(
+    val batchId: String,
+    val orderNo: String,
     val taskId: String,
     val item: DataItemResponse,
     val status: String,

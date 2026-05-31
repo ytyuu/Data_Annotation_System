@@ -31,8 +31,9 @@ fun registerDatasetRoutes(authMiddleware: AuthMiddleware?) {
     routeGroup(requireAuth(authMiddleware), requireRole("annotator")) {
         get("/annotator/datasets") { ctx -> annotatorDatasetHandler.listOpen(ctx) }
         post("/annotator/datasets/{datasetId}/claim") { ctx -> annotatorDatasetHandler.claim(ctx) }
-        get("/annotator/datasets/{datasetId}/tasks") { ctx -> annotatorDatasetHandler.listDatasetTasks(ctx) }
-        post("/annotator/datasets/{datasetId}/return-all") { ctx -> annotatorDatasetHandler.returnDatasetTasks(ctx) }
         get("/annotator/tasks") { ctx -> annotatorDatasetHandler.listTasks(ctx) }
+        get("/annotator/task-batches/{batchId}/tasks") { ctx -> annotatorDatasetHandler.listBatchTasks(ctx) }
+        post("/annotator/task-batches/{batchId}/return") { ctx -> annotatorDatasetHandler.returnTaskBatch(ctx) }
+        post("/annotator/task-batches/{batchId}/start") { ctx -> annotatorDatasetHandler.startTaskBatch(ctx) }
     }
 }

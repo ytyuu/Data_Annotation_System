@@ -72,15 +72,15 @@ class AnnotatorDatasetHandler(private val datasetService: DatasetService) {
     }
 
     /**
-     * 处理 `GET /api/annotator/datasets/{datasetId}/tasks` 请求。
+     * 处理 `GET /api/annotator/task-batches/{batchId}/tasks` 请求。
      *
      * @param ctx Javalin 请求上下文
      */
-    fun listDatasetTasks(ctx: Context) {
+    fun listBatchTasks(ctx: Context) {
         val annotatorId = UUID.fromString(ctx.currentUser().id)
-        val datasetId = UUID.fromString(ctx.pathParam("datasetId"))
+        val batchId = UUID.fromString(ctx.pathParam("batchId"))
 
-        when (val result = datasetService.listDatasetTasks(annotatorId, datasetId)) {
+        when (val result = datasetService.listBatchTasks(annotatorId, batchId)) {
             is AuthResult.Success -> ctx.json(result.value)
             is AuthResult.BadRequest -> ctx.badRequest(result.message)
             is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
@@ -90,15 +90,33 @@ class AnnotatorDatasetHandler(private val datasetService: DatasetService) {
     }
 
     /**
-     * 处理 `POST /api/annotator/datasets/{datasetId}/return-all` 请求。
+     * 处理 `POST /api/annotator/task-batches/{batchId}/return` 请求。
      *
      * @param ctx Javalin 请求上下文
      */
-    fun returnDatasetTasks(ctx: Context) {
+    fun returnTaskBatch(ctx: Context) {
         val annotatorId = UUID.fromString(ctx.currentUser().id)
-        val datasetId = UUID.fromString(ctx.pathParam("datasetId"))
+        val batchId = UUID.fromString(ctx.pathParam("batchId"))
 
-        when (val result = datasetService.returnDatasetTasks(annotatorId, datasetId)) {
+        when (val result = datasetService.returnTaskBatch(annotatorId, batchId)) {
+            is AuthResult.Success -> ctx.json(result.value)
+            is AuthResult.BadRequest -> ctx.badRequest(result.message)
+            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
+            is AuthResult.Forbidden -> ctx.forbidden(result.message)
+            is AuthResult.Conflict -> ctx.conflict(result.message)
+        }
+    }
+
+    /**
+     * 处理 `POST /api/annotator/task-batches/{batchId}/start` 请求。
+     *
+     * @param ctx Javalin 请求上下文
+     */
+    fun startTaskBatch(ctx: Context) {
+        val annotatorId = UUID.fromString(ctx.currentUser().id)
+        val batchId = UUID.fromString(ctx.pathParam("batchId"))
+
+        when (val result = datasetService.startTaskBatch(annotatorId, batchId)) {
             is AuthResult.Success -> ctx.json(result.value)
             is AuthResult.BadRequest -> ctx.badRequest(result.message)
             is AuthResult.Unauthorized -> ctx.unauthorized(result.message)

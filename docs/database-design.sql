@@ -88,10 +88,43 @@ comment on column data_items.status is '数据项状态：pending、assigned、a
 comment on column data_items.created_at is '创建时间';
 comment on column data_items.updated_at is '更新时间';
 
--- 标注任务分配表
--- 数据项分配给标注员后生成任务，用于跟踪领取、提交、退回和完成。
+-- 标注任务单表
+-- 标注员每次领取任务时生成一张任务单，任务单下包含多条具体任务项。
+create table annotation_task_batches (
+  id uuid primary key default gen_random_uuid(),
+  order_no varchar(40) not null unique,
+  dataset_id uuid not null references datasets(id) on delete cascade,
+  annotator_id uuid not null references users(id),
+  status varchar(32) not null default 'assigned'
+    check (status in ('assigned', 'in_progress', 'submitted', 'returned', 'accepted', 'cancelled')),
+  total_count integer not null default 0 check (total_count >= 0),
+  assigned_at timestamptz not null default now(),
+  started_at timestamptz,
+  submitted_at timestamptz,
+  due_at timestamptz,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+comment on table annotation_task_batches is '标注任务单表，记录标注员一次领取任务形成的统一任务单';
+comment on column annotation_task_batches.id is '任务单 ID';
+comment on column annotation_task_batches.order_no is '任务单号，用于前端展示和整单操作';
+comment on column annotation_task_batches.dataset_id is '所属数据集 ID';
+comment on column annotation_task_batches.annotator_id is '标注员用户 ID';
+comment on column annotation_task_batches.status is '任务单状态：assigned、in_progress、submitted、returned、accepted、cancelled';
+comment on column annotation_task_batches.total_count is '任务单下任务项数量';
+comment on column annotation_task_batches.assigned_at is '领取时间';
+comment on column annotation_task_batches.started_at is '开始标注时间';
+comment on column annotation_task_batches.submitted_at is '整单提交时间';
+comment on column annotation_task_batches.due_at is '任务单截止时间';
+comment on column annotation_task_batches.created_at is '创建时间';
+comment on column annotation_task_batches.updated_at is '更新时间';
+
+-- 标注任务项表
+-- 数据项分配给标注员后生成任务项，用于跟踪单条数据项的标注状态。
 create table annotation_tasks (
   id uuid primary key default gen_random_uuid(),
+  batch_id uuid not null references annotation_task_batches(id) on delete cascade,
   dataset_id uuid not null references datasets(id) on delete cascade,
   item_id uuid not null references data_items(id) on delete cascade,
   annotator_id uuid not null references users(id),
@@ -106,8 +139,9 @@ create table annotation_tasks (
   unique (item_id, annotator_id)
 );
 
-comment on table annotation_tasks is '标注任务分配表，记录数据项分配给标注员后的执行状态';
-comment on column annotation_tasks.id is '任务 ID';
+comment on table annotation_tasks is '标注任务项表，记录任务单下每个数据项的执行状态';
+comment on column annotation_tasks.id is '任务项 ID';
+comment on column annotation_tasks.batch_id is '所属任务单 ID';
 comment on column annotation_tasks.dataset_id is '所属数据集 ID';
 comment on column annotation_tasks.item_id is '待标注数据项 ID';
 comment on column annotation_tasks.annotator_id is '标注员用户 ID';
@@ -190,6 +224,11 @@ create index idx_data_items_dataset_status on data_items(dataset_id, status);
 create index idx_data_items_metadata_gin on data_items using gin (metadata);
 create index idx_data_items_pending_by_dataset on data_items(dataset_id, created_at) where status = 'pending';
 
+create index idx_annotation_task_batches_dataset_status on annotation_task_batches(dataset_id, status);
+create index idx_annotation_task_batches_annotator_dataset_status on annotation_task_batches(annotator_id, dataset_id, status);
+create index idx_annotation_task_batches_annotator_status_assigned_at on annotation_task_batches(annotator_id, status, assigned_at desc);
+
+create index idx_annotation_tasks_batch_status on annotation_tasks(batch_id, status);
 create index idx_annotation_tasks_dataset_status on annotation_tasks(dataset_id, status);
 create index idx_annotation_tasks_annotator_dataset_status on annotation_tasks(annotator_id, dataset_id, status);
 create index idx_annotation_tasks_annotator_status_assigned_at on annotation_tasks(annotator_id, status, assigned_at desc);
