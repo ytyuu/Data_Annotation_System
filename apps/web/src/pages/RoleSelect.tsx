@@ -9,7 +9,7 @@ const roles: { key: Role; title: string; desc: string }[] = [
     desc: '发布数据标注需求、管理数据集和查看标注进度',
   },
   {
-    key: 'annotator',
+    key: 'annotator',·
     title: '数据标注员',
     desc: '领取标注任务、执行数据标注并提交结果',
   },
