@@ -113,22 +113,24 @@ class DatasetService {
                 .selectAll()
                 .where { DatasetsTable.providerId eq providerId }
                 .orderBy(DatasetsTable.updatedAt to SortOrder.DESC)
-                .map { row ->
-                    DatasetResponse(
-                        id = row[DatasetsTable.id].toString(),
-                        providerId = row[DatasetsTable.providerId].toString(),
-                        name = row[DatasetsTable.name],
-                        description = row[DatasetsTable.description],
-                        annotationGuide = row[DatasetsTable.annotationGuide],
-                        annotationSchema = row[DatasetsTable.annotationSchema],
-                        status = row[DatasetsTable.status],
-                        targetCompletionRatio = row[DatasetsTable.targetCompletionRatio].toPlainString(),
-                        itemCount = row[DatasetsTable.itemCount],
-                        completedItemCount = row[DatasetsTable.completedItemCount],
-                        createdAt = row[DatasetsTable.createdAt].toString(),
-                        updatedAt = row[DatasetsTable.updatedAt].toString(),
-                    )
-                }
+                .map(::toDatasetResponse)
+        }
+
+        return AuthResult.Success(datasets)
+    }
+
+    /**
+     * 查询所有对标注员开放的数据集列表。
+     *
+     * @return 查询结果，成功时返回按更新时间倒序排列的数据集列表
+     */
+    fun listOpenDatasets(): AuthResult<List<DatasetResponse>> {
+        val datasets = transaction {
+            DatasetsTable
+                .selectAll()
+                .where { DatasetsTable.status eq "open" }
+                .orderBy(DatasetsTable.updatedAt to SortOrder.DESC)
+                .map(::toDatasetResponse)
         }
 
         return AuthResult.Success(datasets)
@@ -494,6 +496,29 @@ class DatasetService {
             status = row[DataItemsTable.status],
             createdAt = row[DataItemsTable.createdAt].toString(),
             updatedAt = row[DataItemsTable.updatedAt].toString(),
+        )
+    }
+
+    /**
+     * 将数据集表记录转换为响应数据。
+     *
+     * @param row 数据集表查询结果行
+     * @return 数据集响应数据
+     */
+    private fun toDatasetResponse(row: ResultRow): DatasetResponse {
+        return DatasetResponse(
+            id = row[DatasetsTable.id].toString(),
+            providerId = row[DatasetsTable.providerId].toString(),
+            name = row[DatasetsTable.name],
+            description = row[DatasetsTable.description],
+            annotationGuide = row[DatasetsTable.annotationGuide],
+            annotationSchema = row[DatasetsTable.annotationSchema],
+            status = row[DatasetsTable.status],
+            targetCompletionRatio = row[DatasetsTable.targetCompletionRatio].toPlainString(),
+            itemCount = row[DatasetsTable.itemCount],
+            completedItemCount = row[DatasetsTable.completedItemCount],
+            createdAt = row[DatasetsTable.createdAt].toString(),
+            updatedAt = row[DatasetsTable.updatedAt].toString(),
         )
     }
 
