@@ -18,7 +18,30 @@ object Main {
 
         DatabaseFactory.init(appConfig.database)
         createApp(appConfig).start(appConfig.server.port)
-        println("API server started at http://localhost:${appConfig.server.port}")
+        printStartupInfo(appConfig.server.port)
         Thread.currentThread().join()
+    }
+
+    /**
+     * 打印醒目的启动 banner，不依赖终端 banner 支持。
+     *
+     * @param port API 服务监听端口
+     */
+    private fun printStartupInfo(port: Int) {
+        val banner = """
+        |
+        |    ██████   █████  ████████  █████       █████  ███    ██ ███    ██  ██████  ████████  █████  ████████ ██  ██████  ███    ██
+        |    ██   ██ ██   ██    ██    ██   ██     ██   ██ ████   ██ ████   ██ ██    ██    ██    ██   ██    ██    ██ ██    ██ ████   ██
+        |    ██   ██ ███████    ██    ███████     ███████ ██ ██  ██ ██ ██  ██ ██    ██    ██    ███████    ██    ██ ██    ██ ██ ██  ██
+        |    ██   ██ ██   ██    ██    ██   ██     ██   ██ ██  ██ ██ ██  ██ ██ ██    ██    ██    ██   ██    ██    ██ ██    ██ ██  ██ ██
+        |    ██████  ██   ██    ██    ██   ██     ██   ██ ██   ████ ██   ████  ██████     ██    ██   ██    ██    ██  ██████  ██   ████
+        |
+        |   Local:   http://localhost:$port
+        |   Health:  http://localhost:$port/api/health
+        |   Docs:    http://localhost:$port/api/docs
+        |
+        """.trimMargin()
+        println()
+        println(banner)
     }
 }

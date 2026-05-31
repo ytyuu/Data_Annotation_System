@@ -21,7 +21,8 @@
 | 用户 | `users` | 记录提供者、标注员和管理员账号 |
 | 数据集 | `datasets` | 提供者上传的数据集主记录，包含标注说明、标注配置结构和整体状态 |
 | 数据项 | `data_items` | 数据集中每个待标注样本，可通过 `metadata` 保存来源、文件名、尺寸、语言、导入批次等扩展信息 |
-| 标注任务 | `annotation_tasks` | 数据项分配给标注员后的执行记录 |
+| 标注任务单 | `annotation_task_batches` | 标注员每次领取任务生成的统一单号，用于展示任务、退回、开始标注和再次领取判断 |
+| 标注任务项 | `annotation_tasks` | 任务单下每个数据项对应的执行记录，保留独立任务项 ID |
 | 标注结果 | `annotations` | 标注员提交的结构化结果和争议标记 |
 | 数据集审核 | `dataset_reviews` | 提供者对数据集标注质量的审核记录 |
 
@@ -30,8 +31,8 @@
 1. 数据集提供者上传数据集和标注文档。
 2. 系统创建 `datasets` 记录，并将导入的样本写入 `data_items`。
 3. 数据集准备完成后，提供者将数据集开放给标注员。
-4. 数据标注员选择数据集，系统为标注员生成或分配 `annotation_tasks`。
-5. 标注员根据 `annotation_guide` 和 `annotation_schema` 对数据项进行标注。
+4. 数据标注员选择数据集并领取任务，系统生成一张 `annotation_task_batches` 任务单，并为任务单下的数据项生成 `annotation_tasks` 任务项。
+5. 标注员根据任务单进入标注流程，并按照 `annotation_guide` 和 `annotation_schema` 对任务项中的数据项进行标注。
 6. 标注员提交结果后，系统写入 `annotations`，并更新任务和数据项状态。
 7. 如果标注员无法确定结果，可以将标注结果标记为争议或不确定。
 8. 系统根据完成比例、争议情况和任务状态判断是否触发复查或数据集审核。
@@ -93,7 +94,20 @@ draft -> open -> annotating -> reviewing -> completed
 | `accepted` | 审核通过 |
 | `rejected` | 审核不通过 |
 
-### 标注任务状态
+### 标注任务单状态
+
+`annotation_task_batches.status`：
+
+| 状态 | 含义 |
+| --- | --- |
+| `assigned` | 任务单已领取，尚未开始 |
+| `in_progress` | 任务单已开始标注 |
+| `submitted` | 任务单已提交 |
+| `returned` | 任务单被退回修改 |
+| `accepted` | 任务单结果被采纳 |
+| `cancelled` | 任务单取消或由标注员退回 |
+
+### 标注任务项状态
 
 `annotation_tasks.status`：
 

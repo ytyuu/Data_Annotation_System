@@ -37,7 +37,6 @@ object DatasetsTable : Table("datasets") {
 object DataItemsTable : Table("data_items") {
     val id = uuid("id")
     val datasetId = uuid("dataset_id").references(DatasetsTable.id, onDelete = ReferenceOption.CASCADE)
-    val externalKey = varchar("external_key", 120).nullable()
     val content = text("content")
     val contentType = varchar("content_type", 32)
     val metadata = jsonb("metadata")
@@ -46,14 +45,28 @@ object DataItemsTable : Table("data_items") {
     val updatedAt = timestampWithTimeZone("updated_at")
 
     override val primaryKey = PrimaryKey(id)
+}
 
-    init {
-        uniqueIndex(datasetId, externalKey)
-    }
+object AnnotationTaskBatchesTable : Table("annotation_task_batches") {
+    val id = uuid("id")
+    val orderNo = varchar("order_no", 40).uniqueIndex()
+    val datasetId = uuid("dataset_id").references(DatasetsTable.id, onDelete = ReferenceOption.CASCADE)
+    val annotatorId = uuid("annotator_id").references(UsersTable.id)
+    val status = varchar("status", 32)
+    val totalCount = integer("total_count")
+    val assignedAt = timestampWithTimeZone("assigned_at")
+    val startedAt = timestampWithTimeZone("started_at").nullable()
+    val submittedAt = timestampWithTimeZone("submitted_at").nullable()
+    val dueAt = timestampWithTimeZone("due_at").nullable()
+    val createdAt = timestampWithTimeZone("created_at")
+    val updatedAt = timestampWithTimeZone("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
 }
 
 object AnnotationTasksTable : Table("annotation_tasks") {
     val id = uuid("id")
+    val batchId = uuid("batch_id").references(AnnotationTaskBatchesTable.id, onDelete = ReferenceOption.CASCADE)
     val datasetId = uuid("dataset_id").references(DatasetsTable.id, onDelete = ReferenceOption.CASCADE)
     val itemId = uuid("item_id").references(DataItemsTable.id, onDelete = ReferenceOption.CASCADE)
     val annotatorId = uuid("annotator_id").references(UsersTable.id)
