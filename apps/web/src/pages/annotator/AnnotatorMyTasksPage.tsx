@@ -188,7 +188,7 @@ export function AnnotatorMyTasksPage() {
                     )}
                     {group.inProgressCount > 0 && (
                       <span className="rounded bg-blue-50 px-2 py-0.5 text-blue-600">
-                        进行中 {group.inProgressCount}/{group.totalCount}
+                        已完成 {group.submittedCount}/{group.totalCount}
                       </span>
                     )}
                     {group.submittedCount > 0 && (
@@ -224,12 +224,12 @@ export function AnnotatorMyTasksPage() {
                 <div className="px-4 pb-3">
                   <div className="flex items-center gap-3 text-xs text-gray-500">
                     <span>
-                      进度 {group.inProgressCount}/{group.totalCount}
+                      进度 {Math.min(100, Math.round((group.submittedCount / group.totalCount) * 100))}%
                     </span>
                     <div className="h-1 flex-1 rounded-full bg-gray-100">
                       <div
                         className="h-1 rounded-full bg-blue-500"
-                        style={{ width: `${Math.min(100, Math.round((group.inProgressCount / group.totalCount) * 100))}%` }}
+                        style={{ width: `${Math.min(100, Math.round((group.submittedCount / group.totalCount) * 100))}%` }}
                       />
                     </div>
                   </div>
