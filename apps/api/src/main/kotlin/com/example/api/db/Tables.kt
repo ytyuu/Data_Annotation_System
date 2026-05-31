@@ -37,7 +37,6 @@ object DatasetsTable : Table("datasets") {
 object DataItemsTable : Table("data_items") {
     val id = uuid("id")
     val datasetId = uuid("dataset_id").references(DatasetsTable.id, onDelete = ReferenceOption.CASCADE)
-    val externalKey = varchar("external_key", 120).nullable()
     val content = text("content")
     val contentType = varchar("content_type", 32)
     val metadata = jsonb("metadata")
@@ -46,10 +45,6 @@ object DataItemsTable : Table("data_items") {
     val updatedAt = timestampWithTimeZone("updated_at")
 
     override val primaryKey = PrimaryKey(id)
-
-    init {
-        uniqueIndex(datasetId, externalKey)
-    }
 }
 
 object AnnotationTasksTable : Table("annotation_tasks") {

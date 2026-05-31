@@ -69,21 +69,18 @@ comment on column datasets.updated_at is '更新时间';
 create table data_items (
   id uuid primary key default gen_random_uuid(),
   dataset_id uuid not null references datasets(id) on delete cascade,
-  external_key varchar(120),
   content text not null,
   content_type varchar(32) not null default 'text' check (content_type in ('text', 'image', 'audio', 'video', 'json')),
   metadata jsonb not null default '{}'::jsonb,
   status varchar(32) not null default 'pending'
     check (status in ('pending', 'assigned', 'annotated', 'disputed', 'accepted', 'rejected')),
   created_at timestamptz not null default now(),
-  updated_at timestamptz not null default now(),
-  unique (dataset_id, external_key)
+  updated_at timestamptz not null default now()
 );
 
 comment on table data_items is '数据项明细表，每一行代表一个待标注样本';
 comment on column data_items.id is '数据项 ID';
 comment on column data_items.dataset_id is '所属数据集 ID';
-comment on column data_items.external_key is '外部数据编号，可用于和原始文件或导入记录对应';
 comment on column data_items.content is '数据内容或资源地址';
 comment on column data_items.content_type is '内容类型：text、image、audio、video、json';
 comment on column data_items.metadata is '数据项扩展信息，例如来源、文件名、尺寸、语言、导入批次等，不保存标注规则或标注结果';

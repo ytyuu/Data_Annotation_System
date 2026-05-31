@@ -20,5 +20,11 @@ fun registerDatasetRoutes(authMiddleware: AuthMiddleware?) {
     routeGroup(requireAuth(authMiddleware), requireRole("provider")) {
         get("/provider/datasets") { ctx -> providerDatasetHandler.list(ctx) }
         post("/provider/datasets") { ctx -> providerDatasetHandler.create(ctx) }
+        put("/provider/datasets/{datasetId}") { ctx -> providerDatasetHandler.update(ctx) }
+        get("/provider/datasets/{datasetId}/items") { ctx -> providerDatasetHandler.listItems(ctx) }
+        post("/provider/datasets/{datasetId}/items") { ctx -> providerDatasetHandler.importItems(ctx) }
+        delete("/provider/datasets/{datasetId}/items/{itemId}") { ctx -> providerDatasetHandler.deleteItem(ctx) }
+        post("/provider/datasets/{datasetId}/publish") { ctx -> providerDatasetHandler.publish(ctx) }
+        delete("/provider/datasets/{datasetId}") { ctx -> providerDatasetHandler.delete(ctx) }
     }
 }
