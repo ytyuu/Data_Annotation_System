@@ -25,7 +25,7 @@ const taskBatchStatusLabels: Record<string, string> = {
   submitted: '已提交',
   returned: '已退回',
   accepted: '已通过',
-  cancelled: '已取消',
+  cancelled: '已退回',
 };
 
 export function AnnotatorMyTasksPage() {
@@ -210,13 +210,13 @@ export function AnnotatorMyTasksPage() {
                   <span className="text-xs text-gray-400">
                     领取时间 {new Date(group.assignedAt).toLocaleString()}
                   </span>
-                  {!['submitted', 'accepted'].includes(group.status) && (
+                  {['assigned', 'in_progress'].includes(group.status) && (
                     <>
                       <button
                         type="button"
                         className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                         onClick={() => openWorkspace(group)}
-                        disabled={!['assigned', 'in_progress'].includes(group.status) || startingBatchId === group.batchId}
+                        disabled={startingBatchId === group.batchId}
                       >
                         {startingBatchId === group.batchId ? '启动中...' : '开始标注'}
                       </button>
@@ -224,7 +224,6 @@ export function AnnotatorMyTasksPage() {
                         type="button"
                         className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
                         onClick={() => openReturnDialog(group.batchId)}
-                        disabled={!['assigned', 'in_progress'].includes(group.status)}
                       >
                         退回
                       </button>
