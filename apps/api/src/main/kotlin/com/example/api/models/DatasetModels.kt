@@ -242,6 +242,8 @@ data class AnnotatorTaskResponse(
  * @property assignedAt 分配时间
  * @property startedAt 开始时间
  * @property submittedAt 提交时间
+ * @property annotationResult 已提交的标注结果 JSON 字符串
+ * @property annotationIsDisputed 是否存在争议
  */
 data class AnnotatorTaskDetailResponse(
     val batchId: String,
@@ -252,4 +254,6 @@ data class AnnotatorTaskDetailResponse(
     val assignedAt: String,
     val startedAt: String?,
     val submittedAt: String?,
+    val annotationResult: String? = null,
+    val annotationIsDisputed: Boolean? = null,
 )

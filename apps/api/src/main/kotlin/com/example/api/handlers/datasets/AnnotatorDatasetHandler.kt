@@ -6,6 +6,7 @@ import com.example.api.http.forbidden
 import com.example.api.http.unauthorized
 import com.example.api.middleware.auth.currentUser
 import com.example.api.models.ClaimTasksRequest
+import com.example.api.models.SubmitAnnotationBatchRequest
 import com.example.api.service.auth.AuthResult
 import com.example.api.service.dataset.DatasetService
 import io.javalin.http.Context
@@ -90,6 +91,24 @@ class AnnotatorDatasetHandler(private val datasetService: DatasetService) {
     }
 
     /**
+     * 处理 `GET /api/annotator/task-batches/{batchId}/workspace` 请求。
+     *
+     * @param ctx Javalin 请求上下文
+     */
+    fun getBatchWorkspace(ctx: Context) {
+        val annotatorId = UUID.fromString(ctx.currentUser().id)
+        val batchId = UUID.fromString(ctx.pathParam("batchId"))
+
+        when (val result = datasetService.getAnnotatorTaskWorkspace(annotatorId, batchId)) {
+            is AuthResult.Success -> ctx.json(result.value)
+            is AuthResult.BadRequest -> ctx.badRequest(result.message)
+            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
+            is AuthResult.Forbidden -> ctx.forbidden(result.message)
+            is AuthResult.Conflict -> ctx.conflict(result.message)
+        }
+    }
+
+    /**
      * 处理 `POST /api/annotator/task-batches/{batchId}/return` 请求。
      *
      * @param ctx Javalin 请求上下文
@@ -99,6 +118,25 @@ class AnnotatorDatasetHandler(private val datasetService: DatasetService) {
         val batchId = UUID.fromString(ctx.pathParam("batchId"))
 
         when (val result = datasetService.returnTaskBatch(annotatorId, batchId)) {
+            is AuthResult.Success -> ctx.json(result.value)
+            is AuthResult.BadRequest -> ctx.badRequest(result.message)
+            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
+            is AuthResult.Forbidden -> ctx.forbidden(result.message)
+            is AuthResult.Conflict -> ctx.conflict(result.message)
+        }
+    }
+
+    /**
+     * 处理 `POST /api/annotator/task-batches/{batchId}/submit` 请求。
+     *
+     * @param ctx Javalin 请求上下文
+     */
+    fun submitBatch(ctx: Context) {
+        val annotatorId = UUID.fromString(ctx.currentUser().id)
+        val batchId = UUID.fromString(ctx.pathParam("batchId"))
+        val request = ctx.bodyAsClass(SubmitAnnotationBatchRequest::class.java)
+
+        when (val result = datasetService.submitAnnotationBatch(annotatorId, batchId, request.submissions)) {
             is AuthResult.Success -> ctx.json(result.value)
             is AuthResult.BadRequest -> ctx.badRequest(result.message)
             is AuthResult.Unauthorized -> ctx.unauthorized(result.message)

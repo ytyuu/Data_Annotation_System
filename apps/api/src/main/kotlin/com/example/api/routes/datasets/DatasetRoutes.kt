@@ -33,7 +33,9 @@ fun registerDatasetRoutes(authMiddleware: AuthMiddleware?) {
         post("/annotator/datasets/{datasetId}/claim") { ctx -> annotatorDatasetHandler.claim(ctx) }
         get("/annotator/tasks") { ctx -> annotatorDatasetHandler.listTasks(ctx) }
         get("/annotator/task-batches/{batchId}/tasks") { ctx -> annotatorDatasetHandler.listBatchTasks(ctx) }
+        get("/annotator/task-batches/{batchId}/workspace") { ctx -> annotatorDatasetHandler.getBatchWorkspace(ctx) }
         post("/annotator/task-batches/{batchId}/return") { ctx -> annotatorDatasetHandler.returnTaskBatch(ctx) }
+        post("/annotator/task-batches/{batchId}/submit") { ctx -> annotatorDatasetHandler.submitBatch(ctx) }
         post("/annotator/task-batches/{batchId}/start") { ctx -> annotatorDatasetHandler.startTaskBatch(ctx) }
     }
 }

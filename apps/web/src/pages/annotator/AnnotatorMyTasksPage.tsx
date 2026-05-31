@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AnnotatorTaskWorkspaceModal } from './AnnotatorTaskWorkspaceModal';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -32,10 +33,10 @@ export function AnnotatorMyTasksPage() {
   const [groups, setGroups] = useState<TaskGroup[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [startMessage, setStartMessage] = useState('');
   const [returningBatchId, setReturningBatchId] = useState<string | null>(null);
   const [returnLoading, setReturnLoading] = useState(false);
   const [startingBatchId, setStartingBatchId] = useState<string | null>(null);
+  const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
 
   useEffect(() => {
     loadGroups();
@@ -69,16 +70,15 @@ export function AnnotatorMyTasksPage() {
     }
   }
 
-  async function handleStartAnnotating(batchId: string) {
+  async function handleStartAnnotating(batchId: string): Promise<boolean> {
     const token = localStorage.getItem('token');
     if (!token) {
       navigate('/', { replace: true });
-      return;
+      return false;
     }
 
     setStartingBatchId(batchId);
     setError('');
-    setStartMessage('');
 
     try {
       const response = await fetch(`${apiBaseUrl}/api/annotator/task-batches/${batchId}/start`, {
@@ -91,14 +91,27 @@ export function AnnotatorMyTasksPage() {
         throw new Error(data?.message || `开始失败 (${response.status})`);
       }
 
-      const group = groups.find((item) => item.batchId === batchId);
-      setStartMessage(`任务单 ${group?.orderNo || ''} 已开始，标注工作台接入后会加载具体任务项。`);
       loadGroups();
+      return true;
     } catch (err) {
       setError(err instanceof Error ? err.message : '开始失败');
+      return false;
     } finally {
       setStartingBatchId(null);
     }
+  }
+
+  async function openWorkspace(group: TaskGroup) {
+    if (!['assigned', 'in_progress'].includes(group.status)) {
+      return;
+    }
+    if (group.status === 'assigned') {
+      const started = await handleStartAnnotating(group.batchId);
+      if (!started) {
+        return;
+      }
+    }
+    setActiveBatchId(group.batchId);
   }
 
   function openReturnDialog(batchId: string) {
@@ -153,11 +166,6 @@ export function AnnotatorMyTasksPage() {
       </div>
 
       {error && <div className="app-alert-error">{error}</div>}
-      {startMessage && (
-        <div className="mb-4 rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-700">
-          {startMessage}
-        </div>
-      )}
 
       {loading ? (
         <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
@@ -186,7 +194,7 @@ export function AnnotatorMyTasksPage() {
                         待开始 {group.assignedCount}
                       </span>
                     )}
-                    {group.inProgressCount > 0 && (
+                    {group.submittedCount > 0 && (
                       <span className="rounded bg-blue-50 px-2 py-0.5 text-blue-600">
                         已完成 {group.submittedCount}/{group.totalCount}
                       </span>
@@ -202,22 +210,26 @@ export function AnnotatorMyTasksPage() {
                   <span className="text-xs text-gray-400">
                     领取时间 {new Date(group.assignedAt).toLocaleString()}
                   </span>
-                  <button
-                    type="button"
-                    className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-                    onClick={() => handleStartAnnotating(group.batchId)}
-                    disabled={!['assigned', 'in_progress'].includes(group.status) || startingBatchId === group.batchId}
-                  >
-                    {startingBatchId === group.batchId ? '启动中...' : '开始标注'}
-                  </button>
-                  <button
-                    type="button"
-                    className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                    onClick={() => openReturnDialog(group.batchId)}
-                    disabled={!['assigned', 'in_progress'].includes(group.status)}
-                  >
-                    退回
-                  </button>
+                  {!['submitted', 'accepted'].includes(group.status) && (
+                    <>
+                      <button
+                        type="button"
+                        className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                        onClick={() => openWorkspace(group)}
+                        disabled={!['assigned', 'in_progress'].includes(group.status) || startingBatchId === group.batchId}
+                      >
+                        {startingBatchId === group.batchId ? '启动中...' : '开始标注'}
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                        onClick={() => openReturnDialog(group.batchId)}
+                        disabled={!['assigned', 'in_progress'].includes(group.status)}
+                      >
+                        退回
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
               {group.totalCount > 0 && group.inProgressCount > 0 && (
@@ -267,6 +279,16 @@ export function AnnotatorMyTasksPage() {
             </div>
           </div>
         </div>
+      )}
+      {activeBatchId && (
+        <AnnotatorTaskWorkspaceModal
+          batchId={activeBatchId}
+          onClose={() => setActiveBatchId(null)}
+          onSubmitted={() => {
+            setActiveBatchId(null);
+            loadGroups();
+          }}
+        />
       )}
     </div>
   );
