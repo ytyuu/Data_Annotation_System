@@ -51,7 +51,8 @@ mvnd exec:java -Dexec.args=8080
 ## 开发约定
 
 - 新增接口时优先放在 `routes/` 注册路由，并将具体处理逻辑放到 `handlers/`。
-- 响应模型优先放在 `models/`，避免在 handler 中散落匿名结构。
+- 请求和响应模型优先放在 `models/`，避免在 handler 中散落匿名结构。
+- `models/` 下的 DTO 按业务域拆分文件，不要新增“所有响应/请求集中放一起”的聚合文件。命名建议为 `AuthModels.kt`、`DatasetModels.kt`、`SystemModels.kt`、`DemoModels.kt`，后续业务继续按路由/领域命名，例如 `TaskModels.kt`、`AnnotationModels.kt`。
 - 保持 Javalin 配置集中在 `http/`，不要把跨域、序列化等全局 HTTP 配置分散到业务 handler。
 - 不要手动修改生成目录 `target/` 或 `build/`。
 

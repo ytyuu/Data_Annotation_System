@@ -3,10 +3,12 @@ package com.example.api.routes
 import com.example.api.config.SecurityConfig
 import com.example.api.config.ServerConfig
 import com.example.api.routes.auth.registerAuthRoutes
+import com.example.api.routes.datasets.registerDatasetRoutes
 import com.example.api.routes.demo.registerDemoRoutes
 import com.example.api.routes.health.registerHealthRoutes
 import com.example.api.routes.system.registerSystemRoutes
 import com.example.api.service.auth.AuthService
+import com.example.api.middleware.auth.AuthMiddleware
 import io.javalin.apibuilder.ApiBuilder.path
 import io.javalin.config.JavalinConfig
 
@@ -29,6 +31,7 @@ fun registerApiRoutes(config: JavalinConfig, serverConfig: ServerConfig) {
  */
 fun registerApiRoutes(config: JavalinConfig, serverConfig: ServerConfig, securityConfig: SecurityConfig?) {
     val authService = securityConfig?.let(::AuthService)
+    val authMiddleware = authService?.let(::AuthMiddleware)
 
     config.routes.apiBuilder {
         registerSystemRoutes(serverConfig)
@@ -37,6 +40,7 @@ fun registerApiRoutes(config: JavalinConfig, serverConfig: ServerConfig, securit
             registerHealthRoutes()
             registerDemoRoutes()
             registerAuthRoutes(authService)
+            registerDatasetRoutes(authMiddleware)
         }
     }
 }
