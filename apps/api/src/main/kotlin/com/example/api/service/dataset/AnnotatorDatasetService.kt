@@ -141,7 +141,15 @@ class AnnotatorDatasetService {
                 val canClaimReview = hasReviewable && !hasActiveReviewInDataset && totalActive < 5
                 val canClaim = canClaimAnnotation || canClaimReview
 
-                toDatasetResponse(row, canClaim)
+                val pendingCount = (pendingCounts[datasetId] ?: 0).toInt()
+                val reviewableCount = (reviewableCounts[datasetId] ?: 0).toInt()
+
+                toDatasetResponse(
+                    row,
+                    canClaim = canClaim,
+                    pendingItemCount = pendingCount,
+                    reviewableItemCount = reviewableCount,
+                )
             }
         }
 
@@ -339,7 +347,12 @@ class AnnotatorDatasetService {
      * @param row 数据集表查询结果行
      * @return 数据集响应数据
      */
-    private fun toDatasetResponse(row: ResultRow, canClaim: Boolean? = null): DatasetResponse {
+    private fun toDatasetResponse(
+        row: ResultRow,
+        canClaim: Boolean? = null,
+        pendingItemCount: Int? = null,
+        reviewableItemCount: Int? = null,
+    ): DatasetResponse {
         return DatasetResponse(
             id = row[DatasetsTable.id].toString(),
             providerId = row[DatasetsTable.providerId].toString(),
@@ -354,6 +367,8 @@ class AnnotatorDatasetService {
             createdAt = row[DatasetsTable.createdAt].toString(),
             updatedAt = row[DatasetsTable.updatedAt].toString(),
             canClaim = canClaim,
+            pendingItemCount = pendingItemCount,
+            reviewableItemCount = reviewableItemCount,
         )
     }
 

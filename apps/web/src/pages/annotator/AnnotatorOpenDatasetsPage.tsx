@@ -27,6 +27,8 @@ interface Dataset {
   createdAt: string;
   updatedAt: string;
   canClaim: boolean;
+  pendingItemCount?: number;
+  reviewableItemCount?: number;
 }
 
 export function AnnotatorOpenDatasetsPage() {
@@ -75,10 +77,18 @@ export function AnnotatorOpenDatasetsPage() {
     }
   }
 
+  function getMaxCount(dataset: Dataset, taskType: 'annotation' | 'review'): number {
+    if (taskType === 'annotation') {
+      return dataset.pendingItemCount ?? 100;
+    }
+    return dataset.reviewableItemCount ?? 100;
+  }
+
   function openClaimModal(dataset: Dataset) {
     setClaimDataset(dataset);
     setClaimTaskType('annotation');
-    setClaimCount(1);
+    const maxCount = getMaxCount(dataset, 'annotation');
+    setClaimCount(Math.min(1, maxCount));
     setClaimError('');
     setClaimOpen(true);
   }
@@ -160,7 +170,7 @@ export function AnnotatorOpenDatasetsPage() {
                 <th className="px-4 py-3">状态</th>
                 <th className="px-4 py-3">标注方式</th>
                 <th className="px-4 py-3">数据项</th>
-                <th className="px-4 py-3">更新时间</th>
+                <th className="px-4 py-3">余量</th>
                 <th className="px-4 py-3 text-right">操作</th>
               </tr>
             </thead>
@@ -186,8 +196,11 @@ export function AnnotatorOpenDatasetsPage() {
                   <td className="px-4 py-3 text-gray-600">
                     {dataset.completedItemCount}/{dataset.itemCount}
                   </td>
-                  <td className="px-4 py-3 text-gray-500">
-                    {new Date(dataset.updatedAt).toLocaleString()}
+                  <td className="px-4 py-3">
+                    <div className="text-xs text-gray-500">
+                      <div>标注 {dataset.pendingItemCount ?? 0} 条</div>
+                      <div>互查 {dataset.reviewableItemCount ?? 0} 条</div>
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-right">
                     {!dataset.canClaim ? (
@@ -241,7 +254,11 @@ export function AnnotatorOpenDatasetsPage() {
                 <div className="flex gap-3">
                   <button
                     type="button"
-                    onClick={() => setClaimTaskType('annotation')}
+                    onClick={() => {
+                      setClaimTaskType('annotation');
+                      const max = getMaxCount(claimDataset, 'annotation');
+                      setClaimCount((c) => Math.min(c, max));
+                    }}
                     style={{ outline: 'none' }}
                     className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-all ${
                       claimTaskType === 'annotation'
@@ -251,12 +268,16 @@ export function AnnotatorOpenDatasetsPage() {
                   >
                     <div className="text-center">标注任务</div>
                     <div className={`mt-1 text-xs ${claimTaskType === 'annotation' ? 'text-blue-100' : 'text-gray-400'}`}>
-                      对未标注数据进行首次标注
+                      余量 {claimDataset.pendingItemCount ?? 0} 条
                     </div>
                   </button>
                   <button
                     type="button"
-                    onClick={() => setClaimTaskType('review')}
+                    onClick={() => {
+                      setClaimTaskType('review');
+                      const max = getMaxCount(claimDataset, 'review');
+                      setClaimCount((c) => Math.min(c, max));
+                    }}
                     style={{ outline: 'none' }}
                     className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-all ${
                       claimTaskType === 'review'
@@ -266,7 +287,7 @@ export function AnnotatorOpenDatasetsPage() {
                   >
                     <div className="text-center">互查任务</div>
                     <div className={`mt-1 text-xs ${claimTaskType === 'review' ? 'text-blue-100' : 'text-gray-400'}`}>
-                      对已标注数据进行复核
+                      余量 {claimDataset.reviewableItemCount ?? 0} 条
                     </div>
                   </button>
                 </div>
@@ -274,16 +295,24 @@ export function AnnotatorOpenDatasetsPage() {
 
               {/* 领取数量 */}
               <div>
-                <label className="mb-2 block text-sm font-medium text-gray-700">领取数量</label>
+                <label className="mb-2 block text-sm font-medium text-gray-700">
+                  领取数量（上限 {getMaxCount(claimDataset, claimTaskType)} 条）
+                </label>
                 <input
                   type="number"
                   min={1}
-                  max={100}
+                  max={getMaxCount(claimDataset, claimTaskType)}
                   value={claimCount}
-                  onChange={(e) => setClaimCount(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                  onChange={(e) => {
+                    const max = getMaxCount(claimDataset, claimTaskType);
+                    const val = parseInt(e.target.value, 10) || 1;
+                    setClaimCount(Math.max(1, Math.min(val, max)));
+                  }}
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none"
                 />
-                <p className="mt-1 text-xs text-gray-400">请输入 1~100 之间的数量</p>
+                <p className="mt-1 text-xs text-gray-400">
+                  请输入 1~{getMaxCount(claimDataset, claimTaskType)} 之间的数量
+                </p>
               </div>
 
               {claimError && (
@@ -304,7 +333,7 @@ export function AnnotatorOpenDatasetsPage() {
                 type="button"
                 className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
                 onClick={handleClaim}
-                disabled={claimLoading}
+                disabled={claimLoading || claimCount <= 0 || claimCount > getMaxCount(claimDataset, claimTaskType)}
               >
                 {claimLoading ? '领取中...' : '确认领取'}
               </button>

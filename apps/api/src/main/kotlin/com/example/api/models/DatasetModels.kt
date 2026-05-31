@@ -33,6 +33,8 @@ data class CreateDatasetRequest(
  * @property createdAt 创建时间
  * @property updatedAt 更新时间
  * @property canClaim 是否可继续领取任务（标注员场景）
+ * @property pendingItemCount 数据集中待标注数据项数量
+ * @property reviewableItemCount 数据集中可互查数据项数量
  */
 data class DatasetResponse(
     val id: String,
@@ -48,6 +50,8 @@ data class DatasetResponse(
     val createdAt: String,
     val updatedAt: String,
     val canClaim: Boolean? = null,
+    val pendingItemCount: Int? = null,
+    val reviewableItemCount: Int? = null,
 )
 
 /**
