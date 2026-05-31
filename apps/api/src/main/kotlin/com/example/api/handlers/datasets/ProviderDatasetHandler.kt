@@ -9,16 +9,16 @@ import com.example.api.models.CreateDatasetRequest
 import com.example.api.models.ImportDataItemsRequest
 import com.example.api.models.UpdateDatasetRequest
 import com.example.api.service.auth.AuthResult
-import com.example.api.service.dataset.DatasetService
+import com.example.api.service.dataset.ProviderDatasetService
 import io.javalin.http.Context
 import java.util.UUID
 
 /**
  * 数据集提供者的数据集请求处理器。
  *
- * @property datasetService 数据集业务服务
+ * @property datasetService 数据集提供者业务服务
  */
-class ProviderDatasetHandler(private val datasetService: DatasetService) {
+class ProviderDatasetHandler(private val datasetService: ProviderDatasetService) {
     /**
      * 处理 `POST /api/provider/datasets` 请求。
      *

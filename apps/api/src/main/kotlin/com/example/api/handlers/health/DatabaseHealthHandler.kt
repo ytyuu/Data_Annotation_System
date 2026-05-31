@@ -20,6 +20,7 @@ object DatabaseHealthHandler {
         val latencyMs = try {
             measureTimeMillis {
                 queryResult = transaction {
+                    // 执行最轻量的数据库查询，确认连接可用且能返回结果。
                     exec("select 1") { resultSet ->
                         if (resultSet.next()) resultSet.getInt(1) else 0
                     } ?: 0
