@@ -104,20 +104,68 @@
     @apply mb-6 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-600;
   }
 
-  .app-status {
-    @apply mt-6 rounded border px-4 py-3 text-sm;
+  .app-badge {
+    @apply inline-flex items-center rounded px-2.5 py-1 text-xs font-medium ring-1 ring-inset;
   }
 
-  .app-status[data-kind='error'] {
-    @apply border-red-200 bg-red-50 text-red-600;
+  .app-badge[data-kind='dataset'] {
+    @apply bg-blue-50 text-blue-700 ring-blue-200;
   }
 
-  .app-status[data-kind='loading'] {
-    @apply border-gray-200 bg-gray-50 text-gray-500;
+  .app-badge[data-kind='status'] {
+    @apply bg-gray-100 text-gray-700 ring-gray-200;
   }
 
-  .app-status[data-kind='success'] {
-    @apply border-emerald-200 bg-emerald-50 text-emerald-700;
+  .app-badge[data-kind='status'][data-status='draft'] {
+    @apply bg-slate-100 text-slate-700 ring-slate-200;
+  }
+
+  .app-badge[data-kind='status'][data-status='open'] {
+    @apply bg-blue-50 text-blue-700 ring-blue-200;
+  }
+
+  .app-badge[data-kind='status'][data-status='annotating'] {
+    @apply bg-amber-50 text-amber-700 ring-amber-200;
+  }
+
+  .app-badge[data-kind='status'][data-status='reviewing'] {
+    @apply bg-purple-50 text-purple-700 ring-purple-200;
+  }
+
+  .app-badge[data-kind='status'][data-status='revision_required'] {
+    @apply bg-rose-50 text-rose-700 ring-rose-200;
+  }
+
+  .app-badge[data-kind='status'][data-status='completed'] {
+    @apply bg-emerald-50 text-emerald-700 ring-emerald-200;
+  }
+
+  .app-badge[data-kind='status'][data-status='closed'] {
+    @apply bg-gray-100 text-gray-600 ring-gray-200;
+  }
+
+  .app-badge[data-kind='status'][data-status='pending'] {
+    @apply bg-slate-50 text-slate-700 ring-slate-200;
+  }
+
+  .app-badge[data-kind='status'][data-status='assigned'] {
+    @apply bg-blue-50 text-blue-700 ring-blue-200;
+  }
+
+  .app-badge[data-kind='status'][data-status='annotated'] {
+    @apply bg-cyan-50 text-cyan-700 ring-cyan-200;
+  }
+
+  .app-badge[data-kind='status'][data-status='disputed'] {
+    @apply bg-rose-50 text-rose-700 ring-rose-200;
+  }
+
+  .app-badge[data-kind='status'][data-status='accepted'] {
+    @apply bg-emerald-50 text-emerald-700 ring-emerald-200;
+  }
+
+  .app-badge[data-kind='status'][data-status='rejected'] {
+    @apply bg-red-50 text-red-700 ring-red-200;
   }
 
   .app-result {

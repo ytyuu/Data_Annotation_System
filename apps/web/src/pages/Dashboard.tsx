@@ -19,6 +19,15 @@ const datasetStatusLabels: Record<string, string> = {
   closed: '已关闭',
 };
 
+const dataItemStatusLabels: Record<string, string> = {
+  pending: '待处理',
+  assigned: '已分配',
+  annotated: '已标注',
+  disputed: '有争议',
+  accepted: '已通过',
+  rejected: '未通过',
+};
+
 interface CurrentUser {
   id: string;
   username: string;
@@ -1069,11 +1078,13 @@ export function Dashboard() {
             <div className="grid grid-cols-2 gap-4">
               <div className="app-field">
                 <div className="app-label">数据集名称</div>
-                <div className="text-sm text-gray-900">{dataset.name}</div>
+                <div className="text-sm text-gray-900">
+                  {dataset.name}
+                </div>
               </div>
               <div className="app-field">
                 <div className="app-label">状态</div>
-                <span className="inline-flex rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">
+                <span className="app-badge" data-kind="status" data-status={dataset.status}>
                   {datasetStatusLabels[dataset.status] || dataset.status}
                 </span>
               </div>
@@ -1214,8 +1225,8 @@ export function Dashboard() {
                           <div className="line-clamp-2">{item.content}</div>
                         </td>
                         <td className="px-4 py-3">
-                          <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">
-                            {item.status}
+                          <span className="app-badge" data-kind="status" data-status={item.status}>
+                            {dataItemStatusLabels[item.status] || item.status}
                           </span>
                         </td>
                         <td className="px-4 py-3 text-gray-500">
@@ -1305,7 +1316,7 @@ export function Dashboard() {
                         )}
                       </td>
                       <td className="px-4 py-3">
-                        <span className="rounded bg-gray-100 px-2 py-1 text-xs text-gray-700">
+                        <span className="app-badge" data-kind="status" data-status={dataset.status}>
                           {datasetStatusLabels[dataset.status] || dataset.status}
                         </span>
                       </td>
