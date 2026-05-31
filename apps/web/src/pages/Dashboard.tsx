@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -119,6 +119,7 @@ const initialDatasetForm: DatasetForm = {
 
 export function Dashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [state, setState] = useState<LoadState>('loading');
   const [error, setError] = useState('');
@@ -212,6 +213,32 @@ export function Dashboard() {
 
     loadCurrentUser();
   }, [navigate]);
+
+  useEffect(() => {
+    if (state !== 'ready' || !user) {
+      return;
+    }
+
+    const expectedPath = user.role === 'provider'
+      ? '/provider/dashboard'
+      : user.role === 'annotator'
+        ? '/annotator/dashboard'
+        : '';
+
+    if (expectedPath && location.pathname !== expectedPath) {
+      navigate(expectedPath, { replace: true });
+    }
+  }, [location.pathname, navigate, state, user]);
+
+  const dashboardPath = useMemo(() => {
+    if (user?.role === 'provider') {
+      return '/provider/dashboard';
+    }
+    if (user?.role === 'annotator') {
+      return '/annotator/dashboard';
+    }
+    return '/';
+  }, [user?.role]);
 
   useEffect(() => {
     if (state !== 'ready' || user?.role !== 'provider') {
@@ -1424,7 +1451,7 @@ export function Dashboard() {
         <div className="flex items-center gap-6">
           <div className="text-base font-semibold text-gray-900">数据标注系统</div>
           <nav className="flex items-center gap-4 text-sm text-gray-500">
-            <Link to="/dashboard" className="font-medium text-blue-600">
+            <Link to={dashboardPath} className="font-medium text-blue-600">
               工作台
             </Link>
             <Link to="/api-test" className="hover:text-gray-700">

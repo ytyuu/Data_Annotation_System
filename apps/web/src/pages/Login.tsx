@@ -53,7 +53,7 @@ export function Login() {
 
       const data = await res.json();
       localStorage.setItem('token', data.token);
-      navigate('/dashboard');
+      navigate(role === 'provider' ? '/provider/dashboard' : '/annotator/dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : '登录失败，请重试');
     } finally {

@@ -14,7 +14,9 @@ function App() {
         <Route path="/" element={<RoleSelect />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/provider/dashboard" element={<Dashboard />} />
+        <Route path="/annotator/dashboard" element={<Dashboard />} />
+        <Route path="/dashboard" element={<Navigate to="/" replace />} />
         <Route path="/api-test" element={<ApiTest />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
