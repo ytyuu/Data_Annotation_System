@@ -174,8 +174,8 @@ export function AnnotatorMyTasksPage() {
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="flex items-center gap-4">
                   <div>
-                    <div className="font-medium text-gray-900">{group.orderNo}</div>
-                    <div className="mt-1 text-xs text-gray-500">{group.datasetName}</div>
+                    <div className="font-medium text-gray-900">{group.datasetName}</div>
+                    <div className="mt-1 text-xs text-gray-500">{group.orderNo}</div>
                   </div>
                   <div className="flex gap-2 text-xs">
                     <span className="rounded bg-gray-100 px-2 py-0.5 text-gray-600">
@@ -188,7 +188,7 @@ export function AnnotatorMyTasksPage() {
                     )}
                     {group.inProgressCount > 0 && (
                       <span className="rounded bg-blue-50 px-2 py-0.5 text-blue-600">
-                        进行中 {group.inProgressCount}
+                        进行中 {group.inProgressCount}/{group.totalCount}
                       </span>
                     )}
                     {group.submittedCount > 0 && (
@@ -204,22 +204,37 @@ export function AnnotatorMyTasksPage() {
                   </span>
                   <button
                     type="button"
-                    className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
-                    onClick={() => openReturnDialog(group.batchId)}
-                    disabled={!['assigned', 'in_progress'].includes(group.status)}
-                  >
-                    退回
-                  </button>
-                  <button
-                    type="button"
                     className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                     onClick={() => handleStartAnnotating(group.batchId)}
                     disabled={!['assigned', 'in_progress'].includes(group.status) || startingBatchId === group.batchId}
                   >
                     {startingBatchId === group.batchId ? '启动中...' : '开始标注'}
                   </button>
+                  <button
+                    type="button"
+                    className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                    onClick={() => openReturnDialog(group.batchId)}
+                    disabled={!['assigned', 'in_progress'].includes(group.status)}
+                  >
+                    退回
+                  </button>
                 </div>
               </div>
+              {group.totalCount > 0 && group.inProgressCount > 0 && (
+                <div className="px-4 pb-3">
+                  <div className="flex items-center gap-3 text-xs text-gray-500">
+                    <span>
+                      进度 {group.inProgressCount}/{group.totalCount}
+                    </span>
+                    <div className="h-1 flex-1 rounded-full bg-gray-100">
+                      <div
+                        className="h-1 rounded-full bg-blue-500"
+                        style={{ width: `${Math.min(100, Math.round((group.inProgressCount / group.totalCount) * 100))}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>
