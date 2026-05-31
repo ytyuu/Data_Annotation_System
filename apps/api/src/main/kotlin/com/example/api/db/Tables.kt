@@ -41,6 +41,7 @@ object DataItemsTable : Table("data_items") {
     val contentType = varchar("content_type", 32)
     val metadata = jsonb("metadata")
     val status = varchar("status", 32)
+    val reviewResult = jsonb("review_result").nullable()
     val createdAt = timestampWithTimeZone("created_at")
     val updatedAt = timestampWithTimeZone("updated_at")
 

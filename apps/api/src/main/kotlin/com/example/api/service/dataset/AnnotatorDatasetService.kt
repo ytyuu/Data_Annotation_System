@@ -901,8 +901,15 @@ class AnnotatorDatasetService {
                     it[updatedAt] = now
                 }
 
+                val isReviewBatch = batch[AnnotationTaskBatchesTable.batchType] == "review"
                 DataItemsTable.update({ DataItemsTable.id eq submission.itemId }) {
-                    it[status] = if (submission.isDisputed) "disputed" else "annotated"
+                    if (isReviewBatch) {
+                        // 互查任务：将复核结果写入 review_result，不改变原标注状态。
+                        it[reviewResult] = submission.result
+                    } else {
+                        // 标注任务：首次标注，更新数据项状态。
+                        it[status] = if (submission.isDisputed) "disputed" else "annotated"
+                    }
                     it[updatedAt] = now
                 }
             }
