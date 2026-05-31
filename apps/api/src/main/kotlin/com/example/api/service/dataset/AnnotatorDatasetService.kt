@@ -870,6 +870,8 @@ class AnnotatorDatasetService {
                     .limit(1)
                     .firstOrNull()
 
+                val isReviewBatch = batch[AnnotationTaskBatchesTable.batchType] == "review"
+
                 if (existingAnnotation == null) {
                     AnnotationsTable.insert {
                         it[id] = UUID.randomUUID()
@@ -877,6 +879,9 @@ class AnnotatorDatasetService {
                         it[AnnotationsTable.itemId] = submission.itemId
                         it[AnnotationsTable.annotatorId] = annotatorId
                         it[result] = submission.result
+                        if (isReviewBatch) {
+                            it[reviewResult] = submission.result
+                        }
                         it[comment] = submission.comment
                         it[isDisputed] = submission.isDisputed
                         it[status] = "submitted"
@@ -887,6 +892,9 @@ class AnnotatorDatasetService {
                 } else {
                     AnnotationsTable.update({ AnnotationsTable.taskId eq submission.taskId }) {
                         it[result] = submission.result
+                        if (isReviewBatch) {
+                            it[reviewResult] = submission.result
+                        }
                         it[comment] = submission.comment
                         it[isDisputed] = submission.isDisputed
                         it[status] = "submitted"
@@ -901,16 +909,12 @@ class AnnotatorDatasetService {
                     it[updatedAt] = now
                 }
 
-                val isReviewBatch = batch[AnnotationTaskBatchesTable.batchType] == "review"
-                DataItemsTable.update({ DataItemsTable.id eq submission.itemId }) {
-                    if (isReviewBatch) {
-                        // 互查任务：将复核结果写入 review_result，不改变原标注状态。
-                        it[reviewResult] = submission.result
-                    } else {
-                        // 标注任务：首次标注，更新数据项状态。
+                // 标注任务提交时更新数据项状态；互查任务不改变原数据项状态。
+                if (batch[AnnotationTaskBatchesTable.batchType] != "review") {
+                    DataItemsTable.update({ DataItemsTable.id eq submission.itemId }) {
                         it[status] = if (submission.isDisputed) "disputed" else "annotated"
+                        it[updatedAt] = now
                     }
-                    it[updatedAt] = now
                 }
             }
 

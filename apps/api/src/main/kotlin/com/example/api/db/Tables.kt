@@ -41,7 +41,6 @@ object DataItemsTable : Table("data_items") {
     val contentType = varchar("content_type", 32)
     val metadata = jsonb("metadata")
     val status = varchar("status", 32)
-    val reviewResult = jsonb("review_result").nullable()
     val createdAt = timestampWithTimeZone("created_at")
     val updatedAt = timestampWithTimeZone("updated_at")
 
@@ -93,6 +92,7 @@ object AnnotationsTable : Table("annotations") {
     val itemId = uuid("item_id").references(DataItemsTable.id, onDelete = ReferenceOption.CASCADE)
     val annotatorId = uuid("annotator_id").references(UsersTable.id)
     val result = jsonb("result")
+    val reviewResult = jsonb("review_result").nullable()
     val comment = text("comment").nullable()
     val isDisputed = bool("is_disputed")
     val status = varchar("status", 32)
