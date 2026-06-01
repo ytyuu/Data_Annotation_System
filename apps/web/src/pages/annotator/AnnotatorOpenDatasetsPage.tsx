@@ -197,9 +197,9 @@ export function AnnotatorOpenDatasetsPage() {
                     {dataset.completedItemCount}/{dataset.itemCount}
                   </td>
                   <td className="px-4 py-3">
-                    <div className="text-xs text-gray-500">
-                      <div>标注 {dataset.pendingItemCount ?? 0} 条</div>
-                      <div>互查 {dataset.reviewableItemCount ?? 0} 条</div>
+                    <div className="flex flex-col gap-1.5">
+                      <RemainingCount label="标注" value={dataset.pendingItemCount ?? 0} />
+                      <RemainingCount label="互查" value={dataset.reviewableItemCount ?? 0} />
                     </div>
                   </td>
                   <td className="px-4 py-3 text-right">
@@ -341,6 +341,18 @@ export function AnnotatorOpenDatasetsPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function RemainingCount({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="inline-flex w-fit items-center gap-1.5 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-500">
+      <span>{label}</span>
+      <span className="min-w-5 text-center text-sm font-semibold leading-none text-gray-900">
+        {value}
+      </span>
+      <span>条</span>
     </div>
   );
 }
