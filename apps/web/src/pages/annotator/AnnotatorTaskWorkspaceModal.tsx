@@ -122,12 +122,12 @@ function renderItemContent(item: TaskWorkspaceItem) {
   }
   if (item.contentType === 'json') {
     return (
-      <pre className="whitespace-pre-wrap rounded border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+      <pre className="whitespace-pre-wrap rounded border border-gray-200 bg-gray-50 p-4 text-base leading-7 text-gray-700">
         {item.content}
       </pre>
     );
   }
-  return <div className="whitespace-pre-wrap text-sm text-gray-800">{item.content}</div>;
+  return <div className="whitespace-pre-wrap text-base leading-7 text-gray-800">{item.content}</div>;
 }
 
 export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: AnnotatorTaskWorkspaceModalProps) {
@@ -353,12 +353,12 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
       <div className="flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-lg bg-white shadow-lg">
         <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
           <div>
-            <div className="text-lg font-semibold text-gray-900">{workspace?.datasetName || '标注工作台'}</div>
-            {workspace && <div className="mt-1 text-xs text-gray-500">任务单 {workspace.orderNo}</div>}
+            <div className="text-xl font-semibold text-gray-900">{workspace?.datasetName || '标注工作台'}</div>
+            {workspace && <div className="mt-1 text-sm text-gray-500">任务单 {workspace.orderNo}</div>}
           </div>
           <button
             type="button"
-            className="rounded border border-gray-300 px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+            className="rounded border border-gray-300 px-4 py-2 text-base text-gray-600 hover:bg-gray-50"
             onClick={onClose}
           >
             关闭
@@ -366,14 +366,14 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
         </div>
 
         {loading ? (
-          <div className="p-6 text-sm text-gray-500">正在加载任务...</div>
+          <div className="p-6 text-base text-gray-500">正在加载任务...</div>
         ) : error ? (
-          <div className="p-6 text-sm text-red-600">{error}</div>
+          <div className="p-6 text-base text-red-600">{error}</div>
         ) : workspace ? (
           <div className="flex h-full flex-1 flex-col gap-4 overflow-hidden p-6">
             <div className="flex flex-1 gap-6 overflow-hidden">
               <div className="flex flex-1 flex-col gap-4 overflow-hidden">
-                <div className="flex items-center justify-between text-sm text-gray-600">
+                <div className="flex items-center justify-between text-base text-gray-600">
                   <div>
                     当前任务 {currentIndex + 1}/{tasks.length}
                   </div>
@@ -388,21 +388,21 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
                       isAdvancing ? 'opacity-50' : 'opacity-100'
                     }`}
                   >
-                    <div className="text-sm font-medium text-gray-700">数据内容</div>
+                    <div className="text-base font-medium text-gray-700">数据内容</div>
                     <div className="flex-1 overflow-auto">{renderItemContent(currentTask.item)}</div>
 
                     <div className="border-t border-gray-200 pt-4">
-                      <div className="text-sm font-medium text-gray-700">标注结果</div>
+                      <div className="text-base font-medium text-gray-700">标注结果</div>
                       {!supportsSelection ? (
-                        <div className="mt-2 text-sm text-gray-500">暂不支持该标注类型</div>
+                        <div className="mt-2 text-base text-gray-500">暂不支持该标注类型</div>
                       ) : (
-                        <div className="mt-3 grid gap-2">
+                        <div className="mt-4 grid gap-3">
                           {(schema?.options ?? []).map((option) => {
                             const checked = selection.includes(option.value);
                             return (
                               <label
                                 key={option.value}
-                                className={`flex cursor-pointer items-center gap-2 rounded border px-3 py-2 text-sm ${
+                                className={`flex min-h-14 cursor-pointer items-center gap-3 rounded border px-5 py-4 text-lg font-medium transition-colors ${
                                   checked ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-700'
                                 }`}
                               >
@@ -410,6 +410,7 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
                                   type={isMultiple ? 'checkbox' : 'radio'}
                                   checked={checked}
                                   onChange={() => updateSelection(option.value)}
+                                  className="h-5 w-5"
                                 />
                                 {option.label}
                               </label>
@@ -420,14 +421,14 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
                     </div>
                   </div>
                 ) : (
-                  <div className="rounded border border-gray-200 p-6 text-sm text-gray-500">暂无任务</div>
+                  <div className="rounded border border-gray-200 p-6 text-base text-gray-500">暂无任务</div>
                 )}
 
                 <div className="flex items-center justify-between">
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      className="rounded border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      className="rounded border border-gray-300 px-5 py-2.5 text-base text-gray-700 hover:bg-gray-50"
                       onClick={() => goToIndex(currentIndex - 1)}
                       disabled={currentIndex === 0}
                     >
@@ -435,7 +436,7 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
                     </button>
                     <button
                       type="button"
-                      className="rounded border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      className="rounded border border-gray-300 px-5 py-2.5 text-base text-gray-700 hover:bg-gray-50"
                       onClick={() => goToIndex(currentIndex + 1)}
                       disabled={currentIndex >= tasks.length - 1}
                     >
@@ -445,14 +446,14 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      className="rounded border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                      className="rounded border border-gray-300 px-5 py-2.5 text-base text-gray-700 hover:bg-gray-50"
                       onClick={() => setShowResults((prev) => !prev)}
                     >
                       {showResults ? '收起结果' : '查看已标注结果'}
                     </button>
                     <button
                       type="button"
-                      className="rounded bg-green-600 px-4 py-2 text-sm font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                      className="rounded bg-green-600 px-5 py-2.5 text-base font-medium text-white hover:bg-green-700 disabled:opacity-50"
                       onClick={handleSubmitBatch}
                       disabled={submitting || completedCount === 0}
                     >
@@ -462,8 +463,8 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
                 </div>
               </div>
 
-              <div className="w-72 shrink-0 space-y-4 overflow-auto">
-                <div className="rounded border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
+              <div className="flex w-72 shrink-0 flex-col gap-4 overflow-hidden">
+                <div className="shrink-0 rounded border border-gray-200 bg-gray-50 p-4 text-base text-gray-700">
                   <div className="font-medium text-gray-900">标注说明</div>
                   <div className="mt-2 whitespace-pre-wrap">
                     {workspace.annotationGuide || '暂无标注说明'}
@@ -471,9 +472,9 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
                 </div>
 
                 {showResults && (
-                  <div className="rounded border border-gray-200 bg-gray-50 p-4">
-                    <div className="text-sm font-medium text-gray-700">已标注结果</div>
-                    <div className="mt-3 space-y-2 text-xs text-gray-600">
+                  <div className="flex min-h-0 flex-1 flex-col rounded border border-gray-200 bg-gray-50 p-4">
+                    <div className="text-base font-medium text-gray-700">已标注结果</div>
+                    <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-auto pr-1 text-sm text-gray-600">
                       {tasks.map((task, index) => {
                         const draft = drafts[task.taskId];
                         const label = draft?.selection
@@ -485,7 +486,7 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
                           <button
                             key={task.taskId}
                             type="button"
-                            className={`w-full rounded border px-3 py-2 text-left transition-colors duration-300 ${
+                            className={`w-full rounded border px-4 py-3 text-left transition-colors duration-300 ${
                               index === currentIndex ? 'border-blue-500 bg-white text-blue-700' : 'border-gray-200 bg-white'
                             } ${isJustCompleted ? 'bg-green-50 border-green-200' : ''}`}
                             onClick={() => goToIndex(index)}

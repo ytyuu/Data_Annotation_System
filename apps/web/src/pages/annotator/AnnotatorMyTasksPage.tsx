@@ -179,13 +179,13 @@ export function AnnotatorMyTasksPage() {
         <div className="space-y-4">
           {groups.map((group) => (
             <div key={group.batchId} className="rounded border border-gray-200 bg-white">
-              <div className="flex items-center justify-between px-4 py-3">
-                <div className="flex items-center gap-4">
+              <div className="flex items-center justify-between gap-4 px-4 py-3">
+                <div className="flex flex-1 items-center gap-4">
                   <div>
                     <div className="font-medium text-gray-900">{group.datasetName}</div>
                     <div className="mt-1 text-xs text-gray-500">{group.orderNo}</div>
                   </div>
-                  <div className="flex gap-2 text-xs">
+                  <div className="ml-auto flex justify-end gap-2 text-xs">
                     <span className="rounded bg-gray-100 px-2 py-0.5 text-gray-600">
                       {taskBatchStatusLabels[group.status] || group.status}
                     </span>
@@ -199,14 +199,9 @@ export function AnnotatorMyTasksPage() {
                         已完成 {group.submittedCount}/{group.totalCount}
                       </span>
                     )}
-                    {group.submittedCount > 0 && (
-                      <span className="rounded bg-green-50 px-2 py-0.5 text-green-600">
-                        已提交 {group.submittedCount}
-                      </span>
-                    )}
                   </div>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   <span className="text-xs text-gray-400">
                     领取时间 {new Date(group.assignedAt).toLocaleString()}
                   </span>
