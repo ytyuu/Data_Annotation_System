@@ -39,8 +39,8 @@ class AnnotatorDatasetService {
     /**
      * 查询标注员可领取任务的开放数据集列表。
      *
-     * 返回每个数据集的标注余量（pending 数据项数量）和互查余量（annotated/disputed
-     * 且当前标注员未参与过的数据项数量），用于前端展示和领取数量限制。
+     * 返回每个数据集的标注余量（pending 且当前标注员未参与过的数据项数量）和互查余量
+     * （annotated/disputed 且当前标注员未参与过的数据项数量），用于前端展示和领取数量限制。
      *
      * @param annotatorId 标注员用户 ID
      * @return 查询结果，成功时返回数据集列表
@@ -56,16 +56,33 @@ class AnnotatorDatasetService {
 
             val datasetIds = datasetRows.map { it[DatasetsTable.id] }
             val pendingItemCount = DataItemsTable.id.count()
+            val alreadyAssignedItemIds = if (datasetIds.isEmpty()) {
+                emptySet()
+            } else {
+                AnnotationTasksTable
+                    .select(AnnotationTasksTable.itemId)
+                    .where {
+                        (AnnotationTasksTable.annotatorId eq annotatorId) and
+                            (AnnotationTasksTable.datasetId inList datasetIds)
+                    }
+                    .map { it[AnnotationTasksTable.itemId] }
+                    .toSet()
+            }
 
             val pendingCounts = if (datasetIds.isEmpty()) {
                 emptyMap()
             } else {
-                // 查询每个开放数据集下仍处于 pending 的数据项数量。
+                // 查询每个开放数据集下当前标注员仍可领取的 pending 数据项数量。
                 DataItemsTable
                     .select(DataItemsTable.datasetId, pendingItemCount)
                     .where {
                         (DataItemsTable.datasetId inList datasetIds) and
-                            (DataItemsTable.status eq "pending")
+                            (DataItemsTable.status eq "pending") and
+                            if (alreadyAssignedItemIds.isEmpty()) {
+                                Op.TRUE
+                            } else {
+                                DataItemsTable.id notInList alreadyAssignedItemIds
+                            }
                     }
                     .groupBy(DataItemsTable.datasetId)
                     .associate { it[DataItemsTable.datasetId] to it[pendingItemCount] }
@@ -115,25 +132,16 @@ class AnnotatorDatasetService {
             val reviewableCounts = if (datasetIds.isEmpty()) {
                 emptyMap()
             } else {
-                val alreadyReviewedItemIds = AnnotationTasksTable
-                    .select(AnnotationTasksTable.itemId)
-                    .where {
-                        (AnnotationTasksTable.annotatorId eq annotatorId) and
-                            (AnnotationTasksTable.datasetId inList datasetIds)
-                    }
-                    .map { it[AnnotationTasksTable.itemId] }
-                    .toSet()
-
                 val reviewableItemCount = DataItemsTable.id.count()
                 DataItemsTable
                     .select(DataItemsTable.datasetId, reviewableItemCount)
                     .where {
                         (DataItemsTable.datasetId inList datasetIds) and
                             (DataItemsTable.status inList listOf("annotated", "disputed")) and
-                            if (alreadyReviewedItemIds.isEmpty()) {
+                            if (alreadyAssignedItemIds.isEmpty()) {
                                 Op.TRUE
                             } else {
-                                DataItemsTable.id notInList alreadyReviewedItemIds
+                                DataItemsTable.id notInList alreadyAssignedItemIds
                             }
                     }
                     .groupBy(DataItemsTable.datasetId)
@@ -228,34 +236,43 @@ class AnnotatorDatasetService {
                 return@transaction ClaimTasksTransactionResult.TooManyActive
             }
 
+            val alreadyAssignedItemIds = AnnotationTasksTable
+                .select(AnnotationTasksTable.itemId)
+                .where {
+                    (AnnotationTasksTable.annotatorId eq annotatorId) and
+                        (AnnotationTasksTable.datasetId eq datasetId)
+                }
+                .map { it[AnnotationTasksTable.itemId] }
+                .toSet()
+
             val items = if (taskType == "review") {
                 // 互查任务：查询已被标注的数据项，排除当前标注员已参与过的。
-                val alreadyReviewedItemIds = AnnotationTasksTable
-                    .select(AnnotationTasksTable.itemId)
-                    .where {
-                        (AnnotationTasksTable.annotatorId eq annotatorId) and
-                            (AnnotationTasksTable.datasetId eq datasetId)
-                    }
-                    .map { it[AnnotationTasksTable.itemId] }
-                    .toSet()
-
                 DataItemsTable
                     .selectAll()
                     .where {
                         (DataItemsTable.datasetId eq datasetId) and
                             (DataItemsTable.status inList listOf("annotated", "disputed")) and
-                            (DataItemsTable.id notInList alreadyReviewedItemIds)
+                            if (alreadyAssignedItemIds.isEmpty()) {
+                                Op.TRUE
+                            } else {
+                                DataItemsTable.id notInList alreadyAssignedItemIds
+                            }
                     }
                     .orderBy(DataItemsTable.createdAt to SortOrder.ASC)
                     .limit(requestedCount)
                     .toList()
             } else {
-                // 标注任务：查询 pending 数据项。
+                // 标注任务：查询 pending 数据项，排除当前标注员已参与过的。
                 DataItemsTable
                     .selectAll()
                     .where {
                         (DataItemsTable.datasetId eq datasetId) and
-                            (DataItemsTable.status eq "pending")
+                            (DataItemsTable.status eq "pending") and
+                            if (alreadyAssignedItemIds.isEmpty()) {
+                                Op.TRUE
+                            } else {
+                                DataItemsTable.id notInList alreadyAssignedItemIds
+                            }
                     }
                     .orderBy(DataItemsTable.createdAt to SortOrder.ASC)
                     .limit(requestedCount)
@@ -267,6 +284,24 @@ class AnnotatorDatasetService {
             }
 
             val now = OffsetDateTime.now()
+            val claimedItems = if (taskType == "annotation") {
+                items.filter { item ->
+                    DataItemsTable.update({
+                        (DataItemsTable.id eq item[DataItemsTable.id]) and
+                            (DataItemsTable.status eq "pending")
+                    }) {
+                        it[status] = "assigned"
+                        it[updatedAt] = now
+                    } > 0
+                }
+            } else {
+                items
+            }
+
+            if (claimedItems.isEmpty()) {
+                return@transaction ClaimTasksTransactionResult.EmptyDataset
+            }
+
             val batchId = UUID.randomUUID()
             val orderNo = generateOrderNo(now, taskType)
 
@@ -278,13 +313,13 @@ class AnnotatorDatasetService {
                 it[AnnotationTaskBatchesTable.annotatorId] = annotatorId
                 it[batchType] = taskType
                 it[status] = "assigned"
-                it[totalCount] = items.size
+                it[totalCount] = claimedItems.size
                 it[assignedAt] = now
                 it[createdAt] = now
                 it[updatedAt] = now
             }
 
-            val tasks = items.map { item ->
+            val tasks = claimedItems.map { item ->
                 val taskId = UUID.randomUUID()
 
                 AnnotationTasksTable.insert {
@@ -297,14 +332,6 @@ class AnnotatorDatasetService {
                     it[assignedAt] = now
                     it[createdAt] = now
                     it[updatedAt] = now
-                }
-
-                // 标注任务才需要改变数据项状态；互查任务保持原状态。
-                if (taskType == "annotation") {
-                    DataItemsTable.update({ DataItemsTable.id eq item[DataItemsTable.id] }) {
-                        it[status] = "assigned"
-                        it[updatedAt] = now
-                    }
                 }
 
                 TaskAssignmentResponse(
