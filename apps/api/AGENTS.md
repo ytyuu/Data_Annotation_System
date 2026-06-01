@@ -20,6 +20,10 @@
 - HTTP 配置：`http/HttpConfig.kt`
 - 默认开发端口：`7000`
 
+## 数据库文档
+
+- 数据库表结构定义与说明见项目根目录 `docs/data_annotation.sql`。
+
 ## 常用命令
 
 ```powershell
