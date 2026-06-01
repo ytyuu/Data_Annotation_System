@@ -1,6 +1,6 @@
 # 数据标注系统业务文档
 
-本文档根据项目流程图和 `docs/database-design.sql` 整理，用于说明数据标注系统的角色、业务对象、主流程和数据库状态含义。后续涉及业务流程、接口、页面或数据库变更时，应优先参考本文档。
+本文档根据项目流程图和 `docs/data_annotation.sql` 整理，用于说明数据标注系统的角色、业务对象、主流程和数据库状态含义。后续涉及业务流程、接口、页面或数据库变更时，应优先参考本文档。
 
 ## 角色说明
 
@@ -14,6 +14,8 @@
 
 审核人员已并入数据集提供者。数据集级别审核由 `provider` 负责，记录在 `dataset_reviews` 表中。
 
+用户账号状态由 `users.status` 记录，数据库允许值为 `active`、`disabled`。
+
 ## 核心业务对象
 
 | 业务对象 | 数据库表 | 说明 |
@@ -26,13 +28,15 @@
 | 标注结果 | `annotations` | 标注员提交的结构化结果和争议标记。互查任务的结果会同时写入 `review_result` 字段 |
 | 数据集审核 | `dataset_reviews` | 提供者对数据集标注质量的审核记录 |
 
+数据库当前不在 `annotations` 表中单独保存任务类别字段；标注任务或互查任务由对应任务单 `annotation_task_batches.batch_type` 判定。
+
 ## 主业务流程
 
 1. 数据集提供者上传数据集和标注文档。
 2. 系统创建 `datasets` 记录，并将导入的样本写入 `data_items`。
 3. 数据集准备完成后，提供者将数据集开放给标注员。
 4. 数据标注员选择数据集并领取任务，系统生成一张 `annotation_task_batches` 任务单，并为任务单下的数据项生成 `annotation_tasks` 任务项。
-   - 标注任务（`batch_type = 'annotation'`）：领取 `pending` 状态的数据项进行首次标注。
+   - 标注任务（`batch_type = 'annotation'`）：领取 `pending` 状态的数据项进行首次标注，领取后数据项进入 `assigned` 状态。
    - 互查任务（`batch_type = 'review'`）：领取 `annotated` 或 `disputed` 状态的数据项，由另一位标注员进行复核。
 5. 标注员根据任务单进入标注流程，并按照 `annotation_guide` 和 `annotation_schema` 对任务项中的数据项进行标注。
 6. 标注员提交结果后，系统写入 `annotations`，并更新任务和数据项状态。
@@ -98,6 +102,8 @@ draft -> open -> annotating -> reviewing -> completed
 | `disputed` | 标注结果存在争议或被标记为不确定 |
 | `accepted` | 审核通过 |
 | `rejected` | 审核不通过 |
+
+`data_items.content_type` 数据库允许值为 `text`、`image`、`audio`、`video`、`json`。
 
 ### 标注任务单状态
 
@@ -184,12 +190,17 @@ draft -> open -> annotating -> reviewing -> completed
 - 一个数据集必须属于一个数据集提供者。
 - 一个数据集可以包含多个数据项。
 - 一个数据项可以分配给多个标注员，以支持互查和一致性判断。
-- 一个标注任务最多对应一条当前标注结果。
-- 互查任务要求标注员未参与过该数据项的首次标注，通过 `annotation_tasks` 表的 `unique(item_id, annotator_id)` 约束实现。
+- 同一个标注员对同一个数据项最多只能有一个任务项，通过 `annotation_tasks` 表的 `unique(item_id, annotator_id)` 约束实现。
+- 一个标注任务最多对应一条标注结果，通过 `annotations.task_id` 唯一约束实现。
+- 互查任务要求标注员未参与过该数据项，业务上应基于 `annotation_tasks` 的历史记录排除已参与的数据项。
+- 每个任务单必须有唯一单号，通过 `annotation_task_batches.order_no` 唯一约束实现。
 - 当争议数量较多、存在不确定结果或完成比例达到阈值时，系统应触发提供者审核。
 - 默认完成比例阈值来自 `datasets.target_completion_ratio`，当前 SQL 默认值为 `50.00`。
+- `datasets.target_completion_ratio` 数据库限制为大于 0 且不超过 100。
+- `datasets.item_count`、`datasets.completed_item_count`、`annotation_task_batches.total_count`、`dataset_reviews.sampled_item_count` 和 `dataset_reviews.disputed_item_count` 均为非负数。
 - 标注要求调整后，数据集可从 `revision_required` 回到 `annotating`。
-- 同一数据集下，同一标注员不能同时持有同类型的活跃任务单（例如不能同时有两个 `annotation` 类型的 `assigned`/`in_progress` 任务单），但可以同时持有一个标注任务单和一个互查任务单。
+- 同一数据集下，同一标注员不能同时持有同类型的活跃任务单（例如不能同时有两个 `annotation` 类型的 `assigned`/`in_progress` 任务单），但可以同时持有一个标注任务单和一个互查任务单。该规则属于业务层约束，当前 SQL 仅提供相关查询索引。
+- 删除数据集时，数据库会级联删除其数据项、任务单、任务项、标注结果和审核记录；删除任务单时会级联删除其任务项；删除任务项时会级联删除对应标注结果。
 
 ## 标注配置与数据扩展信息
 
