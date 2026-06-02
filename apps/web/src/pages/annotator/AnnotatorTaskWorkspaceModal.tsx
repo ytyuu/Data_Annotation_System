@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { DataItemViewer } from '../../components/shared/DataItemViewer';
 import { AnnotationEditor } from '../../components/shared/AnnotationEditor';
 import { parseAnnotationSelection } from '../../components/shared/AnnotationResultViewer';
-import type { AnnotationSchema } from '../../components/shared/AnnotationEditor';
+import type { AnnotationSchema, AnnotationSelection } from '../../components/shared/AnnotationEditor';
 import { buildAnnotationResult } from '../../components/shared/AnnotationResultBuilder';
 
 const apiBaseUrl = 'http://localhost:7000';
@@ -47,12 +47,21 @@ interface DraftResult {
   taskId: string;
   itemId: string;
   selection: string[];
+  subSelection?: Record<string, string[]>;
 }
 
 interface AnnotatorTaskWorkspaceModalProps {
   batchId: string;
   onClose: () => void;
   onSubmitted: () => void;
+}
+
+function migrateDraft(draft: DraftResult): AnnotationSelection {
+  // 兼容旧格式：旧格式只有 selection（string[]），没有 subSelection
+  if (draft.subSelection) {
+    return { main: draft.selection, sub: draft.subSelection };
+  }
+  return { main: draft.selection, sub: {} };
 }
 
 function loadDrafts(storageKey: string): Record<string, DraftResult> {
@@ -144,7 +153,17 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
   const completedCount = Object.keys(drafts).length;
   const totalCount = workspace?.totalCount ?? tasks.length;
 
-  const selection = currentTask ? drafts[currentTask.taskId]?.selection ?? [] : [];
+  const annotationSelection: AnnotationSelection = useMemo(() => {
+    if (!currentTask) return { main: [], sub: {} };
+    const draft = drafts[currentTask.taskId];
+    if (draft) {
+      return migrateDraft(draft);
+    }
+    if (currentTask.annotationResult) {
+      return parseAnnotationSelection(currentTask.annotationResult, schema);
+    }
+    return { main: [], sub: {} };
+  }, [currentTask, drafts, schema]);
 
   useEffect(() => {
     if (!workspace) {
@@ -157,13 +176,14 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
           return;
         }
         const sel = parseAnnotationSelection(task.annotationResult, schema);
-        if (sel.length === 0) {
+        if (sel.main.length === 0) {
           return;
         }
         next[task.taskId] = {
           taskId: task.taskId,
           itemId: task.item.id,
-          selection: sel,
+          selection: sel.main,
+          subSelection: sel.sub,
         };
       });
       return next;
@@ -174,8 +194,9 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
     if (!currentTask) {
       return;
     }
-    const selectionForCurrent = drafts[currentTask.taskId]?.selection ?? [];
-    if (selectionForCurrent.length === 0) {
+    const draft = drafts[currentTask.taskId];
+    const selectionForCurrent = draft ? migrateDraft(draft) : { main: [], sub: {} };
+    if (selectionForCurrent.main.length === 0) {
       return;
     }
     if (autoAdvanceTaskIdRef.current !== currentTask.taskId) {
@@ -197,10 +218,32 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
     advanceTimeoutRef.current = window.setTimeout(() => {
       setIsAdvancing(false);
       setCurrentIndex(nextIndex);
-    }, 450);
+    }, 800);
   }, [currentIndex, currentTask, drafts, tasks.length]);
 
-  function handleSelectionChange(newSelection: string[]) {
+  function shouldAutoAdvance(selection: AnnotationSelection): boolean {
+    if (selection.main.length === 0) return false;
+
+    // 多选模式不自动跳转，让用户自行选择多个选项后手动提交
+    if (schema?.selectionMode === 'multiple') {
+      return false;
+    }
+
+    // 单选模式：检查选中的主选项是否需要子选项
+    const selectedMainValue = selection.main[0];
+    const selectedMainOption = schema?.options?.find(
+      (o) => o.value === selectedMainValue
+    );
+    if (selectedMainOption?.hasSubOptions) {
+      // 有子选项，需要子选项也选中了才自动跳转
+      const subSelection = selection.sub[selectedMainValue];
+      return subSelection !== undefined && subSelection.length > 0;
+    }
+
+    return true;
+  }
+
+  function handleSelectionChange(newSelection: AnnotationSelection) {
     if (!currentTask) {
       return;
     }
@@ -210,10 +253,11 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
       next[currentTask.taskId] = {
         taskId: currentTask.taskId,
         itemId: currentTask.item.id,
-        selection: newSelection,
+        selection: newSelection.main,
+        subSelection: newSelection.sub,
       };
 
-      if (newSelection.length > 0) {
+      if (shouldAutoAdvance(newSelection)) {
         setLastCompletedTaskId(currentTask.taskId);
         autoAdvanceTaskIdRef.current = currentTask.taskId;
       }
@@ -252,10 +296,11 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
           if (!draft) {
             return null;
           }
+          const sel = migrateDraft(draft);
           return {
             taskId: task.taskId,
             itemId: task.item.id,
-            result: buildAnnotationResult(draft.selection, schema),
+            result: buildAnnotationResult(sel, schema),
           };
         })
         .filter(Boolean);
@@ -341,7 +386,7 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
                       <div className="mt-4">
                         <AnnotationEditor
                           schema={schema}
-                          selection={selection}
+                          selection={annotationSelection}
                           onChange={handleSelectionChange}
                         />
                       </div>
@@ -404,10 +449,24 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
                     <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-auto pr-1 text-sm text-gray-600">
                       {tasks.map((task, index) => {
                         const draft = drafts[task.taskId];
-                        const label = draft?.selection
-                          .map((value: string) => schema?.options?.find((opt: { value: string; label: string }) => opt.value === value)?.label || value)
-                          .join(', ');
-                        const isCompleted = Boolean(draft?.selection.length);
+                        const draftSel = draft ? migrateDraft(draft) : { main: [], sub: {} };
+                        const mainLabels = draftSel.main
+                          .map((value: string) => schema?.options?.find((opt: { value: string; label: string }) => opt.value === value)?.label || value);
+                        const subLabelMap: Record<string, string[]> = {};
+                        draftSel.main.forEach((mainValue) => {
+                          const mainOpt = schema?.options?.find((o: { value: string }) => o.value === mainValue);
+                          if (mainOpt?.subOptions && draftSel.sub[mainValue]) {
+                            const subMap = new Map(mainOpt.subOptions.map((s: { value: string; label: string }) => [s.value, s.label]));
+                            subLabelMap[mainValue] = draftSel.sub[mainValue].map((v) => subMap.get(v) || v);
+                          }
+                        });
+                        const labelParts = mainLabels.map((mainLabel, idx) => {
+                          const mv = draftSel.main[idx];
+                          const subs = mv ? subLabelMap[mv] : [];
+                          return subs?.length ? `${mainLabel} (${subs.join(', ')})` : mainLabel;
+                        });
+                        const label = labelParts.join(', ');
+                        const isCompleted = draftSel.main.length > 0;
                         const isJustCompleted = task.taskId === lastCompletedTaskId;
                         return (
                           <button

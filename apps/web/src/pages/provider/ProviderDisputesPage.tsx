@@ -228,7 +228,7 @@ export function ProviderDisputesPage() {
 
     try {
       const finalResult = supportsSelection
-        ? buildAnnotationResult(resolveSelection, schema)
+        ? buildAnnotationResult({ main: resolveSelection, sub: {} }, schema)
         : '{}';
 
       const response = await fetch(
@@ -450,8 +450,8 @@ export function ProviderDisputesPage() {
                     <div className="mb-2 text-sm font-medium text-gray-700">裁决结果</div>
                     <AnnotationEditor
                       schema={schema}
-                      selection={resolveSelection}
-                      onChange={setResolveSelection}
+                      selection={{ main: resolveSelection, sub: {} }}
+                      onChange={(sel) => setResolveSelection(sel.main)}
                     />
 
                     <div className="mt-3">

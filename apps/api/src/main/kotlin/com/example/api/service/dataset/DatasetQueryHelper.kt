@@ -111,19 +111,44 @@ object DatasetQueryHelper {
      * 从标注结果 JSON 中提取选择值，用于一致性比对。
      *
      * 支持 "value"（单选）和 "values"（多选）两种字段格式，
+     * 同时提取 "subValues" 中的子选项值参与比对。
      * 多选时返回已排序的字符串列表，便于比较时忽略顺序差异。
      */
     private fun extractSelectionValues(node: JsonNode): List<String>? {
+        val subValuesNode = node.get("subValues")
+
         val valueNode = node.get("value")
         if (valueNode?.isTextual == true) {
-            return listOf(valueNode.asText())
+            val result = mutableListOf(valueNode.asText())
+            val subArray = subValuesNode?.get(valueNode.asText())
+            if (subArray?.isArray == true) {
+                subArray
+                    .mapNotNull { if (it.isTextual) it.asText() else null }
+                    .sorted()
+                    .forEach { result.add(it) }
+            }
+            return result
         }
 
         val valuesNode = node.get("values")
         if (valuesNode?.isArray == true) {
-            return valuesNode
+            val result = mutableListOf<String>()
+            val mainValues = valuesNode
                 .mapNotNull { if (it.isTextual) it.asText() else null }
                 .sorted()
+            result.addAll(mainValues)
+            if (subValuesNode?.isObject == true) {
+                mainValues.forEach { key ->
+                    val subArray = subValuesNode.get(key)
+                    if (subArray?.isArray == true) {
+                        subArray
+                            .mapNotNull { if (it.isTextual) it.asText() else null }
+                            .sorted()
+                            .forEach { result.add(it) }
+                    }
+                }
+            }
+            return result
         }
 
         return null

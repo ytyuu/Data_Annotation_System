@@ -1,31 +1,45 @@
 import React from 'react';
-import { parseAnnotationSelection, mapValuesToLabels } from './AnnotationResultViewer';
-import type { AnnotationSchema } from './AnnotationEditor';
+import { parseAnnotationSelection, mapValuesToLabels, mapSubValuesToLabels } from './AnnotationResultViewer';
+import type { AnnotationSchema, AnnotationSelection } from './AnnotationEditor';
 
 export interface AnnotationResultBuilderProps {
   /** 标注结构定义 */
   schema: AnnotationSchema | null;
   /** 当前选中的值 */
-  selection: string[];
+  selection: AnnotationSelection;
 }
 
 /**
  * 构建标注结果 JSON 字符串。
  *
  * 根据 schema 的 selectionMode 生成对应的 JSON 格式：
- * - single: { value: "xxx" }
- * - multiple: { values: ["xxx", "yyy"] }
+ * - single 无子选项: { value: "xxx" }
+ * - single 有子选项: { value: "xxx", subValues: { "xxx": ["yyy"] } }
+ * - multiple 无子选项: { values: ["xxx", "yyy"] }
+ * - multiple 有子选项: { values: ["xxx"], subValues: { "xxx": ["yyy", "zzz"] } }
  *
  * 未来扩展新标注类型时，在此函数中添加新的结果构建逻辑。
  */
 export function buildAnnotationResult(
-  selection: string[],
-  schema: AnnotationSchema | null
+  selection: AnnotationSelection,
+  schema: AnnotationSchema | null,
 ): string {
+  const hasSubValues = Object.keys(selection.sub).length > 0;
+
   if (schema?.selectionMode === 'multiple') {
-    return JSON.stringify({ values: selection });
+    const result: Record<string, unknown> = { values: selection.main };
+    if (hasSubValues) {
+      result.subValues = selection.sub;
+    }
+    return JSON.stringify(result);
   }
-  return JSON.stringify({ value: selection[0] ?? null });
+
+  const mainValue = selection.main[0] ?? null;
+  const result: Record<string, unknown> = { value: mainValue };
+  if (hasSubValues && mainValue) {
+    result.subValues = selection.sub;
+  }
+  return JSON.stringify(result);
 }
 
 /**
@@ -36,12 +50,22 @@ export const AnnotationResultBuilder: React.FC<AnnotationResultBuilderProps> = (
   selection,
 }) => {
   const result = buildAnnotationResult(selection, schema);
-  const labels = mapValuesToLabels(selection, schema);
+  const mainLabels = mapValuesToLabels(selection.main, schema);
+  const subLabelMap = mapSubValuesToLabels(selection.sub, schema);
+
+  const displayParts = mainLabels.map((mainLabel, index) => {
+    const mainValue = selection.main[index];
+    const subLabels = mainValue ? subLabelMap[mainValue] : [];
+    if (subLabels && subLabels.length > 0) {
+      return `${mainLabel} (${subLabels.join(', ')})`;
+    }
+    return mainLabel;
+  });
 
   return (
     <div className="rounded border border-gray-200 bg-gray-50 p-3 text-xs text-gray-600">
       <div className="font-medium text-gray-700">结果预览</div>
-      <div className="mt-1">标签：{labels.join(', ') || '无'}</div>
+      <div className="mt-1">标签：{displayParts.join(', ') || '无'}</div>
       <div className="mt-1 font-mono text-gray-500">{result}</div>
     </div>
   );

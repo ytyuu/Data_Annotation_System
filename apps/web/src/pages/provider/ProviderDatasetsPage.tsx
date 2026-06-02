@@ -93,13 +93,21 @@ interface DatasetForm {
   description: string;
   annotationGuide: string;
   selectionMode: 'single' | 'multiple';
-  options: AnnotationOption[];
+  options: AnnotationOptionForm[];
   targetCompletionRatio: string;
 }
 
-interface AnnotationOption {
+interface AnnotationSubOptionForm {
   id: string;
   label: string;
+}
+
+interface AnnotationOptionForm {
+  id: string;
+  label: string;
+  hasSubOptions: boolean;
+  subSelectionMode: 'single' | 'multiple';
+  subOptions: AnnotationSubOptionForm[];
 }
 
 const initialDatasetForm: DatasetForm = {
@@ -108,8 +116,20 @@ const initialDatasetForm: DatasetForm = {
   annotationGuide: '',
   selectionMode: 'single',
   options: [
-    { id: 'option-1', label: '' },
-    { id: 'option-2', label: '' },
+    {
+      id: 'option-1',
+      label: '',
+      hasSubOptions: false,
+      subSelectionMode: 'single',
+      subOptions: [],
+    },
+    {
+      id: 'option-2',
+      label: '',
+      hasSubOptions: false,
+      subSelectionMode: 'single',
+      subOptions: [],
+    },
   ],
   targetCompletionRatio: '50',
 };
@@ -293,7 +313,13 @@ export function ProviderDatasetsPage() {
       ...current,
       options: [
         ...current.options,
-        { id: `option-${Date.now()}`, label: '' },
+        {
+          id: `option-${Date.now()}`,
+          label: '',
+          hasSubOptions: false,
+          subSelectionMode: 'single',
+          subOptions: [],
+        },
       ],
     }));
   }
@@ -307,14 +333,104 @@ export function ProviderDatasetsPage() {
     }));
   }
 
+  function toggleSubOptions(id: string) {
+    setDatasetForm((current) => ({
+      ...current,
+      options: current.options.map((option) =>
+        option.id === id
+          ? { ...option, hasSubOptions: !option.hasSubOptions }
+          : option
+      ),
+    }));
+  }
+
+  function toggleSubSelectionMode(id: string) {
+    setDatasetForm((current) => ({
+      ...current,
+      options: current.options.map((option) =>
+        option.id === id
+          ? { ...option, subSelectionMode: option.subSelectionMode === 'single' ? 'multiple' : 'single' }
+          : option
+      ),
+    }));
+  }
+
+  function addSubOption(optionId: string) {
+    setDatasetForm((current) => ({
+      ...current,
+      options: current.options.map((option) =>
+        option.id === optionId
+          ? {
+              ...option,
+              subOptions: [
+                ...option.subOptions,
+                { id: `sub-${Date.now()}`, label: '' },
+              ],
+            }
+          : option
+      ),
+    }));
+  }
+
+  function removeSubOption(optionId: string, subOptionId: string) {
+    setDatasetForm((current) => ({
+      ...current,
+      options: current.options.map((option) =>
+        option.id === optionId
+          ? {
+              ...option,
+              subOptions: option.subOptions.length <= 2
+                ? option.subOptions
+                : option.subOptions.filter((sub: AnnotationSubOptionForm) => sub.id !== subOptionId),
+            }
+          : option
+      ),
+    }));
+  }
+
+  function updateSubOption(optionId: string, subOptionId: string, label: string) {
+    setDatasetForm((current) => ({
+      ...current,
+      options: current.options.map((option) =>
+        option.id === optionId
+          ? {
+              ...option,
+              subOptions: option.subOptions.map((sub) =>
+                sub.id === subOptionId ? { ...sub, label } : sub
+              ),
+            }
+          : option
+      ),
+    }));
+  }
+
   function buildAnnotationSchema() {
+    let optionIndex = 0;
     const normalizedOptions = datasetForm.options
-      .map((option) => option.label.trim())
-      .filter((label) => label.length > 0)
-      .map((label, index) => ({
-        value: `option_${index + 1}`,
-        label,
-      }));
+      .filter((option) => option.label.trim().length > 0)
+      .map((option) => {
+        optionIndex++;
+        const mainValue = `option_${optionIndex}`;
+        const normalized: Record<string, unknown> = {
+          value: mainValue,
+          label: option.label.trim(),
+        };
+        if (option.hasSubOptions && option.subOptions.some((s: AnnotationSubOptionForm) => s.label.trim().length > 0)) {
+          normalized.hasSubOptions = true;
+          normalized.subSelectionMode = option.subSelectionMode;
+          let subIndex = 0;
+          normalized.subOptions = option.subOptions
+            .filter((s: AnnotationSubOptionForm) => s.label.trim().length > 0)
+            .map((s: AnnotationSubOptionForm) => {
+              subIndex++;
+              return {
+                value: `sub_${optionIndex}_${subIndex}`,
+                label: s.label.trim(),
+              };
+            });
+        }
+        return normalized;
+      });
 
     return {
       version: 1,
@@ -329,7 +445,12 @@ export function ProviderDatasetsPage() {
       try {
         return JSON.parse(dataset.annotationSchema || '{}') as {
           selectionMode?: string;
-          options?: { label?: string }[];
+          options?: {
+            label?: string;
+            hasSubOptions?: boolean;
+            subSelectionMode?: string;
+            subOptions?: { label?: string }[];
+          }[];
         };
       } catch {
         return {};
@@ -341,6 +462,14 @@ export function ProviderDatasetsPage() {
         .map((option, index) => ({
           id: `option-${index + 1}`,
           label: option.label?.trim() || '',
+          hasSubOptions: option.hasSubOptions || false,
+          subSelectionMode: (option.subSelectionMode === 'multiple' ? 'multiple' : 'single') as 'single' | 'multiple',
+          subOptions: Array.isArray(option.subOptions)
+            ? option.subOptions.map((s, sidx) => ({
+                id: `sub-${index + 1}-${sidx + 1}`,
+                label: s.label?.trim() || '',
+              }))
+            : [],
         }))
         .filter((option) => option.label.length > 0)
       : [];
@@ -361,7 +490,7 @@ export function ProviderDatasetsPage() {
         return JSON.parse(dataset.annotationSchema || '{}') as {
           type?: string;
           selectionMode?: string;
-          options?: unknown[];
+          options?: { hasSubOptions?: boolean; subOptions?: unknown[] }[];
         };
       } catch {
         return {};
@@ -373,8 +502,13 @@ export function ProviderDatasetsPage() {
     }
 
     const mode = schema.selectionMode === 'multiple' ? '多选' : '单选';
-    const count = Array.isArray(schema.options) ? schema.options.length : 0;
-    return `${mode} · ${count} 个选项`;
+    const options = Array.isArray(schema.options) ? schema.options : [];
+    const subOptionCount = options.reduce(
+      (sum, opt) => sum + (opt.hasSubOptions ? (Array.isArray(opt.subOptions) ? opt.subOptions.length : 0) : 0),
+      0,
+    );
+    const hasSubs = subOptionCount > 0;
+    return `${mode} · ${options.length} 个选项${hasSubs ? ' · 含子选项' : ''}`;
   }
 
   async function handleSaveDataset(event: React.FormEvent<HTMLFormElement>) {
@@ -762,27 +896,90 @@ export function ProviderDatasetsPage() {
                     新增选项
                   </button>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {datasetForm.options.map((option, index) => (
-                    <div key={option.id} className="flex items-center gap-2">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-gray-200 bg-gray-50 text-sm text-gray-500">
-                        {index + 1}
+                    <div key={option.id} className="rounded border border-gray-200 p-3">
+                      <div className="flex items-center gap-2">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-gray-200 bg-gray-50 text-sm text-gray-500">
+                          {index + 1}
+                        </div>
+                        <input
+                          type="text"
+                          value={option.label}
+                          onChange={(event) => updateAnnotationOption(option.id, event.target.value)}
+                          className="app-input"
+                          placeholder="请输入选项名称"
+                        />
+                        <button
+                          type="button"
+                          className={`h-10 shrink-0 rounded border px-3 text-xs font-medium ${
+                            option.hasSubOptions
+                              ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
+                              : 'border-gray-300 text-gray-600 hover:bg-gray-50'
+                          }`}
+                          onClick={() => toggleSubOptions(option.id)}
+                        >
+                          {option.hasSubOptions ? '子选项已开启' : '子选项'}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={datasetForm.options.length <= 2}
+                          className="h-10 shrink-0 rounded border border-gray-300 px-3 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                          onClick={() => removeAnnotationOption(option.id)}
+                        >
+                          删除
+                        </button>
                       </div>
-                      <input
-                        type="text"
-                        value={option.label}
-                        onChange={(event) => updateAnnotationOption(option.id, event.target.value)}
-                        className="app-input"
-                        placeholder="请输入选项名称"
-                      />
-                      <button
-                        type="button"
-                        disabled={datasetForm.options.length <= 2}
-                        className="h-10 shrink-0 rounded border border-gray-300 px-3 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
-                        onClick={() => removeAnnotationOption(option.id)}
-                      >
-                        删除
-                      </button>
+
+                      {option.hasSubOptions && (
+                        <div className="mt-3 ml-12 rounded border-l-2 border-blue-200 bg-blue-50/50 py-3 pl-4 pr-3">
+                          <div className="mb-2 flex items-center justify-between">
+                            <span className="text-xs font-medium text-blue-700">子选项配置</span>
+                            <button
+                              type="button"
+                              className={`rounded border px-2 py-1 text-xs font-medium ${
+                                option.subSelectionMode === 'single'
+                                  ? 'border-blue-200 bg-blue-100 text-blue-700'
+                                  : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
+                              }`}
+                              onClick={() => toggleSubSelectionMode(option.id)}
+                            >
+                              {option.subSelectionMode === 'single' ? '单选' : '多选'}
+                            </button>
+                          </div>
+                          <div className="space-y-2">
+                            {option.subOptions.map((subOption: AnnotationSubOptionForm, subIndex: number) => (
+                              <div key={subOption.id} className="flex items-center gap-2">
+                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-gray-200 bg-white text-xs text-gray-500">
+                                  {subIndex + 1}
+                                </div>
+                                <input
+                                  type="text"
+                                  value={subOption.label}
+                                  onChange={(event) => updateSubOption(option.id, subOption.id, event.target.value)}
+                                  className="app-input py-1.5 text-sm"
+                                  placeholder="子选项名称"
+                                />
+                                <button
+                                  type="button"
+                                  disabled={option.subOptions.length <= 2}
+                                  className="h-8 shrink-0 rounded border border-gray-300 px-2 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                  onClick={() => removeSubOption(option.id, subOption.id)}
+                                >
+                                  删除
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                          <button
+                            type="button"
+                            className="mt-2 rounded border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100"
+                            onClick={() => addSubOption(option.id)}
+                          >
+                            新增子选项
+                          </button>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1358,6 +1555,13 @@ export function ProviderDatasetsPage() {
                         })()}
                         {dataset.status === 'draft' && (
                           <>
+                            <button
+                              type="button"
+                              className="rounded border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                              onClick={() => openImportDialog(dataset)}
+                            >
+                              导入数据
+                            </button>
                             <button
                               type="button"
                               disabled={publishLoadingId === dataset.id}
