@@ -25,7 +25,7 @@
 | 数据项 | `data_items` | 数据集中每个待标注样本，可通过 `metadata` 保存来源、文件名、尺寸、语言、导入批次等扩展信息 |
 | 标注任务单 | `annotation_task_batches` | 标注员每次领取任务生成的统一单号，用于展示任务、退回、开始标注和再次领取判断。支持 `batch_type` 区分标注任务和互查任务 |
 | 标注任务项 | `annotation_tasks` | 任务单下每个数据项对应的执行记录，保留独立任务项 ID |
-| 标注结果 | `annotations` | 标注员提交的结构化结果和争议标记。互查任务的结果会同时写入 `review_result` 字段 |
+| 标注结果 | `annotations` | 标注员提交的结构化结果和争议标记。原始标注与互查复核分行保存，通过 `annotation_type` 区分，并由 `review_of_annotation_id` 关联 |
 | 数据集审核 | `dataset_reviews` | 提供者对数据集标注质量的审核记录 |
 
 数据库当前不在 `annotations` 表中单独保存任务类别字段；标注任务或互查任务由对应任务单 `annotation_task_batches.batch_type` 判定。
@@ -41,7 +41,7 @@
 5. 标注员根据任务单进入标注流程，并按照 `annotation_guide` 和 `annotation_schema` 对任务项中的数据项进行标注。
 6. 标注员提交结果后，系统写入 `annotations`，并更新任务和数据项状态。
    - 标注任务提交：将 `data_items.status` 更新为 `annotated` 或 `disputed`。
-   - 互查任务提交：不改变 `data_items.status`，将互查结果写入 `annotations.review_result`。
+   - 互查任务提交：新增或更新 `annotation_type = 'review'` 的标注结果行，`result` 保存互查结果，`review_of_annotation_id` 指向原始标注结果。
 7. 如果标注员无法确定结果，可以将标注结果标记为争议或不确定。
 8. 系统根据完成比例、争议情况和任务状态判断是否触发复查或数据集审核。
 9. 数据集提供者对已标注数据进行抽样审核。
@@ -57,7 +57,7 @@
 | 选择数据集 | 标注员进入开放数据集 | `datasets.status = 'open'` |
 | 对数据进行标注 | 标注员执行任务 | `annotation_tasks.status` |
 | 是否直接标记为“不确定” | 标注员认为结果存在争议 | `annotations.is_disputed = true`、`data_items.status = 'disputed'` |
-| 标注员互查 | 不同标注员对同一数据项提交结果后进行一致性判断 | `annotations`、`annotations.review_result` |
+| 标注员互查 | 不同标注员对同一数据项提交结果后进行一致性判断 | `annotations.annotation_type`、`annotations.review_of_annotation_id` |
 | 选择任务类别 | 领取时选择标注任务或互查任务 | `annotation_task_batches.batch_type` |
 | 是否意见一致 | 判断标注结果是否存在冲突 | `annotations.is_disputed` |
 | 数据集标注完成度是否达到 50% | 判断是否触发审核 | `datasets.target_completion_ratio`、`datasets.completed_item_count` |

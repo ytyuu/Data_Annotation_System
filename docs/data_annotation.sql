@@ -80,21 +80,24 @@ CREATE TABLE "public"."annotations" (
                                         "item_id" uuid NOT NULL,
                                         "annotator_id" uuid NOT NULL,
                                         "result" jsonb NOT NULL,
+                                        "annotation_type" varchar(32) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'annotation'::character varying,
+                                        "review_of_annotation_id" uuid,
                                         "comment" text COLLATE "pg_catalog"."default",
                                         "is_disputed" bool NOT NULL DEFAULT false,
                                         "status" varchar(32) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'submitted'::character varying,
                                         "submitted_at" timestamptz(6) NOT NULL DEFAULT now(),
                                         "reviewed_at" timestamptz(6),
                                         "created_at" timestamptz(6) NOT NULL DEFAULT now(),
-                                        "updated_at" timestamptz(6) NOT NULL DEFAULT now(),
-                                        "review_result" jsonb
+                                        "updated_at" timestamptz(6) NOT NULL DEFAULT now()
 )
 ;
 COMMENT ON COLUMN "public"."annotations"."id" IS '标注结果 ID';
 COMMENT ON COLUMN "public"."annotations"."task_id" IS '所属标注任务 ID';
 COMMENT ON COLUMN "public"."annotations"."item_id" IS '被标注的数据项 ID';
 COMMENT ON COLUMN "public"."annotations"."annotator_id" IS '提交标注结果的标注员 ID';
-COMMENT ON COLUMN "public"."annotations"."result" IS '标注结果，使用 JSONB 保存';
+COMMENT ON COLUMN "public"."annotations"."result" IS '当前记录提交人的标注结果，使用 JSONB 保存';
+COMMENT ON COLUMN "public"."annotations"."annotation_type" IS '标注结果类别：annotation 原始标注，review 互查复核';
+COMMENT ON COLUMN "public"."annotations"."review_of_annotation_id" IS '互查复核对应的原始标注结果 ID，仅 annotation_type=review 时使用';
 COMMENT ON COLUMN "public"."annotations"."comment" IS '标注员备注';
 COMMENT ON COLUMN "public"."annotations"."is_disputed" IS '是否存在争议';
 COMMENT ON COLUMN "public"."annotations"."status" IS '标注结果状态：submitted、returned、accepted、rejected';
@@ -102,7 +105,6 @@ COMMENT ON COLUMN "public"."annotations"."submitted_at" IS '提交时间';
 COMMENT ON COLUMN "public"."annotations"."reviewed_at" IS '审核时间';
 COMMENT ON COLUMN "public"."annotations"."created_at" IS '创建时间';
 COMMENT ON COLUMN "public"."annotations"."updated_at" IS '更新时间';
-COMMENT ON COLUMN "public"."annotations"."review_result" IS '互查复核结果，当该标注记录来自互查任务时，与 result 字段内容相同';
 COMMENT ON TABLE "public"."annotations" IS '标注结果表，保存标注内容、争议标记和提交信息';
 
 -- ----------------------------
@@ -623,6 +625,13 @@ CREATE INDEX "idx_annotations_item_status" ON "public"."annotations" USING btree
     "item_id" "pg_catalog"."uuid_ops" ASC NULLS LAST,
     "status" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
     );
+CREATE INDEX "idx_annotations_item_type" ON "public"."annotations" USING btree (
+    "item_id" "pg_catalog"."uuid_ops" ASC NULLS LAST,
+    "annotation_type" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+    );
+CREATE INDEX "idx_annotations_review_of" ON "public"."annotations" USING btree (
+    "review_of_annotation_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
+    );
 CREATE INDEX "idx_annotations_result_gin" ON "public"."annotations" USING gin (
     "result" "pg_catalog"."jsonb_ops"
     );
@@ -636,6 +645,7 @@ ALTER TABLE "public"."annotations" ADD CONSTRAINT "annotations_task_id_key" UNIQ
 -- Checks structure for table annotations
 -- ----------------------------
 ALTER TABLE "public"."annotations" ADD CONSTRAINT "annotations_status_check" CHECK (status::text = ANY (ARRAY['submitted'::character varying, 'returned'::character varying, 'accepted'::character varying, 'rejected'::character varying]::text[]));
+ALTER TABLE "public"."annotations" ADD CONSTRAINT "annotations_annotation_type_check" CHECK (annotation_type::text = ANY (ARRAY['annotation'::character varying, 'review'::character varying]::text[]));
 
 -- ----------------------------
 -- Primary Key structure for table annotations
@@ -762,6 +772,7 @@ ALTER TABLE "public"."annotation_tasks" ADD CONSTRAINT "annotation_tasks_item_id
 -- ----------------------------
 ALTER TABLE "public"."annotations" ADD CONSTRAINT "annotations_annotator_id_fkey" FOREIGN KEY ("annotator_id") REFERENCES "public"."users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
 ALTER TABLE "public"."annotations" ADD CONSTRAINT "annotations_item_id_fkey" FOREIGN KEY ("item_id") REFERENCES "public"."data_items" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE "public"."annotations" ADD CONSTRAINT "annotations_review_of_annotation_id_fkey" FOREIGN KEY ("review_of_annotation_id") REFERENCES "public"."annotations" ("id") ON DELETE SET NULL ON UPDATE NO ACTION;
 ALTER TABLE "public"."annotations" ADD CONSTRAINT "annotations_task_id_fkey" FOREIGN KEY ("task_id") REFERENCES "public"."annotation_tasks" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 
 -- ----------------------------

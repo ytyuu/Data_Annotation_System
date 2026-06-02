@@ -15,6 +15,8 @@ import com.example.api.models.SubmitAnnotationBatchResponse
 import com.example.api.models.TaskAssignmentResponse
 import com.example.api.models.UpdateDatasetResponse
 import com.example.api.service.auth.AuthResult
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.Op
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
@@ -35,6 +37,7 @@ import java.util.UUID
 class AnnotatorDatasetService {
     private val activeTaskStatuses = listOf("assigned", "in_progress")
     private val activeBatchStatuses = listOf("assigned", "in_progress")
+    private val objectMapper = ObjectMapper()
 
     /**
      * 查询标注员可领取任务的开放数据集列表。
@@ -842,8 +845,8 @@ class AnnotatorDatasetService {
      * 批量提交标注员在任务单下的标注结果。
      *
      * 标注任务提交时会更新 `data_items.status` 为 `annotated` 或 `disputed`。
-     * 互查任务（`batch_type = 'review'`）提交时不改变 `data_items.status`，
-     * 仅将互查结果写入 `annotations.review_result`。
+     * 互查任务（`batch_type = 'review'`）提交时会新增或更新 review 类型标注记录，
+     * 并通过 `annotations.review_of_annotation_id` 指向原始标注结果。
      *
      * @param annotatorId 标注员用户 ID
      * @param batchId 任务单 ID
@@ -926,6 +929,29 @@ class AnnotatorDatasetService {
                     .firstOrNull()
 
                 val isReviewBatch = batch[AnnotationTaskBatchesTable.batchType] == "review"
+                val originalAnnotation = if (isReviewBatch) {
+                    AnnotationsTable
+                        .selectAll()
+                        .where {
+                            (AnnotationsTable.itemId eq submission.itemId) and
+                                (AnnotationsTable.annotationType eq "annotation")
+                        }
+                        .orderBy(AnnotationsTable.submittedAt to SortOrder.ASC)
+                        .limit(1)
+                        .firstOrNull()
+                        ?: return@transaction SubmitAnnotationBatchResult.InvalidTasks
+                } else {
+                    null
+                }
+                val isDisputed = if (isReviewBatch && originalAnnotation != null) {
+                    originalAnnotation[AnnotationsTable.isDisputed] ||
+                        !areAnnotationResultsConsistent(
+                            originalAnnotation[AnnotationsTable.result],
+                            submission.result,
+                        )
+                } else {
+                    submission.isDisputed
+                }
 
                 if (existingAnnotation == null) {
                     AnnotationsTable.insert {
@@ -934,26 +960,34 @@ class AnnotatorDatasetService {
                         it[AnnotationsTable.itemId] = submission.itemId
                         it[AnnotationsTable.annotatorId] = annotatorId
                         it[result] = submission.result
+                        it[annotationType] = if (isReviewBatch) "review" else "annotation"
                         if (isReviewBatch) {
-                            it[reviewResult] = submission.result
+                            it[reviewOfAnnotationId] = originalAnnotation?.get(AnnotationsTable.id)
                         }
                         it[comment] = submission.comment
-                        it[isDisputed] = submission.isDisputed
+                        it[AnnotationsTable.isDisputed] = isDisputed
                         it[status] = "submitted"
                         it[submittedAt] = now
+                        if (isReviewBatch) {
+                            it[reviewedAt] = now
+                        }
                         it[createdAt] = now
                         it[updatedAt] = now
                     }
                 } else {
                     AnnotationsTable.update({ AnnotationsTable.taskId eq submission.taskId }) {
                         it[result] = submission.result
+                        it[annotationType] = if (isReviewBatch) "review" else "annotation"
                         if (isReviewBatch) {
-                            it[reviewResult] = submission.result
+                            it[reviewOfAnnotationId] = originalAnnotation?.get(AnnotationsTable.id)
                         }
                         it[comment] = submission.comment
-                        it[isDisputed] = submission.isDisputed
+                        it[AnnotationsTable.isDisputed] = isDisputed
                         it[status] = "submitted"
                         it[submittedAt] = now
+                        if (isReviewBatch) {
+                            it[reviewedAt] = now
+                        }
                         it[updatedAt] = now
                     }
                 }
@@ -964,10 +998,21 @@ class AnnotatorDatasetService {
                     it[updatedAt] = now
                 }
 
-                // 标注任务提交时更新数据项状态；互查任务不改变原数据项状态。
-                if (batch[AnnotationTaskBatchesTable.batchType] != "review") {
+                if (isReviewBatch) {
+                    if (originalAnnotation != null) {
+                        AnnotationsTable.update({ AnnotationsTable.id eq originalAnnotation[AnnotationsTable.id] }) {
+                            it[AnnotationsTable.isDisputed] = isDisputed
+                            it[reviewedAt] = now
+                            it[updatedAt] = now
+                        }
+                    }
                     DataItemsTable.update({ DataItemsTable.id eq submission.itemId }) {
-                        it[status] = if (submission.isDisputed) "disputed" else "annotated"
+                        it[status] = if (isDisputed) "disputed" else "annotated"
+                        it[updatedAt] = now
+                    }
+                } else {
+                    DataItemsTable.update({ DataItemsTable.id eq submission.itemId }) {
+                        it[status] = if (isDisputed) "disputed" else "annotated"
                         it[updatedAt] = now
                     }
                 }
@@ -1032,5 +1077,34 @@ class AnnotatorDatasetService {
         data object InvalidStatus : SubmitAnnotationBatchResult()
         data object InvalidTasks : SubmitAnnotationBatchResult()
         data class Success(val submittedCount: Int, val totalCount: Int) : SubmitAnnotationBatchResult()
+    }
+
+    private fun areAnnotationResultsConsistent(left: String, right: String): Boolean {
+        val leftNode = runCatching { objectMapper.readTree(left) }.getOrNull() ?: return left == right
+        val rightNode = runCatching { objectMapper.readTree(right) }.getOrNull() ?: return left == right
+
+        val leftValues = extractSelectionValues(leftNode)
+        val rightValues = extractSelectionValues(rightNode)
+        if (leftValues != null || rightValues != null) {
+            return leftValues == rightValues
+        }
+
+        return leftNode == rightNode
+    }
+
+    private fun extractSelectionValues(node: JsonNode): List<String>? {
+        val valueNode = node.get("value")
+        if (valueNode?.isTextual == true) {
+            return listOf(valueNode.asText())
+        }
+
+        val valuesNode = node.get("values")
+        if (valuesNode?.isArray == true) {
+            return valuesNode
+                .mapNotNull { if (it.isTextual) it.asText() else null }
+                .sorted()
+        }
+
+        return null
     }
 }

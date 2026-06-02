@@ -320,7 +320,6 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
             taskId: task.taskId,
             itemId: task.item.id,
             result: JSON.stringify(buildResult(draft.selection, schema)),
-            isDisputed: false,
           };
         })
         .filter(Boolean);
