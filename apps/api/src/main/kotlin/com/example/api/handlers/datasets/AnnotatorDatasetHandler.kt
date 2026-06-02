@@ -61,9 +61,10 @@ class AnnotatorDatasetHandler(private val datasetService: AnnotatorDatasetServic
      */
     fun listTasks(ctx: Context) {
         val annotatorId = UUID.fromString(ctx.currentUser().id)
-        val statusFilter = ctx.queryParam("status")
+        val statusParam = ctx.queryParam("status")
+        val statusFilters = statusParam?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }
 
-        when (val result = datasetService.listAnnotatorTasks(annotatorId, statusFilter)) {
+        when (val result = datasetService.listAnnotatorTasks(annotatorId, statusFilters)) {
             is Result.Success -> ctx.json(result.value)
             is Result.BadRequest -> ctx.badRequest(result.message)
             is Result.Unauthorized -> ctx.unauthorized(result.message)

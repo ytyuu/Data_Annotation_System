@@ -55,7 +55,7 @@ export function AnnotatorMyTasksPage() {
     setError('');
 
     try {
-      const response = await fetch(`${apiBaseUrl}/api/annotator/tasks`, {
+      const response = await fetch(`${apiBaseUrl}/api/annotator/tasks?status=assigned,in_progress`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await response.json().catch(() => null);

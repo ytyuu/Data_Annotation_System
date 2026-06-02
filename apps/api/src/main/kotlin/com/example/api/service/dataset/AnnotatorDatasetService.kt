@@ -591,23 +591,25 @@ class AnnotatorDatasetService {
      * 查询指定标注员已领取的任务单列表。
      *
      * @param annotatorId 标注员用户 ID
-     * @param statusFilter 任务单状态筛选，null 时不筛选
+     * @param statusFilters 任务单状态筛选列表，null 或空时不筛选
      * @return 查询结果，成功时返回任务单列表
      */
     fun listAnnotatorTasks(
         annotatorId: UUID,
-        statusFilter: String?,
+        statusFilters: List<String>?,
     ): Result<List<AnnotatorTaskResponse>> {
         val taskBatches = transaction {
-            val baseCondition = AnnotationTaskBatchesTable.annotatorId eq annotatorId
-            val condition = statusFilter?.let {
-                baseCondition and (AnnotationTaskBatchesTable.status eq it)
-            } ?: baseCondition
-
             // 查询当前标注员的任务单列表，可按任务单状态筛选。
             val batchRows = AnnotationTaskBatchesTable
                 .selectAll()
-                .where { condition }
+                .where {
+                    val baseCondition = AnnotationTaskBatchesTable.annotatorId eq annotatorId
+                    if (!statusFilters.isNullOrEmpty()) {
+                        baseCondition and (AnnotationTaskBatchesTable.status inList statusFilters)
+                    } else {
+                        baseCondition
+                    }
+                }
                 .orderBy(AnnotationTaskBatchesTable.assignedAt to SortOrder.DESC)
                 .toList()
 
