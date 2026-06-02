@@ -98,6 +98,59 @@ pnpm test
 pnpm lint
 ```
 
+## 可扩展性设计原则（标注类型）
+
+本系统当前以文本分类标注为主，但数据库和业务架构已预留扩展空间。未来增加图片标注、目标检测、音频转写、文本实体识别（NER）等新标注类型时，应遵循以下原则：
+
+### 数据库层
+
+- `data_items.content_type` 已支持 `text`、`image`、`audio`、`video`、`json`，新增多媒体类型无需改表。
+- `data_items.content` 存储文本或资源 URL，`metadata`（JSONB）可存放尺寸、时长、文件名等扩展信息。
+- `annotations.result` 为 JSONB，可存任意结构化结果（坐标、多边形、时序区间等）。
+- `datasets.annotation_schema` 定义标注配置，当前为分类结构，未来可扩展为检测框、分割掩码、实体标签等配置。
+
+### 后端层
+
+- **一致性比对**：`DatasetQueryHelper.areAnnotationResultsConsistent` 当前只比对 `value`/`values` 字段。新增标注类型时必须添加对应比对策略（如目标检测用 IoU、NER 用实体重叠率），不能简单回退到 JSON 字符串匹配。
+- **结果解析**：`extractSelectionValues` 只提取选择值。新增类型时需扩展结果提取逻辑，或按类型路由到独立解析器。
+- **状态机**：互查后的 `finalizeReviewedItem` 状态推进逻辑与标注类型无关，可直接复用。
+
+### 前端层
+
+前端已将标注相关功能拆分为独立组件，新增标注类型时按以下方式扩展：
+
+```
+src/components/shared/
+  DataItemViewer.tsx        # 数据展示：根据 contentType 渲染文本/图片/音频/视频
+  AnnotationEditor.tsx      # 标注编辑器：根据 schema.type 渲染不同编辑器
+  AnnotationResultViewer.tsx # 结果展示：将 result JSON 映射为可读标签
+  AnnotationResultBuilder.tsx # 结果构建：将 selection 序列化为 result JSON
+  AnnotationCard.tsx        # 标注记录卡片：展示单条标注结果
+```
+
+**扩展示例**：
+
+1. **新增图片目标检测**：
+   - `DataItemViewer`：已支持 `image` 类型（显示 `<img>`）。
+   - `AnnotationEditor`：需新增 `bounding-box` 类型分支，集成 Canvas 画框组件。
+   - `AnnotationResultViewer`：需解析 `{boxes: [{x, y, w, h, label}]}` 并展示为 "猫 (x:10, y:20)" 等格式。
+   - `AnnotationResultBuilder`：需将画框坐标序列化为 JSON。
+
+2. **新增音频分类**：
+   - `DataItemViewer`：需增加 `audio` 分支（显示 `<audio controls>`）。
+   - `AnnotationEditor`：复用现有的 `classification` 编辑器即可。
+   - 结果解析和构建逻辑无需改动。
+
+3. **新增文本 NER**：
+   - `DataItemViewer`：文本类型已支持。
+   - `AnnotationEditor`：需新增 `ner` 类型分支，支持文本高亮和实体类型选择。
+   - `AnnotationResultViewer`：需解析 `{entities: [{text, start, end, label}]}`。
+
+**关键原则**：
+- 数据展示、标注编辑、结果解析三者独立，新增类型时按需扩展对应组件。
+- 不要在页面组件中硬编码标注逻辑（如 `AnnotatorTaskWorkspaceModal`、`ProviderDisputesPage` 已改用上述共享组件）。
+- 保持 `annotation_schema` 的灵活性，用 `type` 字段区分标注类型，前端根据 `type` 路由到对应渲染器。
+
 ## 开发约定
 
 - 修改前先确认影响范围：根目录、`apps/api`、`apps/web` 分别使用各自脚本。
@@ -105,6 +158,7 @@ pnpm lint
 - 不要手动编辑生成产物，除非任务明确要求；常见生成目录包括 `.turbo/`、`node_modules/`、`apps/web/dist/`、`apps/api/target/`、`apps/api/build/`。
 - 后端新增接口时同步考虑测试脚本是否需要覆盖；前端改动涉及构建输出时通过脚本重新生成。
 - 使用现有脚本和目录布局，不要引入新的构建工具或框架，除非用户明确要求。
+- **新增标注类型时**，优先扩展 `src/components/shared/` 下的独立组件，而非修改页面级组件。
 
 ## 提交前检查建议
 

@@ -1,18 +1,10 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { DataItemViewer } from '../../components/shared/DataItemViewer';
+import { AnnotationResultViewer, formatAnnotationResult } from '../../components/shared/AnnotationResultViewer';
+import type { AnnotationSchema } from '../../components/shared/AnnotationEditor';
 
 const apiBaseUrl = 'http://localhost:7000';
-
-interface AnnotationOption {
-  value: string;
-  label: string;
-}
-
-interface AnnotationSchema {
-  type?: string;
-  selectionMode?: 'single' | 'multiple';
-  options?: AnnotationOption[];
-}
 
 interface DataItem {
   id: string;
@@ -105,7 +97,6 @@ function DonutChart({
   return (
     <div className="flex items-center gap-8">
       <svg width={center * 2} height={center * 2} className="shrink-0 -rotate-90">
-        {/* 背景圆环 */}
         <circle
           cx={center}
           cy={center}
@@ -114,7 +105,6 @@ function DonutChart({
           stroke="#f3f4f6"
           strokeWidth={strokeWidth}
         />
-        {/* 数据段 */}
         {entries.map(([key, count]) => {
           const percentage = count / total;
           const dashLength = circumference * percentage;
@@ -138,7 +128,6 @@ function DonutChart({
             />
           );
         })}
-        {/* 中心文字 */}
         <text
           x={center}
           y={center}
@@ -163,7 +152,6 @@ function DonutChart({
         </text>
       </svg>
 
-      {/* 图例 */}
       <div className="flex flex-col gap-2">
         {entries.map(([key, count]) => {
           const percentage = Math.round((count / total) * 100);
@@ -176,12 +164,8 @@ function DonutChart({
                 className="inline-block h-3 w-3 rounded-full"
                 style={{ backgroundColor: color }}
               />
-              <span className="text-sm text-gray-700">
-                {label}
-              </span>
-              <span className="text-sm text-gray-500">
-                {count} ({percentage}%)
-              </span>
+              <span className="text-sm text-gray-700">{label}</span>
+              <span className="text-sm text-gray-500">{count} ({percentage}%)</span>
             </div>
           );
         })}
@@ -196,37 +180,6 @@ function parseSchema(rawSchema: string): AnnotationSchema | null {
   } catch {
     return null;
   }
-}
-
-function parseAnnotationSelection(result: string, schema: AnnotationSchema | null): string[] {
-  try {
-    const parsed = JSON.parse(result) as unknown;
-    if (schema?.selectionMode === 'multiple') {
-      if (Array.isArray((parsed as { values?: unknown }).values)) {
-        return (parsed as { values: string[] }).values.filter(Boolean);
-      }
-    }
-    if (typeof (parsed as { value?: unknown }).value === 'string') {
-      return [(parsed as { value: string }).value];
-    }
-    if (Array.isArray(parsed)) {
-      return parsed.filter((item): item is string => typeof item === 'string');
-    }
-    if (typeof parsed === 'string') {
-      return [parsed];
-    }
-    return [];
-  } catch {
-    return [];
-  }
-}
-
-function mapValuesToLabels(values: string[], schema: AnnotationSchema | null): string[] {
-  if (!schema?.options || schema.options.length === 0) {
-    return values;
-  }
-  const labelMap = new Map(schema.options.map((opt) => [opt.value, opt.label]));
-  return values.map((v) => labelMap.get(v) || v);
 }
 
 export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalProps) {
@@ -264,7 +217,6 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
       const loadedTasks = data as TaskDetail[];
       setTasks(loadedTasks);
 
-      // 获取数据集 schema 用于标注结果映射
       if (loadedTasks.length > 0) {
         const datasetId = loadedTasks[0].item.datasetId;
         await loadDatasetSchema(datasetId, token);
@@ -322,13 +274,6 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
       commentCounts,
       hasComments: Object.keys(commentCounts).length > 0,
     };
-  }
-
-  function formatAnnotationResult(result: string | null): string {
-    if (!result) return '无';
-    const values = parseAnnotationSelection(result, schema);
-    const labels = mapValuesToLabels(values, schema);
-    return labels.join(', ') || '无';
   }
 
   const stats = computeStats();
@@ -392,7 +337,6 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
           ) : viewMode === 'summary' ? (
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-6">
-                {/* 审核状态环形图 */}
                 <div className="rounded border border-gray-200">
                   <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
                     标注审核状态分布
@@ -409,7 +353,6 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
                   </div>
                 </div>
 
-                {/* 采纳状态环形图 */}
                 <div className="rounded border border-gray-200">
                   <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
                     采纳状态分布
@@ -427,7 +370,6 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
                 </div>
               </div>
 
-              {/* 审核意见分布 - 使用横向条形图 */}
               {stats?.hasComments && (
                 <div className="rounded border border-gray-200">
                   <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
@@ -440,12 +382,8 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
                         return (
                           <div key={comment}>
                             <div className="mb-1 flex items-center justify-between text-sm">
-                              <span className="max-w-md truncate text-gray-700" title={comment}>
-                                {comment}
-                              </span>
-                              <span className="shrink-0 text-gray-500">
-                                {count} 条 ({percentage}%)
-                              </span>
+                              <span className="max-w-md truncate text-gray-700" title={comment}>{comment}</span>
+                              <span className="shrink-0 text-gray-500">{count} 条 ({percentage}%)</span>
                             </div>
                             <div className="h-4 rounded-full bg-gray-100">
                               <div
@@ -488,7 +426,10 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
                         </span>
                       </td>
                       <td className="px-4 py-3 text-gray-600">
-                        {formatAnnotationResult(task.annotationResult)}
+                        <AnnotationResultViewer
+                          result={task.annotationResult}
+                          schema={schema}
+                        />
                       </td>
                       <td className="px-4 py-3">
                         {task.annotationStatus ? (

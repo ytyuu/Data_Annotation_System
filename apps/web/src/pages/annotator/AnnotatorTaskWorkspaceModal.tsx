@@ -1,4 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { DataItemViewer } from '../../components/shared/DataItemViewer';
+import { AnnotationEditor } from '../../components/shared/AnnotationEditor';
+import { parseAnnotationSelection } from '../../components/shared/AnnotationResultViewer';
+import type { AnnotationSchema } from '../../components/shared/AnnotationEditor';
+import { buildAnnotationResult } from '../../components/shared/AnnotationResultBuilder';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -38,17 +43,6 @@ interface TaskWorkspaceResponse {
   tasks: TaskWorkspaceTask[];
 }
 
-interface AnnotationOption {
-  label: string;
-  value: string;
-}
-
-interface AnnotationSchema {
-  type?: string;
-  options?: AnnotationOption[];
-  selectionMode?: 'single' | 'multiple';
-}
-
 interface DraftResult {
   taskId: string;
   itemId: string;
@@ -84,50 +78,6 @@ function parseSchema(rawSchema: string): AnnotationSchema | null {
   } catch {
     return null;
   }
-}
-
-function buildResult(selection: string[], schema: AnnotationSchema | null) {
-  if (schema?.selectionMode === 'multiple') {
-    return { values: selection };
-  }
-  return { value: selection[0] ?? null };
-}
-
-function parseAnnotationSelection(result: string, schema: AnnotationSchema | null): string[] {
-  try {
-    const parsed = JSON.parse(result) as unknown;
-    if (schema?.selectionMode === 'multiple') {
-      if (Array.isArray((parsed as { values?: unknown }).values)) {
-        return (parsed as { values: string[] }).values.filter(Boolean);
-      }
-    }
-    if (typeof (parsed as { value?: unknown }).value === 'string') {
-      return [(parsed as { value: string }).value];
-    }
-    if (Array.isArray(parsed)) {
-      return parsed.filter((item): item is string => typeof item === 'string');
-    }
-    if (typeof parsed === 'string') {
-      return [parsed];
-    }
-    return [];
-  } catch {
-    return [];
-  }
-}
-
-function renderItemContent(item: TaskWorkspaceItem) {
-  if (item.contentType === 'image') {
-    return <img src={item.content} alt="数据项" className="max-h-64 w-full rounded border border-gray-200 object-contain" />;
-  }
-  if (item.contentType === 'json') {
-    return (
-      <pre className="whitespace-pre-wrap rounded border border-gray-200 bg-gray-50 p-4 text-base leading-7 text-gray-700">
-        {item.content}
-      </pre>
-    );
-  }
-  return <div className="whitespace-pre-wrap text-base leading-7 text-gray-800">{item.content}</div>;
 }
 
 export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: AnnotatorTaskWorkspaceModalProps) {
@@ -196,9 +146,6 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
 
   const selection = currentTask ? drafts[currentTask.taskId]?.selection ?? [] : [];
 
-  const supportsSelection = schema?.type === 'classification' && Array.isArray(schema?.options);
-  const isMultiple = schema?.selectionMode === 'multiple';
-
   useEffect(() => {
     if (!workspace) {
       return;
@@ -209,14 +156,14 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
         if (next[task.taskId] || !task.annotationResult) {
           return;
         }
-        const selection = parseAnnotationSelection(task.annotationResult, schema);
-        if (selection.length === 0) {
+        const sel = parseAnnotationSelection(task.annotationResult, schema);
+        if (sel.length === 0) {
           return;
         }
         next[task.taskId] = {
           taskId: task.taskId,
           itemId: task.item.id,
-          selection,
+          selection: sel,
         };
       });
       return next;
@@ -253,30 +200,20 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
     }, 450);
   }, [currentIndex, currentTask, drafts, tasks.length]);
 
-
-  function updateSelection(value: string) {
+  function handleSelectionChange(newSelection: string[]) {
     if (!currentTask) {
       return;
     }
 
     setDrafts((prev) => {
       const next = { ...prev };
-      const current = next[currentTask.taskId]?.selection ?? [];
-      let updated: string[];
-
-      if (isMultiple) {
-        updated = current.includes(value) ? current.filter((item) => item !== value) : [...current, value];
-      } else {
-        updated = [value];
-      }
-
       next[currentTask.taskId] = {
         taskId: currentTask.taskId,
         itemId: currentTask.item.id,
-        selection: updated,
+        selection: newSelection,
       };
 
-      if (updated.length > 0) {
+      if (newSelection.length > 0) {
         setLastCompletedTaskId(currentTask.taskId);
         autoAdvanceTaskIdRef.current = currentTask.taskId;
       }
@@ -284,7 +221,6 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
       return next;
     });
   }
-
 
   function goToIndex(index: number) {
     if (index < 0 || index >= tasks.length) {
@@ -319,7 +255,7 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
           return {
             taskId: task.taskId,
             itemId: task.item.id,
-            result: JSON.stringify(buildResult(draft.selection, schema)),
+            result: buildAnnotationResult(draft.selection, schema),
           };
         })
         .filter(Boolean);
@@ -388,35 +324,27 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
                     }`}
                   >
                     <div className="text-base font-medium text-gray-700">数据内容</div>
-                    <div className="flex-1 overflow-auto">{renderItemContent(currentTask.item)}</div>
+                    <div className="flex-1 overflow-auto">
+                      <DataItemViewer
+                        item={{
+                          id: currentTask.item.id,
+                          datasetId: currentTask.item.datasetId,
+                          content: currentTask.item.content,
+                          contentType: currentTask.item.contentType,
+                          metadata: currentTask.item.metadata,
+                        }}
+                      />
+                    </div>
 
                     <div className="border-t border-gray-200 pt-4">
                       <div className="text-base font-medium text-gray-700">标注结果</div>
-                      {!supportsSelection ? (
-                        <div className="mt-2 text-base text-gray-500">暂不支持该标注类型</div>
-                      ) : (
-                        <div className="mt-4 grid gap-3">
-                          {(schema?.options ?? []).map((option) => {
-                            const checked = selection.includes(option.value);
-                            return (
-                              <label
-                                key={option.value}
-                                className={`flex min-h-14 cursor-pointer items-center gap-3 rounded border px-5 py-4 text-lg font-medium transition-colors ${
-                                  checked ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 text-gray-700'
-                                }`}
-                              >
-                                <input
-                                  type={isMultiple ? 'checkbox' : 'radio'}
-                                  checked={checked}
-                                  onChange={() => updateSelection(option.value)}
-                                  className="h-5 w-5"
-                                />
-                                {option.label}
-                              </label>
-                            );
-                          })}
-                        </div>
-                      )}
+                      <div className="mt-4">
+                        <AnnotationEditor
+                          schema={schema}
+                          selection={selection}
+                          onChange={handleSelectionChange}
+                        />
+                      </div>
                     </div>
                   </div>
                 ) : (
@@ -477,7 +405,7 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
                       {tasks.map((task, index) => {
                         const draft = drafts[task.taskId];
                         const label = draft?.selection
-                          .map((value) => schema?.options?.find((opt) => opt.value === value)?.label || value)
+                          .map((value: string) => schema?.options?.find((opt: { value: string; label: string }) => opt.value === value)?.label || value)
                           .join(', ');
                         const isCompleted = Boolean(draft?.selection.length);
                         const isJustCompleted = task.taskId === lastCompletedTaskId;

@@ -1,5 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { DataItemViewer } from '../../components/shared/DataItemViewer';
+import { AnnotationEditor } from '../../components/shared/AnnotationEditor';
+import { AnnotationResultViewer, formatAnnotationResult } from '../../components/shared/AnnotationResultViewer';
+import { buildAnnotationResult } from '../../components/shared/AnnotationResultBuilder';
+import { AnnotationCard } from '../../components/shared/AnnotationCard';
+import type { AnnotationSchema } from '../../components/shared/AnnotationEditor';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -44,113 +50,6 @@ interface DisputeDetail {
   annotationSchema: string;
   annotationGuide: string | null;
   datasetName: string;
-}
-
-interface AnnotationOption {
-  label: string;
-  value: string;
-}
-
-interface AnnotationSchema {
-  type?: string;
-  options?: AnnotationOption[];
-  selectionMode?: 'single' | 'multiple';
-}
-
-function parseSchema(rawSchema: string): AnnotationSchema | null {
-  try {
-    return JSON.parse(rawSchema) as AnnotationSchema;
-  } catch {
-    return null;
-  }
-}
-
-function parseAnnotationSelection(result: string, schema: AnnotationSchema | null): string[] {
-  try {
-    const parsed = JSON.parse(result) as unknown;
-    if (schema?.selectionMode === 'multiple') {
-      if (Array.isArray((parsed as { values?: unknown }).values)) {
-        return (parsed as { values: string[] }).values.filter(Boolean);
-      }
-    }
-    if (typeof (parsed as { value?: unknown }).value === 'string') {
-      return [(parsed as { value: string }).value];
-    }
-    if (Array.isArray(parsed)) {
-      return parsed.filter((item): item is string => typeof item === 'string');
-    }
-    if (typeof parsed === 'string') {
-      return [parsed];
-    }
-    return [];
-  } catch {
-    return [];
-  }
-}
-
-function buildResult(selection: string[], schema: AnnotationSchema | null): Record<string, unknown> {
-  if (schema?.selectionMode === 'multiple') {
-    return { values: selection };
-  }
-  return { value: selection[0] ?? null };
-}
-
-function renderItemContent(item: DataItem) {
-  if (item.contentType === 'image') {
-    return (
-      <img
-        src={item.content}
-        alt="数据项"
-        className="max-h-64 w-full rounded border border-gray-200 object-contain"
-      />
-    );
-  }
-  if (item.contentType === 'json') {
-    return (
-      <pre className="whitespace-pre-wrap rounded border border-gray-200 bg-gray-50 p-4 text-sm leading-6 text-gray-700">
-        {item.content}
-      </pre>
-    );
-  }
-  return <div className="whitespace-pre-wrap text-sm leading-6 text-gray-800">{item.content}</div>;
-}
-
-function AnnotationCard({
-  annotation,
-  schema,
-}: {
-  annotation: AnnotationDetail;
-  schema: AnnotationSchema | null;
-}) {
-  const selection = parseAnnotationSelection(annotation.result, schema);
-  const labels = selection
-    .map((v) => schema?.options?.find((o) => o.value === v)?.label || v)
-    .join('，');
-  const typeLabel = annotation.annotationType === 'annotation' ? '原始标注' : '互查标注';
-
-  return (
-    <div className="rounded border border-gray-200 bg-gray-50 p-4">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-gray-900">{annotation.annotatorName}</span>
-        <span className="rounded bg-blue-100 px-2 py-0.5 text-xs text-blue-700">{typeLabel}</span>
-      </div>
-      <div className="mt-1 text-xs text-gray-500">
-        {new Date(annotation.submittedAt).toLocaleString()}
-      </div>
-      <div className="mt-2 text-sm">
-        <span className="font-medium text-gray-700">结果：</span>
-        <span className="text-blue-700">{labels || '无'}</span>
-      </div>
-      {annotation.comment && (
-        <div className="mt-1 text-sm text-gray-600">备注：{annotation.comment}</div>
-      )}
-      {annotation.isDisputed && (
-        <span className="mt-2 inline-block rounded bg-red-100 px-2 py-0.5 text-xs text-red-700">
-          存在争议
-        </span>
-      )}
-    </div>
-  );
 }
 
 type ViewState = 'datasets' | 'items';
@@ -303,28 +202,21 @@ export function ProviderDisputesPage() {
   }
 
   const schema = useMemo(() => {
-    return disputeDetail ? parseSchema(disputeDetail.annotationSchema) : null;
+    if (!disputeDetail?.annotationSchema) return null;
+    try {
+      return JSON.parse(disputeDetail.annotationSchema) as AnnotationSchema;
+    } catch {
+      return null;
+    }
   }, [disputeDetail]);
-
-  const supportsSelection = schema?.type === 'classification' && Array.isArray(schema?.options);
-  const isMultiple = schema?.selectionMode === 'multiple';
-
-  function updateSelection(value: string) {
-    setResolveSelection((prev) => {
-      if (isMultiple) {
-        return prev.includes(value)
-          ? prev.filter((item) => item !== value)
-          : [...prev, value];
-      }
-      return [value];
-    });
-  }
 
   async function handleResolveSubmit() {
     if (!selectedDataset || !resolveItem) return;
 
     const token = localStorage.getItem('token');
     if (!token) return;
+
+    const supportsSelection = schema?.type === 'classification' && Array.isArray(schema?.options);
 
     if (supportsSelection && resolveSelection.length === 0) {
       setDetailError('请选择最终标注结果');
@@ -336,7 +228,7 @@ export function ProviderDisputesPage() {
 
     try {
       const finalResult = supportsSelection
-        ? JSON.stringify(buildResult(resolveSelection, schema))
+        ? buildAnnotationResult(resolveSelection, schema)
         : '{}';
 
       const response = await fetch(
@@ -406,9 +298,7 @@ export function ProviderDisputesPage() {
                     <td className="px-4 py-3">
                       <div className="font-medium text-gray-900">{dataset.name}</div>
                       {dataset.description && (
-                        <div className="mt-1 line-clamp-1 text-xs text-gray-500">
-                          {dataset.description}
-                        </div>
+                        <div className="mt-1 line-clamp-1 text-xs text-gray-500">{dataset.description}</div>
                       )}
                     </td>
                     <td className="px-4 py-3 text-gray-600">{dataset.itemCount}</td>
@@ -544,39 +434,25 @@ export function ProviderDisputesPage() {
                   <div>
                     <div className="mb-2 text-sm font-medium text-gray-700">数据内容</div>
                     <div className="rounded border border-gray-200 p-4">
-                      {renderItemContent(disputeDetail.item)}
+                      <DataItemViewer
+                        item={{
+                          id: disputeDetail.item.id,
+                          datasetId: disputeDetail.item.datasetId,
+                          content: disputeDetail.item.content,
+                          contentType: disputeDetail.item.contentType,
+                          metadata: '{}',
+                        }}
+                      />
                     </div>
                   </div>
 
                   <div>
                     <div className="mb-2 text-sm font-medium text-gray-700">裁决结果</div>
-                    {!supportsSelection ? (
-                      <div className="text-sm text-gray-500">暂不支持该标注类型</div>
-                    ) : (
-                      <div className="grid gap-3">
-                        {(schema?.options ?? []).map((option) => {
-                          const checked = resolveSelection.includes(option.value);
-                          return (
-                            <label
-                              key={option.value}
-                              className={`flex min-h-12 cursor-pointer items-center gap-3 rounded border px-4 py-3 text-sm font-medium transition-colors ${
-                                checked
-                                  ? 'border-blue-500 bg-blue-50 text-blue-700'
-                                  : 'border-gray-200 text-gray-700'
-                              }`}
-                            >
-                              <input
-                                type={isMultiple ? 'checkbox' : 'radio'}
-                                checked={checked}
-                                onChange={() => updateSelection(option.value)}
-                                className="h-4 w-4"
-                              />
-                              {option.label}
-                            </label>
-                          );
-                        })}
-                      </div>
-                    )}
+                    <AnnotationEditor
+                      schema={schema}
+                      selection={resolveSelection}
+                      onChange={setResolveSelection}
+                    />
 
                     <div className="mt-3">
                       <label className="app-label">备注（可选）</label>
@@ -593,7 +469,7 @@ export function ProviderDisputesPage() {
                     <div className="mt-4">
                       <button
                         type="button"
-                        disabled={resolveSubmitting || (supportsSelection && resolveSelection.length === 0)}
+                        disabled={resolveSubmitting}
                         className="rounded bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                         onClick={handleResolveSubmit}
                       >
@@ -616,7 +492,16 @@ export function ProviderDisputesPage() {
                   <div className="mb-2 text-sm font-medium text-gray-700">标注结果</div>
                   <div className="grid gap-3">
                     {disputeDetail.annotations.map((ann) => (
-                      <AnnotationCard key={ann.id} annotation={ann} schema={schema} />
+                      <AnnotationCard
+                        key={ann.id}
+                        annotatorName={ann.annotatorName}
+                        annotationType={ann.annotationType}
+                        result={ann.result}
+                        comment={ann.comment}
+                        isDisputed={ann.isDisputed}
+                        submittedAt={ann.submittedAt}
+                        schema={schema}
+                      />
                     ))}
                   </div>
                 </div>
