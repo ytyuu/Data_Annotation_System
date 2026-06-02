@@ -268,6 +268,9 @@ data class AnnotatorTaskResponse(
  * @property submittedAt 提交时间
  * @property annotationResult 已提交的标注结果 JSON 字符串
  * @property annotationIsDisputed 是否存在争议
+ * @property annotationStatus 标注结果审核状态：submitted/returned/accepted/rejected
+ * @property adoptionStatus 采纳状态：0未处理/1已采纳/2已拒绝
+ * @property adoptionComment 采纳/拒绝说明
  */
 data class AnnotatorTaskDetailResponse(
     val batchId: String,
@@ -280,6 +283,9 @@ data class AnnotatorTaskDetailResponse(
     val submittedAt: String?,
     val annotationResult: String? = null,
     val annotationIsDisputed: Boolean? = null,
+    val annotationStatus: String? = null,
+    val adoptionStatus: Int? = null,
+    val adoptionComment: String? = null,
 )
 
 /**

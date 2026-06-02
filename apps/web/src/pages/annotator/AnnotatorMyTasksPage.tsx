@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnnotatorTaskWorkspaceModal } from './AnnotatorTaskWorkspaceModal';
+import { TaskBatchDetailModal } from './TaskBatchDetailModal';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -37,6 +38,7 @@ export function AnnotatorMyTasksPage() {
   const [returnLoading, setReturnLoading] = useState(false);
   const [startingBatchId, setStartingBatchId] = useState<string | null>(null);
   const [activeBatchId, setActiveBatchId] = useState<string | null>(null);
+  const [detailBatchId, setDetailBatchId] = useState<string | null>(null);
 
   useEffect(() => {
     loadGroups();
@@ -152,6 +154,14 @@ export function AnnotatorMyTasksPage() {
     }
   }
 
+  function openDetail(batchId: string) {
+    setDetailBatchId(batchId);
+  }
+
+  function closeDetail() {
+    setDetailBatchId(null);
+  }
+
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
@@ -205,6 +215,13 @@ export function AnnotatorMyTasksPage() {
                   <span className="text-xs text-gray-400">
                     领取时间 {new Date(group.assignedAt).toLocaleString()}
                   </span>
+                  <button
+                    type="button"
+                    className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                    onClick={() => openDetail(group.batchId)}
+                  >
+                    查看详情
+                  </button>
                   {['assigned', 'in_progress'].includes(group.status) && (
                     <>
                       <button
@@ -282,6 +299,12 @@ export function AnnotatorMyTasksPage() {
             setActiveBatchId(null);
             loadGroups();
           }}
+        />
+      )}
+      {detailBatchId && (
+        <TaskBatchDetailModal
+          batchId={detailBatchId}
+          onClose={closeDetail}
         />
       )}
     </div>

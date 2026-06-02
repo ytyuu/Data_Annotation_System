@@ -553,6 +553,9 @@ class AnnotatorDatasetService {
                 submittedAt = taskRow[AnnotationTasksTable.submittedAt]?.toString(),
                 annotationResult = annotation?.get(AnnotationsTable.result),
                 annotationIsDisputed = annotation?.get(AnnotationsTable.isDisputed),
+                annotationStatus = annotation?.get(AnnotationsTable.status),
+                adoptionStatus = annotation?.get(AnnotationsTable.adoptionStatus)?.toInt(),
+                adoptionComment = annotation?.get(AnnotationsTable.adoptionComment),
             )
         }
     }
