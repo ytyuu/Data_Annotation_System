@@ -39,9 +39,12 @@
    - 标注任务（`batch_type = 'annotation'`）：领取 `pending` 状态的数据项进行首次标注，领取后数据项进入 `assigned` 状态。
    - 互查任务（`batch_type = 'review'`）：领取 `annotated` 或 `disputed` 状态的数据项，由另一位标注员进行复核。
 5. 标注员根据任务单进入标注流程，并按照 `annotation_guide` 和 `annotation_schema` 对任务项中的数据项进行标注。
+   - 单选无子选项：选中主选项后自动跳转到下一条（间隔 800ms）。
+   - 单选带子选项：选中主选项后展开子选项列表，选择子选项后才自动跳转。
+   - **多选模式：不自动跳转**，需手动点击"下一条"或"提交任务单"。
 6. 标注员提交结果后，系统写入 `annotations`，并更新任务和数据项状态。
    - 标注任务提交：将 `data_items.status` 更新为 `annotated` 或 `disputed`。
-   - 互查任务提交：新增或更新 `annotation_type = 'review'` 的标注结果行，`result` 保存互查结果，`review_of_annotation_id` 指向原始标注结果。
+   - 互查任务提交：新增或更新 `annotation_type = 'review'` 的标注结果行，`result` 保存互查结果，`review_of_annotation_id` 指向原始标注结果。互查一致性比对同时考虑主选项和子选项值。
 7. 如果标注员无法确定结果，可以将标注结果标记为争议或不确定。
 8. 系统根据完成比例、争议情况和任务状态判断是否触发复查或数据集审核。
 9. 数据集提供者对已标注数据进行抽样审核。
@@ -64,6 +67,9 @@
 | 对已标注数据进行抽样审核 | 提供者抽查标注质量 | `dataset_reviews` |
 | 由上传该数据集的需求方进行复查 | 提供者处理争议或不确定结果 | `dataset_reviews.provider_id` |
 | 由上传该数据集的需求方进行变量调整 | 提供者修改标注要求或标注配置结构 | `datasets.annotation_guide`、`datasets.annotation_schema` |
+| 标注选项配置子选项 | 数据集标注结构支持二级子选项 | `datasets.annotation_schema` 中 `options[].hasSubOptions`、`options[].subOptions` |
+| 自动跳转下一条 | 单选无子选项/带子选项选中子选项后自动跳转 | 前端 `AnnotatorTaskWorkspaceModal` 自动跳转逻辑 |
+| 多选标注 | 多选模式下不自动跳转，需手动提交 | 前端 `AnnotatorTaskWorkspaceModal` 多选模式禁用自动跳转 |
 | 数据集标注是否全部完成 | 判断数据集是否结束 | `datasets.status` |
 
 ## 状态流转
@@ -204,39 +210,93 @@ draft -> open -> annotating -> reviewing -> completed
 
 ## 标注配置与数据扩展信息
 
-`datasets.annotation_schema` 用于定义“怎么标注”，属于数据集级别配置。它可以描述标注类型、字段、选项、控件、必填规则、校验规则和结果格式。
+`datasets.annotation_schema` 用于定义”怎么标注”，属于数据集级别配置。它可以描述标注类型、字段、选项、控件、必填规则、校验规则和结果格式。
 
-示例：
+### 基础分类标注示例（无子选项）
 
 ```json
 {
-  "version": 1,
-  "type": "form",
-  "fields": [
+  “version”: 1,
+  “type”: “classification”,
+  “selectionMode”: “single”,
+  “options”: [
+    { “value”: “positive”, “label”: “正向” },
+    { “value”: “neutral”, “label”: “中性” },
+    { “value”: “negative”, “label”: “负向” }
+  ]
+}
+```
+
+对应标注结果：
+
+```json
+{ “value”: “positive” }
+```
+
+### 带子选项的二级分类标注示例
+
+每个主选项可独立设置是否有子选项、子选项的单选/多选模式：
+
+```json
+{
+  “version”: 1,
+  “type”: “classification”,
+  “selectionMode”: “single”,
+  “options”: [
     {
-      "key": "sentiment",
-      "label": "情感倾向",
-      "component": "radio",
-      "required": true,
-      "options": [
-        { "value": "positive", "label": "正向" },
-        { "value": "neutral", "label": "中性" },
-        { "value": "negative", "label": "负向" }
+      “value”: “emotion”,
+      “label”: “情感”,
+      “hasSubOptions”: true,
+      “subSelectionMode”: “single”,
+      “subOptions”: [
+        { “value”: “positive”, “label”: “正面” },
+        { “value”: “neutral”, “label”: “中性” },
+        { “value”: “negative”, “label”: “负面” }
       ]
+    },
+    {
+      “value”: “topic”,
+      “label”: “主题”,
+      “hasSubOptions”: true,
+      “subSelectionMode”: “multiple”,
+      “subOptions”: [
+        { “value”: “product”, “label”: “产品” },
+        { “value”: “service”, “label”: “服务” },
+        { “value”: “logistics”, “label”: “物流” }
+      ]
+    },
+    {
+      “value”: “other”,
+      “label”: “其他”,
+      “hasSubOptions”: false
     }
   ]
 }
 ```
 
-`annotations.result` 保存实际标注结果，应与 `annotation_schema` 中定义的字段对应。
-
-示例：
+对应标注结果（含子选项）：
 
 ```json
 {
-  "sentiment": "positive"
+  “value”: “emotion”,
+  “subValues”: { “emotion”: [“positive”] }
 }
 ```
+
+多选主选项带子选项的结果：
+
+```json
+{
+  “values”: [“topic”],
+  “subValues”: { “topic”: [“product”, “service”] }
+}
+```
+
+### 标注结果存储规则
+
+- 无子选项：单选 `{ “value”: “xxx” }`，多选 `{ “values”: [“xxx”, “yyy”] }`
+- 有子选项：在原有格式基础上增加 `subValues` 字段，格式为 `Record<string, string[]>`
+- `subValues` 的 key 为主选项 value，value 为子选项 value 的数组（单选子选项时数组长度为 1）
 
 `data_items.metadata` 用于描述单条原始数据的扩展信息，不用于保存标注配置。争议裁决后的最终结果保存到 `data_items.final_result`，并记录 `finalized_at`/`finalized_by`。
 
