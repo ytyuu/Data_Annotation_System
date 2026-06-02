@@ -21,7 +21,6 @@ import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.count
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
@@ -104,23 +103,36 @@ class ProviderDatasetService {
     fun listProviderDatasets(providerId: UUID): AuthResult<List<DatasetResponse>> {
         val datasets = transaction {
             // 查询当前提供者创建的数据集，并按最近更新时间倒序展示。
-            DatasetsTable
+            val datasetRows = DatasetsTable
                 .selectAll()
                 .where { DatasetsTable.providerId eq providerId }
                 .orderBy(DatasetsTable.updatedAt to SortOrder.DESC)
-                .map(::toDatasetResponse)
+                .toList()
+
+            val datasetIds = datasetRows.map { it[DatasetsTable.id] }
+
+            // 查询每个数据集中同时有 annotation 和 review 且 is_disputed=false 的数据项数量。
+            val completedCounts = DatasetQueryHelper.countFullyAnnotatedItems(datasetIds)
+
+            datasetRows.map { row ->
+                toDatasetResponse(
+                    row,
+                    completedItemCount = completedCounts[row[DatasetsTable.id]] ?: 0,
+                )
+            }
         }
 
         return AuthResult.Success(datasets)
     }
 
     /**
-     * 查询所有对标注员开放的数据集列表。
+     * 向指定数据集批量导入数据项。
      *
-     * @param annotatorId 标注员用户 ID
-     * @return 查询结果，成功时返回按更新时间倒序排列的数据集列表
+     * @param providerId 数据集提供者用户 ID
+     * @param datasetId 数据集 ID
+     * @param request 导入请求，包含待导入的数据项列表
+     * @return 导入结果
      */
-
     fun importDataItems(
         providerId: UUID,
         datasetId: UUID,
@@ -480,7 +492,11 @@ class ProviderDatasetService {
      * @param row 数据集表查询结果行
      * @return 数据集响应数据
      */
-    private fun toDatasetResponse(row: ResultRow, canClaim: Boolean? = null): DatasetResponse {
+    private fun toDatasetResponse(
+        row: ResultRow,
+        canClaim: Boolean? = null,
+        completedItemCount: Int? = null,
+    ): DatasetResponse {
         return DatasetResponse(
             id = row[DatasetsTable.id].toString(),
             providerId = row[DatasetsTable.providerId].toString(),
@@ -491,7 +507,7 @@ class ProviderDatasetService {
             status = row[DatasetsTable.status],
             targetCompletionRatio = row[DatasetsTable.targetCompletionRatio].toPlainString(),
             itemCount = row[DatasetsTable.itemCount],
-            completedItemCount = row[DatasetsTable.completedItemCount],
+            completedItemCount = completedItemCount ?: row[DatasetsTable.completedItemCount],
             createdAt = row[DatasetsTable.createdAt].toString(),
             updatedAt = row[DatasetsTable.updatedAt].toString(),
             canClaim = canClaim,

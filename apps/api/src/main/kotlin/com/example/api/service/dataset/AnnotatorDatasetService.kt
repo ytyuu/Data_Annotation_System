@@ -10,6 +10,7 @@ import com.example.api.models.DataItemResponse
 import com.example.api.models.DatasetResponse
 import com.example.api.models.AnnotatorTaskWorkspaceResponse
 import com.example.api.models.AnnotationSubmissionInput
+import com.example.api.models.AnnotatorTaskDetailResponse
 import com.example.api.models.AnnotatorTaskResponse
 import com.example.api.models.SubmitAnnotationBatchResponse
 import com.example.api.models.TaskAssignmentResponse
@@ -151,6 +152,9 @@ class AnnotatorDatasetService {
                     .associate { it[DataItemsTable.datasetId] to it[reviewableItemCount] }
             }
 
+            // 查询每个数据集中同时有 annotation 和 review 且 is_disputed=false 的数据项数量。
+            val completedCounts = DatasetQueryHelper.countFullyAnnotatedItems(datasetIds)
+
             datasetRows.map { row ->
                 val datasetId = row[DatasetsTable.id]
                 val hasPending = (pendingCounts[datasetId] ?: 0) > 0
@@ -163,12 +167,14 @@ class AnnotatorDatasetService {
 
                 val pendingCount = (pendingCounts[datasetId] ?: 0).toInt()
                 val reviewableCount = (reviewableCounts[datasetId] ?: 0).toInt()
+                val completedCount = completedCounts[datasetId] ?: 0
 
                 toDatasetResponse(
                     row,
                     canClaim = canClaim,
                     pendingItemCount = pendingCount,
                     reviewableItemCount = reviewableCount,
+                    completedItemCount = completedCount,
                 )
             }
         }
@@ -391,6 +397,7 @@ class AnnotatorDatasetService {
         canClaim: Boolean? = null,
         pendingItemCount: Int? = null,
         reviewableItemCount: Int? = null,
+        completedItemCount: Int? = null,
     ): DatasetResponse {
         return DatasetResponse(
             id = row[DatasetsTable.id].toString(),
@@ -402,7 +409,7 @@ class AnnotatorDatasetService {
             status = row[DatasetsTable.status],
             targetCompletionRatio = row[DatasetsTable.targetCompletionRatio].toPlainString(),
             itemCount = row[DatasetsTable.itemCount],
-            completedItemCount = row[DatasetsTable.completedItemCount],
+            completedItemCount = completedItemCount ?: row[DatasetsTable.completedItemCount],
             createdAt = row[DatasetsTable.createdAt].toString(),
             updatedAt = row[DatasetsTable.updatedAt].toString(),
             canClaim = canClaim,
@@ -410,6 +417,93 @@ class AnnotatorDatasetService {
             reviewableItemCount = reviewableItemCount,
         )
     }
+
+    /**
+     * 批量查询任务单详情所需的任务项、数据项和已有标注结果。
+     */
+    private fun fetchBatchTaskRows(
+        annotatorId: UUID,
+        batchId: UUID,
+    ): BatchTaskRows {
+        // 查询任务单下的全部任务项，作为详情列表的主体数据。
+        val taskRows = AnnotationTasksTable
+            .selectAll()
+            .where {
+                (AnnotationTasksTable.annotatorId eq annotatorId) and
+                    (AnnotationTasksTable.batchId eq batchId)
+            }
+            .orderBy(AnnotationTasksTable.assignedAt to SortOrder.ASC)
+            .toList()
+
+        val taskIds = taskRows.map { it[AnnotationTasksTable.id] }
+        val itemIds = taskRows.map { it[AnnotationTasksTable.itemId] }.toSet()
+
+        val annotationsByTask: Map<UUID, ResultRow> = if (taskIds.isEmpty()) {
+            emptyMap()
+        } else {
+            // 批量查询任务项已有标注结果，用于详情回显。
+            AnnotationsTable
+                .selectAll()
+                .where { AnnotationsTable.taskId inList taskIds }
+                .associateBy { it[AnnotationsTable.taskId] }
+        }
+
+        val items: Map<UUID, ResultRow> = if (itemIds.isEmpty()) {
+            emptyMap()
+        } else {
+            // 批量查询任务项绑定的数据项内容。
+            DataItemsTable
+                .selectAll()
+                .where { DataItemsTable.id inList itemIds }
+                .associateBy { it[DataItemsTable.id] }
+        }
+
+        return BatchTaskRows(
+            taskRows = taskRows,
+            annotationsByTask = annotationsByTask,
+            items = items,
+        )
+    }
+
+    private fun toTaskDetailResponses(
+        batchId: UUID,
+        orderNo: String,
+        batchTasks: BatchTaskRows,
+    ): List<AnnotatorTaskDetailResponse> {
+        return batchTasks.taskRows.mapNotNull { taskRow ->
+            val itemId = taskRow[AnnotationTasksTable.itemId]
+            val item = batchTasks.items[itemId] ?: return@mapNotNull null
+            val annotation = batchTasks.annotationsByTask[taskRow[AnnotationTasksTable.id]]
+
+            AnnotatorTaskDetailResponse(
+                batchId = batchId.toString(),
+                orderNo = orderNo,
+                taskId = taskRow[AnnotationTasksTable.id].toString(),
+                item = DataItemResponse(
+                    id = item[DataItemsTable.id].toString(),
+                    datasetId = item[DataItemsTable.datasetId].toString(),
+                    content = item[DataItemsTable.content],
+                    contentType = item[DataItemsTable.contentType],
+                    metadata = item[DataItemsTable.metadata],
+                    status = item[DataItemsTable.status],
+                    createdAt = item[DataItemsTable.createdAt].toString(),
+                    updatedAt = item[DataItemsTable.updatedAt].toString(),
+                ),
+                status = taskRow[AnnotationTasksTable.status],
+                assignedAt = taskRow[AnnotationTasksTable.assignedAt].toString(),
+                startedAt = taskRow[AnnotationTasksTable.startedAt]?.toString(),
+                submittedAt = taskRow[AnnotationTasksTable.submittedAt]?.toString(),
+                annotationResult = annotation?.get(AnnotationsTable.result),
+                annotationIsDisputed = annotation?.get(AnnotationsTable.isDisputed),
+            )
+        }
+    }
+
+    private data class BatchTaskRows(
+        val taskRows: List<ResultRow>,
+        val annotationsByTask: Map<UUID, ResultRow>,
+        val items: Map<UUID, ResultRow>,
+    )
 
     private sealed class ClaimTasksTransactionResult {
         data class Success(val value: ClaimTasksResponse) : ClaimTasksTransactionResult()
@@ -484,7 +578,7 @@ class AnnotatorDatasetService {
                 val dataset = datasets[datasetId] ?: return@mapNotNull null
                 val tasks = tasksByBatch[batch[AnnotationTaskBatchesTable.id]].orEmpty()
 
-                com.example.api.models.AnnotatorTaskResponse(
+                AnnotatorTaskResponse(
                     batchId = batch[AnnotationTaskBatchesTable.id].toString(),
                     orderNo = batch[AnnotationTaskBatchesTable.orderNo],
                     datasetId = datasetId.toString(),
@@ -514,7 +608,7 @@ class AnnotatorDatasetService {
     fun listBatchTasks(
         annotatorId: UUID,
         batchId: UUID,
-    ): AuthResult<List<com.example.api.models.AnnotatorTaskDetailResponse>> {
+    ): AuthResult<List<AnnotatorTaskDetailResponse>> {
         val result = transaction {
             // 查询任务单并校验其属于当前标注员。
             val batch = AnnotationTaskBatchesTable
@@ -527,66 +621,11 @@ class AnnotatorDatasetService {
                 .firstOrNull()
                 ?: return@transaction null
 
-            // 查询任务单下的全部任务项，作为详情列表的主体数据。
-            val taskRows = AnnotationTasksTable
-                .selectAll()
-                .where {
-                    (AnnotationTasksTable.annotatorId eq annotatorId) and
-                        (AnnotationTasksTable.batchId eq batchId)
-                }
-                .orderBy(AnnotationTasksTable.assignedAt to SortOrder.ASC)
-                .toList()
-
-            val taskIds = taskRows.map { it[AnnotationTasksTable.id] }
-            val itemIds = taskRows.map { it[AnnotationTasksTable.itemId] }.toSet()
-
-            val annotationsByTask = if (taskIds.isEmpty()) {
-                emptyMap()
-            } else {
-                // 批量查询任务项已有标注结果，用于详情回显。
-                AnnotationsTable
-                    .selectAll()
-                    .where { AnnotationsTable.taskId inList taskIds }
-                    .associateBy { it[AnnotationsTable.taskId] }
-            }
-
-            val items = if (itemIds.isEmpty()) {
-                emptyMap()
-            } else {
-                // 批量查询任务项绑定的数据项内容。
-                DataItemsTable
-                    .selectAll()
-                    .where { DataItemsTable.id inList itemIds }
-                    .associateBy { it[DataItemsTable.id] }
-            }
-
-            taskRows.mapNotNull { taskRow ->
-                val itemId = taskRow[AnnotationTasksTable.itemId]
-                val item = items[itemId] ?: return@mapNotNull null
-                val annotation = annotationsByTask[taskRow[AnnotationTasksTable.id]]
-
-                com.example.api.models.AnnotatorTaskDetailResponse(
-                    batchId = batchId.toString(),
-                    orderNo = batch[AnnotationTaskBatchesTable.orderNo],
-                    taskId = taskRow[AnnotationTasksTable.id].toString(),
-                    item = DataItemResponse(
-                        id = item[DataItemsTable.id].toString(),
-                        datasetId = item[DataItemsTable.datasetId].toString(),
-                        content = item[DataItemsTable.content],
-                        contentType = item[DataItemsTable.contentType],
-                        metadata = item[DataItemsTable.metadata],
-                        status = item[DataItemsTable.status],
-                        createdAt = item[DataItemsTable.createdAt].toString(),
-                        updatedAt = item[DataItemsTable.updatedAt].toString(),
-                    ),
-                    status = taskRow[AnnotationTasksTable.status],
-                    assignedAt = taskRow[AnnotationTasksTable.assignedAt].toString(),
-                    startedAt = taskRow[AnnotationTasksTable.startedAt]?.toString(),
-                    submittedAt = taskRow[AnnotationTasksTable.submittedAt]?.toString(),
-                    annotationResult = annotation?.get(AnnotationsTable.result),
-                    annotationIsDisputed = annotation?.get(AnnotationsTable.isDisputed),
-                )
-            }
+            toTaskDetailResponses(
+                batchId = batchId,
+                orderNo = batch[AnnotationTaskBatchesTable.orderNo],
+                batchTasks = fetchBatchTaskRows(annotatorId, batchId),
+            )
         }
 
         return if (result == null) {
@@ -760,66 +799,11 @@ class AnnotatorDatasetService {
                 .firstOrNull()
                 ?: return@transaction null
 
-            // 查询任务单下的任务项，作为工作台待标注列表。
-            val taskRows = AnnotationTasksTable
-                .selectAll()
-                .where {
-                    (AnnotationTasksTable.annotatorId eq annotatorId) and
-                        (AnnotationTasksTable.batchId eq batchId)
-                }
-                .orderBy(AnnotationTasksTable.assignedAt to SortOrder.ASC)
-                .toList()
-
-            val taskIds = taskRows.map { it[AnnotationTasksTable.id] }
-            val itemIds = taskRows.map { it[AnnotationTasksTable.itemId] }.toSet()
-
-            val annotationsByTask = if (taskIds.isEmpty()) {
-                emptyMap()
-            } else {
-                // 批量查询任务项已有标注结果，用于工作台恢复草稿/已提交内容。
-                AnnotationsTable
-                    .selectAll()
-                    .where { AnnotationsTable.taskId inList taskIds }
-                    .associateBy { it[AnnotationsTable.taskId] }
-            }
-
-            val items = if (itemIds.isEmpty()) {
-                emptyMap()
-            } else {
-                // 批量查询任务项绑定的数据项内容，避免在循环内查询。
-                DataItemsTable
-                    .selectAll()
-                    .where { DataItemsTable.id inList itemIds }
-                    .associateBy { it[DataItemsTable.id] }
-            }
-
-            val tasks = taskRows.mapNotNull { taskRow ->
-                val itemId = taskRow[AnnotationTasksTable.itemId]
-                val item = items[itemId] ?: return@mapNotNull null
-                val annotation = annotationsByTask[taskRow[AnnotationTasksTable.id]]
-
-                com.example.api.models.AnnotatorTaskDetailResponse(
-                    batchId = batchId.toString(),
-                    orderNo = batch[AnnotationTaskBatchesTable.orderNo],
-                    taskId = taskRow[AnnotationTasksTable.id].toString(),
-                    item = DataItemResponse(
-                        id = item[DataItemsTable.id].toString(),
-                        datasetId = item[DataItemsTable.datasetId].toString(),
-                        content = item[DataItemsTable.content],
-                        contentType = item[DataItemsTable.contentType],
-                        metadata = item[DataItemsTable.metadata],
-                        status = item[DataItemsTable.status],
-                        createdAt = item[DataItemsTable.createdAt].toString(),
-                        updatedAt = item[DataItemsTable.updatedAt].toString(),
-                    ),
-                    status = taskRow[AnnotationTasksTable.status],
-                    assignedAt = taskRow[AnnotationTasksTable.assignedAt].toString(),
-                    startedAt = taskRow[AnnotationTasksTable.startedAt]?.toString(),
-                    submittedAt = taskRow[AnnotationTasksTable.submittedAt]?.toString(),
-                    annotationResult = annotation?.get(AnnotationsTable.result),
-                    annotationIsDisputed = annotation?.get(AnnotationsTable.isDisputed),
-                )
-            }
+            val tasks = toTaskDetailResponses(
+                batchId = batchId,
+                orderNo = batch[AnnotationTaskBatchesTable.orderNo],
+                batchTasks = fetchBatchTaskRows(annotatorId, batchId),
+            )
 
             AnnotatorTaskWorkspaceResponse(
                 batchId = batchId.toString(),
