@@ -549,15 +549,6 @@ export function ProviderDisputesPage() {
                   </div>
 
                   <div>
-                    <div className="mb-2 text-sm font-medium text-gray-700">标注结果</div>
-                    <div className="grid gap-3">
-                      {disputeDetail.annotations.map((ann) => (
-                        <AnnotationCard key={ann.id} annotation={ann} schema={schema} />
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
                     <div className="mb-2 text-sm font-medium text-gray-700">裁决结果</div>
                     {!supportsSelection ? (
                       <div className="text-sm text-gray-500">暂不支持该标注类型</div>
@@ -613,11 +604,20 @@ export function ProviderDisputesPage() {
                 </div>
               </div>
 
-              <div className="flex w-64 shrink-0 flex-col gap-4">
+              <div className="flex w-64 shrink-0 flex-col gap-4 overflow-auto">
                 <div className="rounded border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
                   <div className="font-medium text-gray-900">标注说明</div>
                   <div className="mt-2 whitespace-pre-wrap">
                     {disputeDetail.annotationGuide || '暂无标注说明'}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 text-sm font-medium text-gray-700">标注结果</div>
+                  <div className="grid gap-3">
+                    {disputeDetail.annotations.map((ann) => (
+                      <AnnotationCard key={ann.id} annotation={ann} schema={schema} />
+                    ))}
                   </div>
                 </div>
               </div>
