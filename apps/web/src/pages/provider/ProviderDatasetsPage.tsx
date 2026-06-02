@@ -532,6 +532,18 @@ export function ProviderDatasetsPage() {
       return;
     }
 
+    // 校验同一主选项下的子选项标签是否重复
+    for (const option of annotationSchema.options) {
+      if (option.subOptions && Array.isArray(option.subOptions)) {
+        const subLabels = option.subOptions.map((sub: { label: string }) => sub.label);
+        const uniqueSubLabels = new Set(subLabels);
+        if (uniqueSubLabels.size !== subLabels.length) {
+          setCreateError(`「${option.label}」的子选项不能重复`);
+          return;
+        }
+      }
+    }
+
     const token = localStorage.getItem('token');
     if (!token) {
       navigate('/', { replace: true });

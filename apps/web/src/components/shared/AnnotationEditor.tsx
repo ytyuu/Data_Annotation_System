@@ -103,13 +103,13 @@ export const AnnotationEditor: React.FC<AnnotationEditorProps> = ({
       newSubValues = currentSub.includes(subValue) ? [] : [subValue];
     }
 
-    onChange({
-      ...selection,
-      sub: {
-        ...selection.sub,
-        [mainValue]: newSubValues,
-      },
-    });
+    const newSub = { ...selection.sub };
+    if (newSubValues.length > 0) {
+      newSub[mainValue] = newSubValues;
+    } else {
+      delete newSub[mainValue];
+    }
+    onChange({ ...selection, sub: newSub });
   }
 
   return (

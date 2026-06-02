@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DataItemViewer } from '../../components/shared/DataItemViewer';
-import { AnnotationResultViewer, formatAnnotationResult } from '../../components/shared/AnnotationResultViewer';
+import { AnnotationResultViewer } from '../../components/shared/AnnotationResultViewer';
 import { DonutChart } from '../../components/shared/DonutChart';
 import type { AnnotationSchema } from '../../components/shared/AnnotationEditor';
 

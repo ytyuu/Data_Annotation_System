@@ -1,5 +1,5 @@
 import React from 'react';
-import { parseAnnotationSelection, mapValuesToLabels, mapSubValuesToLabels } from './AnnotationResultViewer';
+import { mapValuesToLabels, mapSubValuesToLabels } from './AnnotationResultViewer';
 import type { AnnotationSchema, AnnotationSelection } from './AnnotationEditor';
 
 export interface AnnotationResultBuilderProps {

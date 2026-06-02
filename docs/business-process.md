@@ -216,13 +216,13 @@ draft -> open -> annotating -> reviewing -> completed
 
 ```json
 {
-  “version”: 1,
-  “type”: “classification”,
-  “selectionMode”: “single”,
-  “options”: [
-    { “value”: “positive”, “label”: “正向” },
-    { “value”: “neutral”, “label”: “中性” },
-    { “value”: “negative”, “label”: “负向” }
+  "version": 1,
+  "type": "classification",
+  "selectionMode": "single",
+  "options": [
+    { "value": "positive", "label": "正向" },
+    { "value": "neutral", "label": "中性" },
+    { "value": "negative", "label": "负向" }
   ]
 }
 ```
@@ -230,7 +230,7 @@ draft -> open -> annotating -> reviewing -> completed
 对应标注结果：
 
 ```json
-{ “value”: “positive” }
+{ "value": "positive" }
 ```
 
 ### 带子选项的二级分类标注示例
@@ -239,36 +239,36 @@ draft -> open -> annotating -> reviewing -> completed
 
 ```json
 {
-  “version”: 1,
-  “type”: “classification”,
-  “selectionMode”: “single”,
-  “options”: [
+  "version": 1,
+  "type": "classification",
+  "selectionMode": "single",
+  "options": [
     {
-      “value”: “emotion”,
-      “label”: “情感”,
-      “hasSubOptions”: true,
-      “subSelectionMode”: “single”,
-      “subOptions”: [
-        { “value”: “positive”, “label”: “正面” },
-        { “value”: “neutral”, “label”: “中性” },
-        { “value”: “negative”, “label”: “负面” }
+      "value": "emotion",
+      "label": "情感",
+      "hasSubOptions": true,
+      "subSelectionMode": "single",
+      "subOptions": [
+        { "value": "positive", "label": "正面" },
+        { "value": "neutral", "label": "中性" },
+        { "value": "negative", "label": "负面" }
       ]
     },
     {
-      “value”: “topic”,
-      “label”: “主题”,
-      “hasSubOptions”: true,
-      “subSelectionMode”: “multiple”,
-      “subOptions”: [
-        { “value”: “product”, “label”: “产品” },
-        { “value”: “service”, “label”: “服务” },
-        { “value”: “logistics”, “label”: “物流” }
+      "value": "topic",
+      "label": "主题",
+      "hasSubOptions": true,
+      "subSelectionMode": "multiple",
+      "subOptions": [
+        { "value": "product", "label": "产品" },
+        { "value": "service", "label": "服务" },
+        { "value": "logistics", "label": "物流" }
       ]
     },
     {
-      “value”: “other”,
-      “label”: “其他”,
-      “hasSubOptions”: false
+      "value": "other",
+      "label": "其他",
+      "hasSubOptions": false
     }
   ]
 }
@@ -278,8 +278,8 @@ draft -> open -> annotating -> reviewing -> completed
 
 ```json
 {
-  “value”: “emotion”,
-  “subValues”: { “emotion”: [“positive”] }
+  "value": "emotion",
+  "subValues": { "emotion": ["positive"] }
 }
 ```
 
@@ -287,14 +287,14 @@ draft -> open -> annotating -> reviewing -> completed
 
 ```json
 {
-  “values”: [“topic”],
-  “subValues”: { “topic”: [“product”, “service”] }
+  "values": ["topic"],
+  "subValues": { "topic": ["product", "service"] }
 }
 ```
 
 ### 标注结果存储规则
 
-- 无子选项：单选 `{ “value”: “xxx” }`，多选 `{ “values”: [“xxx”, “yyy”] }`
+- 无子选项：单选 `{ "value": "xxx" }`，多选 `{ "values": ["xxx", "yyy"] }`
 - 有子选项：在原有格式基础上增加 `subValues` 字段，格式为 `Record<string, string[]>`
 - `subValues` 的 key 为主选项 value，value 为子选项 value 的数组（单选子选项时数组长度为 1）
 
