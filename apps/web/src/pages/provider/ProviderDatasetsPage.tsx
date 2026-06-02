@@ -72,6 +72,7 @@ interface DataItem {
   content: string;
   contentType: string;
   metadata: string;
+  finalResult: string | null;
   status: string;
   createdAt: string;
   updatedAt: string;
@@ -128,6 +129,7 @@ export function ProviderDatasetsPage() {
   const [dataItemsLoading, setDataItemsLoading] = useState(false);
   const [dataItemsError, setDataItemsError] = useState('');
   const [deleteItemLoadingId, setDeleteItemLoadingId] = useState('');
+  const [exportLoadingId, setExportLoadingId] = useState('');
 
   useEffect(() => {
     loadProviderDatasets();
@@ -592,6 +594,82 @@ export function ProviderDatasetsPage() {
       setDataItemsError(err instanceof Error ? err.message : '删除失败，请重试');
     } finally {
       setDeleteItemLoadingId('');
+    }
+  }
+
+  function escapeCsvField(value: string): string {
+    if (value.includes(',') || value.includes('"') || value.includes('\n') || value.includes('\r')) {
+      return '"' + value.replace(/"/g, '""') + '"';
+    }
+    return value;
+  }
+
+  function buildCsvContent(datasetName: string, items: DataItem[]): string {
+    const headers = ['dataset_name', 'data_item_id', 'content', 'content_type', 'metadata', 'final_result'];
+    const lines: string[] = [headers.join(',')];
+
+    for (const item of items) {
+      const fields = [
+        datasetName,
+        item.id,
+        item.content,
+        item.contentType,
+        item.metadata,
+        item.finalResult || '',
+      ];
+      lines.push(fields.map((f) => escapeCsvField(String(f))).join(','));
+    }
+
+    return '\uFEFF' + lines.join('\n');
+  }
+
+  function triggerDownload(filename: string, content: string) {
+    const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  }
+
+  async function handleExportDataset(dataset: Dataset) {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      navigate('/', { replace: true });
+      return;
+    }
+
+    setExportLoadingId(dataset.id);
+    setDatasetsError('');
+
+    try {
+      const response = await fetch(`${apiBaseUrl}/api/provider/datasets/${dataset.id}/items`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.message || `数据项加载失败 (${response.status})`);
+      }
+
+      const allItems = data as DataItem[];
+      const exportableItems = allItems.filter((item) => item.finalResult !== null && item.finalResult !== '');
+
+      if (exportableItems.length === 0) {
+        setDatasetsError(`数据集「${dataset.name}」没有已确认 final_result 的数据项，无法导出。`);
+        return;
+      }
+
+      const csvContent = buildCsvContent(dataset.name, exportableItems);
+      const filename = `${dataset.name}_export_${new Date().toISOString().slice(0, 10)}.csv`;
+      triggerDownload(filename, csvContent);
+    } catch (err) {
+      setDatasetsError(err instanceof Error ? err.message : '导出失败，请重试');
+    } finally {
+      setExportLoadingId('');
     }
   }
 
@@ -1243,6 +1321,14 @@ export function ProviderDatasetsPage() {
                           onClick={() => openDataItemsDialog(dataset)}
                         >
                           数据项
+                        </button>
+                        <button
+                          type="button"
+                          disabled={exportLoadingId === dataset.id}
+                          className="rounded border border-green-200 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50"
+                          onClick={() => handleExportDataset(dataset)}
+                        >
+                          {exportLoadingId === dataset.id ? '导出中' : '导出'}
                         </button>
                         {dataset.status === 'draft' && (
                           <>
