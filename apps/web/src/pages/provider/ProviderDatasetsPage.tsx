@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { DonutChart } from '../../components/shared/DonutChart';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -20,6 +21,15 @@ const dataItemStatusLabels: Record<string, string> = {
   disputed: '有争议',
   accepted: '已通过',
   rejected: '未通过',
+};
+
+const dataItemStatusColors: Record<string, string> = {
+  pending: '#9ca3af',
+  assigned: '#3b82f6',
+  annotated: '#22c55e',
+  disputed: '#ef4444',
+  accepted: '#8b5cf6',
+  rejected: '#f97316',
 };
 
 type ProviderDatasetView = 'list' | 'create';
@@ -128,7 +138,6 @@ export function ProviderDatasetsPage() {
   const [dataItems, setDataItems] = useState<DataItem[]>([]);
   const [dataItemsLoading, setDataItemsLoading] = useState(false);
   const [dataItemsError, setDataItemsError] = useState('');
-  const [deleteItemLoadingId, setDeleteItemLoadingId] = useState('');
   const [exportLoadingId, setExportLoadingId] = useState('');
 
   useEffect(() => {
@@ -559,41 +568,6 @@ export function ProviderDatasetsPage() {
       setDatasetsError(err instanceof Error ? err.message : '发布失败，请重试');
     } finally {
       setPublishLoadingId('');
-    }
-  }
-
-  async function handleDeleteDataItem(item: DataItem) {
-    const dataset = dataItemsDialog.dataset;
-    if (!dataset) {
-      return;
-    }
-
-    const token = localStorage.getItem('token');
-    if (!token) {
-      navigate('/', { replace: true });
-      return;
-    }
-
-    setDeleteItemLoadingId(item.id);
-    setDataItemsError('');
-
-    try {
-      const response = await fetch(`${apiBaseUrl}/api/provider/datasets/${dataset.id}/items/${item.id}`, {
-        method: 'DELETE',
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await response.json().catch(() => null);
-
-      if (!response.ok) {
-        throw new Error(data?.message || `删除失败 (${response.status})`);
-      }
-
-      await loadDataItems(dataset);
-      await loadProviderDatasets();
-    } catch (err) {
-      setDataItemsError(err instanceof Error ? err.message : '删除失败，请重试');
-    } finally {
-      setDeleteItemLoadingId('');
     }
   }
 
@@ -1133,19 +1107,27 @@ export function ProviderDatasetsPage() {
     );
   }
 
-  function renderDataItemsDialog() {
+  function renderOverviewDialog() {
     if (!dataItemsDialog.open || !dataItemsDialog.dataset) {
       return null;
     }
 
     const dataset = dataItemsDialog.dataset;
 
+    const statusCounts: Record<string, number> = {};
+    dataItems.forEach((item) => {
+      statusCounts[item.status] = (statusCounts[item.status] || 0) + 1;
+    });
+
+    const totalItems = dataItems.length;
+    const hasStats = totalItems > 0 && Object.keys(statusCounts).length > 0;
+
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/45 px-6 py-8">
-        <div className="w-full max-w-4xl overflow-hidden rounded border border-gray-200 bg-white shadow-2xl">
+        <div className="w-full max-w-2xl overflow-hidden rounded border border-gray-200 bg-white shadow-2xl">
           <div className="flex items-start justify-between border-b border-gray-200 px-6 py-5">
             <div>
-              <div className="text-base font-semibold text-gray-900">数据项</div>
+              <div className="text-base font-semibold text-gray-900">数据集概览</div>
               <div className="mt-1 text-sm text-gray-500">{dataset.name}</div>
             </div>
             <div className="flex items-center gap-2">
@@ -1176,53 +1158,72 @@ export function ProviderDatasetsPage() {
 
             {dataItemsLoading ? (
               <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
-                正在加载数据项...
+                正在加载数据概览...
               </div>
             ) : dataItems.length === 0 ? (
               <div className="rounded border border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-500">
                 还没有数据项
               </div>
             ) : (
-              <div className="overflow-hidden rounded border border-gray-200">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-gray-50 text-xs font-medium text-gray-500">
-                    <tr>
-                      <th className="px-4 py-3">内容</th>
-                      <th className="px-4 py-3">状态</th>
-                      <th className="px-4 py-3">创建时间</th>
-                      {dataset.status === 'draft' && <th className="px-4 py-3 text-right">操作</th>}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 bg-white">
-                    {dataItems.map((item) => (
-                      <tr key={item.id}>
-                        <td className="max-w-md px-4 py-3 text-gray-900">
-                          <div className="line-clamp-2">{item.content}</div>
-                        </td>
-                        <td className="px-4 py-3">
-                          <span className="app-badge" data-kind="status" data-status={item.status}>
-                            {dataItemStatusLabels[item.status] || item.status}
-                          </span>
-                        </td>
-                        <td className="px-4 py-3 text-gray-500">
-                          {new Date(item.createdAt).toLocaleString()}
-                        </td>
-                        {dataset.status === 'draft' && (
-                          <td className="px-4 py-3 text-right">
-                            <button
-                              type="button"
-                              disabled={deleteItemLoadingId === item.id}
-                              className="rounded border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
-                              onClick={() => handleDeleteDataItem(item)}
-                            >
-                              {deleteItemLoadingId === item.id ? '删除中' : '删除'}
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="space-y-6">
+                <div className="rounded border border-gray-200">
+                  <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
+                    数据项状态分布
+                  </div>
+                  <div className="flex items-center justify-center p-6">
+                    {hasStats && (
+                      <DonutChart
+                        data={statusCounts}
+                        total={totalItems}
+                        colors={dataItemStatusColors}
+                        labels={dataItemStatusLabels}
+                      />
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded border border-gray-200">
+                  <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
+                    状态明细
+                  </div>
+                  <div className="p-4">
+                    <div className="space-y-3">
+                      {Object.entries(statusCounts).map(([status, count]) => {
+                        const percentage = Math.round((count / totalItems) * 100);
+                        const color = dataItemStatusColors[status] || '#9ca3af';
+                        const label = dataItemStatusLabels[status] || status;
+                        return (
+                          <div key={status}>
+                            <div className="mb-1 flex items-center justify-between text-sm">
+                              <div className="flex items-center gap-2">
+                                <span
+                                  className="inline-block h-3 w-3 rounded-full"
+                                  style={{ backgroundColor: color }}
+                                />
+                                <span className="text-gray-700">{label}</span>
+                              </div>
+                              <span className="text-gray-500">
+                                {count} 条 ({percentage}%)
+                              </span>
+                            </div>
+                            <div className="h-2 rounded-full bg-gray-100">
+                              <div
+                                className="h-2 rounded-full transition-all"
+                                style={{
+                                  width: `${percentage}%`,
+                                  backgroundColor: color,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-4 border-t border-gray-100 pt-3 text-right text-sm text-gray-500">
+                      总计 {totalItems} 条数据项
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
           </div>
@@ -1320,7 +1321,7 @@ export function ProviderDatasetsPage() {
                           className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
                           onClick={() => openDataItemsDialog(dataset)}
                         >
-                          数据项
+                          概览
                         </button>
                         <button
                           type="button"
@@ -1370,7 +1371,7 @@ export function ProviderDatasetsPage() {
       {renderDeleteDatasetDialog()}
       {renderPublishDatasetDialog()}
       {renderViewDatasetDialog()}
-      {renderDataItemsDialog()}
+      {renderOverviewDialog()}
     </div>
   );
 }
