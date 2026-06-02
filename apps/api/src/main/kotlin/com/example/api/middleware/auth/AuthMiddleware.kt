@@ -7,7 +7,7 @@ import com.example.api.http.internalServerError
 import com.example.api.http.unauthorized
 import com.example.api.middleware.RouteMiddleware
 import com.example.api.models.UserResponse
-import com.example.api.service.auth.AuthResult
+import com.example.api.http.Result
 import com.example.api.service.auth.AuthService
 import io.javalin.http.Context
 
@@ -27,27 +27,27 @@ class AuthMiddleware(private val authService: AuthService) {
      */
     fun requireUser(ctx: Context): Boolean {
         return when (val result = authService.currentUser(ctx.header("Authorization"))) {
-            is AuthResult.Success -> {
+            is Result.Success -> {
                 ctx.attribute(CURRENT_USER_KEY, result.value)
                 true
             }
 
-            is AuthResult.BadRequest -> {
+            is Result.BadRequest -> {
                 ctx.badRequest(result.message)
                 false
             }
 
-            is AuthResult.Unauthorized -> {
+            is Result.Unauthorized -> {
                 ctx.unauthorized(result.message)
                 false
             }
 
-            is AuthResult.Forbidden -> {
+            is Result.Forbidden -> {
                 ctx.forbidden(result.message)
                 false
             }
 
-            is AuthResult.Conflict -> {
+            is Result.Conflict -> {
                 ctx.conflict(result.message)
                 false
             }

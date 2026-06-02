@@ -17,12 +17,11 @@ import com.example.api.models.PublishDatasetResponse
 import com.example.api.models.ResolveDisputeRequest
 import com.example.api.models.UpdateDatasetRequest
 import com.example.api.models.UpdateDatasetResponse
-import com.example.api.service.auth.AuthResult
+import com.example.api.http.Result
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteWhere
@@ -51,7 +50,7 @@ class ProviderDatasetService {
     fun createProviderDataset(
         providerId: UUID,
         request: CreateDatasetRequest,
-    ): AuthResult<DatasetResponse> {
+    ): Result<DatasetResponse> {
         val name = request.name.trim()
         val description = request.description?.trim()?.takeIf { it.isNotEmpty() }
         val annotationGuide = request.annotationGuide?.trim()?.takeIf { it.isNotEmpty() }
@@ -60,7 +59,7 @@ class ProviderDatasetService {
 
         val validationError = validateDataset(name, annotationSchema, targetCompletionRatio)
         if (validationError != null) {
-            return AuthResult.BadRequest(validationError)
+            return Result.BadRequest(validationError)
         }
 
         val ratio = targetCompletionRatio.toBigDecimal()
@@ -101,9 +100,9 @@ class ProviderDatasetService {
                 )
             }
 
-            AuthResult.Success(dataset)
+            Result.Success(dataset)
         } catch (_: ExposedSQLException) {
-            AuthResult.BadRequest("数据集信息不符合数据库约束")
+            Result.BadRequest("数据集信息不符合数据库约束")
         }
     }
 
@@ -113,7 +112,7 @@ class ProviderDatasetService {
      * @param providerId 数据集提供者用户 ID
      * @return 查询结果，成功时返回按更新时间倒序排列的数据集列表
      */
-    fun listProviderDatasets(providerId: UUID): AuthResult<List<DatasetResponse>> {
+    fun listProviderDatasets(providerId: UUID): Result<List<DatasetResponse>> {
         val datasets = transaction {
             // 查询当前提供者创建的数据集，并按最近更新时间倒序展示。
             val datasetRows = DatasetsTable
@@ -139,7 +138,7 @@ class ProviderDatasetService {
             }
         }
 
-        return AuthResult.Success(datasets)
+        return Result.Success(datasets)
     }
 
     /**
@@ -154,7 +153,7 @@ class ProviderDatasetService {
         providerId: UUID,
         datasetId: UUID,
         request: ImportDataItemsRequest,
-    ): AuthResult<ImportDataItemsResponse> {
+    ): Result<ImportDataItemsResponse> {
         val items = request.items.map { item ->
             item.copy(
                 content = item.content.trim(),
@@ -165,7 +164,7 @@ class ProviderDatasetService {
 
         val validationError = validateDataItems(items)
         if (validationError != null) {
-            return AuthResult.BadRequest(validationError)
+            return Result.BadRequest(validationError)
         }
 
         return try {
@@ -215,12 +214,12 @@ class ProviderDatasetService {
             }
 
             when (response) {
-                null -> AuthResult.BadRequest("数据集不存在或无权访问")
-                ImportDataItemsTransactionResult.InvalidStatus -> AuthResult.BadRequest("只能向草稿状态的数据集导入数据项")
-                is ImportDataItemsTransactionResult.Success -> AuthResult.Success(response.value)
+                null -> Result.BadRequest("数据集不存在或无权访问")
+                ImportDataItemsTransactionResult.InvalidStatus -> Result.BadRequest("只能向草稿状态的数据集导入数据项")
+                is ImportDataItemsTransactionResult.Success -> Result.Success(response.value)
             }
         } catch (_: ExposedSQLException) {
-            AuthResult.Conflict("数据项导入失败，请检查外部编号是否重复")
+            Result.Conflict("数据项导入失败，请检查外部编号是否重复")
         }
     }
 
@@ -231,7 +230,7 @@ class ProviderDatasetService {
      * @param datasetId 数据集 ID
      * @return 查询结果，成功时返回按创建时间倒序排列的数据项列表
      */
-    fun listProviderDataItems(providerId: UUID, datasetId: UUID): AuthResult<List<DataItemResponse>> {
+    fun listProviderDataItems(providerId: UUID, datasetId: UUID): Result<List<DataItemResponse>> {
         val items = transaction {
             findProviderDataset(providerId, datasetId)
                 ?: return@transaction null
@@ -245,9 +244,9 @@ class ProviderDatasetService {
         }
 
         return if (items == null) {
-            AuthResult.BadRequest("数据集不存在或无权访问")
+            Result.BadRequest("数据集不存在或无权访问")
         } else {
-            AuthResult.Success(items)
+            Result.Success(items)
         }
     }
 
@@ -268,12 +267,12 @@ class ProviderDatasetService {
         datasetId: UUID,
         itemId: UUID,
         request: ResolveDisputeRequest,
-    ): AuthResult<UpdateDatasetResponse> {
+    ): Result<UpdateDatasetResponse> {
         val finalResult = request.finalResult.trim().ifEmpty { "{}" }
         val comment = request.comment?.trim()?.takeIf { it.isNotEmpty() }
 
         if (!isJsonObject(finalResult)) {
-            return AuthResult.BadRequest("最终标注结果必须是合法的 JSON 对象")
+            return Result.BadRequest("最终标注结果必须是合法的 JSON 对象")
         }
 
         val result = transaction {
@@ -347,10 +346,10 @@ class ProviderDatasetService {
         }
 
         return when (result) {
-            ResolveDisputeTransactionResult.NotFound -> AuthResult.BadRequest("数据项不存在或无权访问")
-            ResolveDisputeTransactionResult.InvalidStatus -> AuthResult.BadRequest("仅可处理争议状态的数据项")
-            ResolveDisputeTransactionResult.InvalidAnnotations -> AuthResult.BadRequest("争议数据项缺少原始标注或互查结果")
-            ResolveDisputeTransactionResult.Success -> AuthResult.Success(UpdateDatasetResponse("争议处理已保存"))
+            ResolveDisputeTransactionResult.NotFound -> Result.BadRequest("数据项不存在或无权访问")
+            ResolveDisputeTransactionResult.InvalidStatus -> Result.BadRequest("仅可处理争议状态的数据项")
+            ResolveDisputeTransactionResult.InvalidAnnotations -> Result.BadRequest("争议数据项缺少原始标注或互查结果")
+            ResolveDisputeTransactionResult.Success -> Result.Success(UpdateDatasetResponse("争议处理已保存"))
         }
     }
 
@@ -366,7 +365,7 @@ class ProviderDatasetService {
         providerId: UUID,
         datasetId: UUID,
         itemId: UUID,
-    ): AuthResult<DeleteDataItemResponse> {
+    ): Result<DeleteDataItemResponse> {
         val result = transaction {
             val dataset = findProviderDataset(providerId, datasetId)
                 ?: return@transaction DeleteDataItemTransactionResult.NotFound
@@ -387,9 +386,9 @@ class ProviderDatasetService {
         }
 
         return when (result) {
-            DeleteDataItemTransactionResult.NotFound -> AuthResult.BadRequest("数据项不存在或无权访问")
-            DeleteDataItemTransactionResult.InvalidStatus -> AuthResult.BadRequest("只能删除草稿状态数据集的数据项")
-            is DeleteDataItemTransactionResult.Success -> AuthResult.Success(
+            DeleteDataItemTransactionResult.NotFound -> Result.BadRequest("数据项不存在或无权访问")
+            DeleteDataItemTransactionResult.InvalidStatus -> Result.BadRequest("只能删除草稿状态数据集的数据项")
+            is DeleteDataItemTransactionResult.Success -> Result.Success(
                 DeleteDataItemResponse(
                     message = "数据项已删除",
                     itemCount = result.itemCount,
@@ -410,7 +409,7 @@ class ProviderDatasetService {
         providerId: UUID,
         datasetId: UUID,
         request: UpdateDatasetRequest,
-    ): AuthResult<UpdateDatasetResponse> {
+    ): Result<UpdateDatasetResponse> {
         val name = request.name.trim()
         val description = request.description?.trim()?.takeIf { it.isNotEmpty() }
         val annotationGuide = request.annotationGuide?.trim()?.takeIf { it.isNotEmpty() }
@@ -419,7 +418,7 @@ class ProviderDatasetService {
 
         val validationError = validateDataset(name, annotationSchema, targetCompletionRatio)
         if (validationError != null) {
-            return AuthResult.BadRequest(validationError)
+            return Result.BadRequest(validationError)
         }
 
         val ratio = targetCompletionRatio.toBigDecimal()
@@ -447,9 +446,9 @@ class ProviderDatasetService {
         }
 
         return when (result) {
-            UpdateDatasetTransactionResult.NotFound -> AuthResult.BadRequest("数据集不存在或无权访问")
-            UpdateDatasetTransactionResult.InvalidStatus -> AuthResult.BadRequest("只能修改草稿状态的数据集")
-            UpdateDatasetTransactionResult.Success -> AuthResult.Success(UpdateDatasetResponse("数据集已更新"))
+            UpdateDatasetTransactionResult.NotFound -> Result.BadRequest("数据集不存在或无权访问")
+            UpdateDatasetTransactionResult.InvalidStatus -> Result.BadRequest("只能修改草稿状态的数据集")
+            UpdateDatasetTransactionResult.Success -> Result.Success(UpdateDatasetResponse("数据集已更新"))
         }
     }
 
@@ -463,7 +462,7 @@ class ProviderDatasetService {
      * @param datasetId 要发布的数据集 ID
      * @return 发布结果，成功时返回数据集的最新状态
      */
-    fun publishProviderDataset(providerId: UUID, datasetId: UUID): AuthResult<PublishDatasetResponse> {
+    fun publishProviderDataset(providerId: UUID, datasetId: UUID): Result<PublishDatasetResponse> {
         val result = transaction {
             val dataset = findProviderDataset(providerId, datasetId)
                 ?: return@transaction PublishDatasetTransactionResult.NotFound
@@ -493,10 +492,10 @@ class ProviderDatasetService {
         }
 
         return when (result) {
-            PublishDatasetTransactionResult.NotFound -> AuthResult.BadRequest("数据集不存在或无权访问")
-            PublishDatasetTransactionResult.InvalidStatus -> AuthResult.BadRequest("只能发布草稿状态的数据集")
-            PublishDatasetTransactionResult.EmptyDataset -> AuthResult.BadRequest("发布前请先导入至少 1 条数据项")
-            PublishDatasetTransactionResult.Success -> AuthResult.Success(
+            PublishDatasetTransactionResult.NotFound -> Result.BadRequest("数据集不存在或无权访问")
+            PublishDatasetTransactionResult.InvalidStatus -> Result.BadRequest("只能发布草稿状态的数据集")
+            PublishDatasetTransactionResult.EmptyDataset -> Result.BadRequest("发布前请先导入至少 1 条数据项")
+            PublishDatasetTransactionResult.Success -> Result.Success(
                 PublishDatasetResponse(
                     message = "数据集已发布",
                     status = "open",
@@ -512,7 +511,7 @@ class ProviderDatasetService {
      * @param datasetId 数据集 ID
      * @return 删除结果
      */
-    fun deleteProviderDataset(providerId: UUID, datasetId: UUID): AuthResult<DeleteDatasetResponse> {
+    fun deleteProviderDataset(providerId: UUID, datasetId: UUID): Result<DeleteDatasetResponse> {
         val result = transaction {
             val dataset = findProviderDataset(providerId, datasetId)
                 ?: return@transaction DeleteDatasetTransactionResult.NotFound
@@ -529,9 +528,9 @@ class ProviderDatasetService {
         }
 
         return when (result) {
-            DeleteDatasetTransactionResult.NotFound -> AuthResult.BadRequest("数据集不存在或无权访问")
-            DeleteDatasetTransactionResult.InvalidStatus -> AuthResult.BadRequest("只能删除草稿状态的数据集")
-            DeleteDatasetTransactionResult.Success -> AuthResult.Success(DeleteDatasetResponse("数据集已删除"))
+            DeleteDatasetTransactionResult.NotFound -> Result.BadRequest("数据集不存在或无权访问")
+            DeleteDatasetTransactionResult.InvalidStatus -> Result.BadRequest("只能删除草稿状态的数据集")
+            DeleteDatasetTransactionResult.Success -> Result.Success(DeleteDatasetResponse("数据集已删除"))
         }
     }
 
@@ -545,7 +544,7 @@ class ProviderDatasetService {
     fun listDisputedDataItems(
         providerId: UUID,
         datasetId: UUID,
-    ): AuthResult<List<DataItemResponse>> {
+    ): Result<List<DataItemResponse>> {
         val items = transaction {
             findProviderDataset(providerId, datasetId)
                 ?: return@transaction null
@@ -561,9 +560,9 @@ class ProviderDatasetService {
         }
 
         return if (items == null) {
-            AuthResult.BadRequest("数据集不存在或无权访问")
+            Result.BadRequest("数据集不存在或无权访问")
         } else {
-            AuthResult.Success(items)
+            Result.Success(items)
         }
     }
 
@@ -579,7 +578,7 @@ class ProviderDatasetService {
         providerId: UUID,
         datasetId: UUID,
         itemId: UUID,
-    ): AuthResult<DisputedItemDetailResponse> {
+    ): Result<DisputedItemDetailResponse> {
         val result = transaction {
             findProviderDataset(providerId, datasetId)
                 ?: return@transaction DisputeDetailResult.NotFound
@@ -652,9 +651,9 @@ class ProviderDatasetService {
         }
 
         return when (result) {
-            DisputeDetailResult.NotFound -> AuthResult.BadRequest("数据项不存在或无权访问")
-            DisputeDetailResult.InvalidStatus -> AuthResult.BadRequest("仅可查看争议状态的数据项")
-            is DisputeDetailResult.Success -> AuthResult.Success(result.value)
+            DisputeDetailResult.NotFound -> Result.BadRequest("数据项不存在或无权访问")
+            DisputeDetailResult.InvalidStatus -> Result.BadRequest("仅可查看争议状态的数据项")
+            is DisputeDetailResult.Success -> Result.Success(result.value)
         }
     }
 

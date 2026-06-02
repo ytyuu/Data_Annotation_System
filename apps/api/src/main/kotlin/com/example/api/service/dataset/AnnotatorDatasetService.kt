@@ -15,7 +15,7 @@ import com.example.api.models.AnnotatorTaskResponse
 import com.example.api.models.SubmitAnnotationBatchResponse
 import com.example.api.models.TaskAssignmentResponse
 import com.example.api.models.UpdateDatasetResponse
-import com.example.api.service.auth.AuthResult
+import com.example.api.http.Result
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.Op
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
@@ -46,7 +46,7 @@ class AnnotatorDatasetService {
      * @param annotatorId 标注员用户 ID
      * @return 查询结果，成功时返回数据集列表
      */
-    fun listOpenDatasets(annotatorId: UUID): AuthResult<List<DatasetResponse>> {
+    fun listOpenDatasets(annotatorId: UUID): Result<List<DatasetResponse>> {
         val datasets = transaction {
             // 查询所有已开放的数据集，作为标注员可领取任务的候选列表。
             val datasetRows = DatasetsTable
@@ -165,7 +165,7 @@ class AnnotatorDatasetService {
             }
         }
 
-        return AuthResult.Success(datasets)
+        return Result.Success(datasets)
     }
 
     /**
@@ -182,12 +182,12 @@ class AnnotatorDatasetService {
         datasetId: UUID,
         requestedCount: Int,
         taskType: String,
-    ): AuthResult<ClaimTasksResponse> {
+    ): Result<ClaimTasksResponse> {
         if (requestedCount <= 0) {
-            return AuthResult.BadRequest("领取数量必须大于 0")
+            return Result.BadRequest("领取数量必须大于 0")
         }
         if (taskType !in listOf("annotation", "review")) {
-            return AuthResult.BadRequest("任务类别必须是 annotation 或 review")
+            return Result.BadRequest("任务类别必须是 annotation 或 review")
         }
 
         val result = transaction {
@@ -347,12 +347,12 @@ class AnnotatorDatasetService {
         }
 
         return when (result) {
-            ClaimTasksTransactionResult.NotFound -> AuthResult.BadRequest("数据集不存在或无权访问")
-            ClaimTasksTransactionResult.InvalidStatus -> AuthResult.BadRequest("该数据集未开放领取")
-            ClaimTasksTransactionResult.AlreadyClaimed -> AuthResult.BadRequest("该数据集已有未完成任务单")
-            ClaimTasksTransactionResult.TooManyActive -> AuthResult.BadRequest("当前进行中的任务已达上限")
-            ClaimTasksTransactionResult.EmptyDataset -> AuthResult.BadRequest("该数据集暂无可领取任务")
-            is ClaimTasksTransactionResult.Success -> AuthResult.Success(result.value)
+            ClaimTasksTransactionResult.NotFound -> Result.BadRequest("数据集不存在或无权访问")
+            ClaimTasksTransactionResult.InvalidStatus -> Result.BadRequest("该数据集未开放领取")
+            ClaimTasksTransactionResult.AlreadyClaimed -> Result.BadRequest("该数据集已有未完成任务单")
+            ClaimTasksTransactionResult.TooManyActive -> Result.BadRequest("当前进行中的任务已达上限")
+            ClaimTasksTransactionResult.EmptyDataset -> Result.BadRequest("该数据集暂无可领取任务")
+            is ClaimTasksTransactionResult.Success -> Result.Success(result.value)
         }
     }
 
@@ -594,7 +594,7 @@ class AnnotatorDatasetService {
     fun listAnnotatorTasks(
         annotatorId: UUID,
         statusFilter: String?,
-    ): AuthResult<List<AnnotatorTaskResponse>> {
+    ): Result<List<AnnotatorTaskResponse>> {
         val taskBatches = transaction {
             val baseCondition = AnnotationTaskBatchesTable.annotatorId eq annotatorId
             val condition = statusFilter?.let {
@@ -653,7 +653,7 @@ class AnnotatorDatasetService {
             }
         }
 
-        return AuthResult.Success(taskBatches)
+        return Result.Success(taskBatches)
     }
 
     /**
@@ -666,7 +666,7 @@ class AnnotatorDatasetService {
     fun listBatchTasks(
         annotatorId: UUID,
         batchId: UUID,
-    ): AuthResult<List<AnnotatorTaskDetailResponse>> {
+    ): Result<List<AnnotatorTaskDetailResponse>> {
         val result = transaction {
             // 查询任务单并校验其属于当前标注员。
             val batch = AnnotationTaskBatchesTable
@@ -687,9 +687,9 @@ class AnnotatorDatasetService {
         }
 
         return if (result == null) {
-            AuthResult.BadRequest("任务单不存在或无权访问")
+            Result.BadRequest("任务单不存在或无权访问")
         } else {
-            AuthResult.Success(result)
+            Result.Success(result)
         }
     }
 
@@ -703,7 +703,7 @@ class AnnotatorDatasetService {
     fun returnTaskBatch(
         annotatorId: UUID,
         batchId: UUID,
-    ): AuthResult<UpdateDatasetResponse> {
+    ): Result<UpdateDatasetResponse> {
         val result = transaction {
             // 查询任务单并校验其属于当前标注员。
             val batch = AnnotationTaskBatchesTable
@@ -765,9 +765,9 @@ class AnnotatorDatasetService {
         }
 
         return when (result) {
-            ReturnTaskTransactionResult.NotFound -> AuthResult.BadRequest("该数据集下没有可退回的任务")
-            ReturnTaskTransactionResult.InvalidStatus -> AuthResult.BadRequest("仅可退回已分配或进行中的任务")
-            ReturnTaskTransactionResult.Success -> AuthResult.Success(UpdateDatasetResponse("任务已退回"))
+            ReturnTaskTransactionResult.NotFound -> Result.BadRequest("该数据集下没有可退回的任务")
+            ReturnTaskTransactionResult.InvalidStatus -> Result.BadRequest("仅可退回已分配或进行中的任务")
+            ReturnTaskTransactionResult.Success -> Result.Success(UpdateDatasetResponse("任务已退回"))
         }
     }
 
@@ -781,7 +781,7 @@ class AnnotatorDatasetService {
     fun startTaskBatch(
         annotatorId: UUID,
         batchId: UUID,
-    ): AuthResult<UpdateDatasetResponse> {
+    ): Result<UpdateDatasetResponse> {
         val result = transaction {
             // 查询任务单并校验其属于当前标注员。
             val batch = AnnotationTaskBatchesTable
@@ -821,9 +821,9 @@ class AnnotatorDatasetService {
         }
 
         return when (result) {
-            StartTaskBatchTransactionResult.NotFound -> AuthResult.BadRequest("任务单不存在或无权访问")
-            StartTaskBatchTransactionResult.InvalidStatus -> AuthResult.BadRequest("仅可开始已领取或进行中的任务单")
-            StartTaskBatchTransactionResult.Success -> AuthResult.Success(UpdateDatasetResponse("任务单已开始"))
+            StartTaskBatchTransactionResult.NotFound -> Result.BadRequest("任务单不存在或无权访问")
+            StartTaskBatchTransactionResult.InvalidStatus -> Result.BadRequest("仅可开始已领取或进行中的任务单")
+            StartTaskBatchTransactionResult.Success -> Result.Success(UpdateDatasetResponse("任务单已开始"))
         }
     }
 
@@ -837,7 +837,7 @@ class AnnotatorDatasetService {
     fun getAnnotatorTaskWorkspace(
         annotatorId: UUID,
         batchId: UUID,
-    ): AuthResult<AnnotatorTaskWorkspaceResponse> {
+    ): Result<AnnotatorTaskWorkspaceResponse> {
         val result = transaction {
             // 查询任务单并校验其属于当前标注员。
             val batch = AnnotationTaskBatchesTable
@@ -878,9 +878,9 @@ class AnnotatorDatasetService {
         }
 
         return if (result == null) {
-            AuthResult.BadRequest("任务单不存在或无权访问")
+            Result.BadRequest("任务单不存在或无权访问")
         } else {
-            AuthResult.Success(result)
+            Result.Success(result)
         }
     }
 
@@ -901,9 +901,9 @@ class AnnotatorDatasetService {
         annotatorId: UUID,
         batchId: UUID,
         submissions: List<AnnotationSubmissionInput>,
-    ): AuthResult<SubmitAnnotationBatchResponse> {
+    ): Result<SubmitAnnotationBatchResponse> {
         if (submissions.isEmpty()) {
-            return AuthResult.BadRequest("提交内容不能为空")
+            return Result.BadRequest("提交内容不能为空")
         }
 
         val parsedSubmissions = submissions.mapNotNull { submission ->
@@ -919,7 +919,7 @@ class AnnotatorDatasetService {
         }
 
         if (parsedSubmissions.size != submissions.size) {
-            return AuthResult.BadRequest("提交内容格式不正确")
+            return Result.BadRequest("提交内容格式不正确")
         }
 
         val result = transaction {
@@ -1089,10 +1089,10 @@ class AnnotatorDatasetService {
         }
 
         return when (result) {
-            SubmitAnnotationBatchResult.NotFound -> AuthResult.BadRequest("任务单不存在或无权访问")
-            SubmitAnnotationBatchResult.InvalidStatus -> AuthResult.BadRequest("仅可提交已领取或进行中的任务单")
-            SubmitAnnotationBatchResult.InvalidTasks -> AuthResult.BadRequest("任务内容不匹配或无权访问")
-            is SubmitAnnotationBatchResult.Success -> AuthResult.Success(
+            SubmitAnnotationBatchResult.NotFound -> Result.BadRequest("任务单不存在或无权访问")
+            SubmitAnnotationBatchResult.InvalidStatus -> Result.BadRequest("仅可提交已领取或进行中的任务单")
+            SubmitAnnotationBatchResult.InvalidTasks -> Result.BadRequest("任务内容不匹配或无权访问")
+            is SubmitAnnotationBatchResult.Success -> Result.Success(
                 SubmitAnnotationBatchResponse(
                     message = "提交成功",
                     submittedCount = result.submittedCount,

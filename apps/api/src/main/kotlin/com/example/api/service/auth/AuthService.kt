@@ -2,6 +2,7 @@ package com.example.api.service.auth
 
 import com.example.api.config.SecurityConfig
 import com.example.api.db.UsersTable
+import com.example.api.http.Result
 import com.example.api.models.LoginRequest
 import com.example.api.models.LoginResponse
 import com.example.api.models.RegisterRequest
@@ -33,7 +34,7 @@ class AuthService(securityConfig: SecurityConfig) {
      * @param request 注册请求
      * @return 注册结果
      */
-    fun register(request: RegisterRequest): AuthResult<RegisterResponse> {
+    fun register(request: RegisterRequest): Result<RegisterResponse> {
         val username = request.username.trim()
         val displayName = request.displayName.trim()
         val password = request.password
@@ -41,7 +42,7 @@ class AuthService(securityConfig: SecurityConfig) {
 
         val validationError = validateRegister(username, displayName, password, role)
         if (validationError != null) {
-            return AuthResult.BadRequest(validationError)
+            return Result.BadRequest(validationError)
         }
 
         return try {
@@ -82,12 +83,12 @@ class AuthService(securityConfig: SecurityConfig) {
             }
 
             if (user == null) {
-                AuthResult.Conflict("用户名已存在")
+                Result.Conflict("用户名已存在")
             } else {
-                AuthResult.Success(RegisterResponse(message = "注册成功", user = user))
+                Result.Success(RegisterResponse(message = "注册成功", user = user))
             }
         } catch (_: ExposedSQLException) {
-            AuthResult.Conflict("用户名已存在或注册信息不符合要求")
+            Result.Conflict("用户名已存在或注册信息不符合要求")
         }
     }
 
@@ -97,13 +98,13 @@ class AuthService(securityConfig: SecurityConfig) {
      * @param request 登录请求
      * @return 登录结果，成功时包含 JWT Token
      */
-    fun login(request: LoginRequest): AuthResult<LoginResponse> {
+    fun login(request: LoginRequest): Result<LoginResponse> {
         val username = request.username.trim()
         val password = request.password
         val role = request.role.trim()
 
         if (username.isEmpty() || password.isEmpty() || role.isEmpty()) {
-            return AuthResult.BadRequest("请输入用户名、密码和登录身份")
+            return Result.BadRequest("请输入用户名、密码和登录身份")
         }
 
         val loginUser = transaction {
@@ -131,19 +132,19 @@ class AuthService(securityConfig: SecurityConfig) {
         }
 
         if (loginUser == null) {
-            return AuthResult.Unauthorized("用户名或密码错误")
+            return Result.Unauthorized("用户名或密码错误")
         }
 
         if (loginUser.status != "active") {
-            return AuthResult.Forbidden("账号已被禁用")
+            return Result.Forbidden("账号已被禁用")
         }
 
         if (loginUser.role != role) {
-            return AuthResult.Forbidden("账号身份与当前登录身份不匹配")
+            return Result.Forbidden("账号身份与当前登录身份不匹配")
         }
 
         val issuedToken = jwtService.issue(loginUser)
-        return AuthResult.Success(
+        return Result.Success(
             LoginResponse(
                 token = issuedToken.token,
                 expiresAt = issuedToken.expiresAt.toString(),
@@ -158,18 +159,18 @@ class AuthService(securityConfig: SecurityConfig) {
      * @param authorizationHeader Authorization 请求头（Bearer xxx）
      * @return 验证结果，成功时返回用户信息
      */
-    fun currentUser(authorizationHeader: String?): AuthResult<UserResponse> {
+    fun currentUser(authorizationHeader: String?): Result<UserResponse> {
         val token = extractBearerToken(authorizationHeader)
-            ?: return AuthResult.Unauthorized("缺少访问令牌")
+            ?: return Result.Unauthorized("缺少访问令牌")
 
         val verification = jwtService.verify(token)
         if (verification is JwtVerificationResult.Invalid) {
-            return AuthResult.Unauthorized(verification.message)
+            return Result.Unauthorized(verification.message)
         }
 
         val claims = (verification as JwtVerificationResult.Valid).claims
         val userId = runCatching { UUID.fromString(claims.userId) }.getOrNull()
-            ?: return AuthResult.Unauthorized("Token 用户 ID 无效")
+            ?: return Result.Unauthorized("Token 用户 ID 无效")
 
         val user = transaction {
             // 根据 Token 中的用户 ID 查询当前用户，确保账号仍然存在。
@@ -187,17 +188,17 @@ class AuthService(securityConfig: SecurityConfig) {
                         status = row[UsersTable.status],
                     )
                 }
-        } ?: return AuthResult.Unauthorized("用户不存在")
+        } ?: return Result.Unauthorized("用户不存在")
 
         if (user.status != "active") {
-            return AuthResult.Forbidden("账号已被禁用")
+            return Result.Forbidden("账号已被禁用")
         }
 
         if (user.role != claims.role) {
-            return AuthResult.Unauthorized("Token 角色信息无效")
+            return Result.Unauthorized("Token 角色信息无效")
         }
 
-        return AuthResult.Success(user)
+        return Result.Success(user)
     }
 
     private fun validateRegister(username: String, displayName: String, password: String, role: String): String? {

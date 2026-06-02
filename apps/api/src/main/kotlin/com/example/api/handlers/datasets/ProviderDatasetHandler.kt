@@ -9,7 +9,7 @@ import com.example.api.models.CreateDatasetRequest
 import com.example.api.models.ImportDataItemsRequest
 import com.example.api.models.ResolveDisputeRequest
 import com.example.api.models.UpdateDatasetRequest
-import com.example.api.service.auth.AuthResult
+import com.example.api.http.Result
 import com.example.api.service.dataset.ProviderDatasetService
 import io.javalin.http.Context
 import java.util.UUID
@@ -30,11 +30,11 @@ class ProviderDatasetHandler(private val datasetService: ProviderDatasetService)
         val request = ctx.bodyAsClass(CreateDatasetRequest::class.java)
 
         when (val result = datasetService.createProviderDataset(providerId, request)) {
-            is AuthResult.Success -> ctx.status(201).json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.status(201).json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 
@@ -49,11 +49,11 @@ class ProviderDatasetHandler(private val datasetService: ProviderDatasetService)
         val request = ctx.bodyAsClass(UpdateDatasetRequest::class.java)
 
         when (val result = datasetService.updateProviderDataset(providerId, datasetId, request)) {
-            is AuthResult.Success -> ctx.json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 
@@ -66,11 +66,11 @@ class ProviderDatasetHandler(private val datasetService: ProviderDatasetService)
         val providerId = UUID.fromString(ctx.currentUser().id)
 
         when (val result = datasetService.listProviderDatasets(providerId)) {
-            is AuthResult.Success -> ctx.json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 
@@ -85,11 +85,11 @@ class ProviderDatasetHandler(private val datasetService: ProviderDatasetService)
         val request = ctx.bodyAsClass(ImportDataItemsRequest::class.java)
 
         when (val result = datasetService.importDataItems(providerId, datasetId, request)) {
-            is AuthResult.Success -> ctx.status(201).json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.status(201).json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 
@@ -103,11 +103,11 @@ class ProviderDatasetHandler(private val datasetService: ProviderDatasetService)
         val datasetId = UUID.fromString(ctx.pathParam("datasetId"))
 
         when (val result = datasetService.listProviderDataItems(providerId, datasetId)) {
-            is AuthResult.Success -> ctx.json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 
@@ -122,11 +122,11 @@ class ProviderDatasetHandler(private val datasetService: ProviderDatasetService)
         val itemId = UUID.fromString(ctx.pathParam("itemId"))
 
         when (val result = datasetService.deleteProviderDataItem(providerId, datasetId, itemId)) {
-            is AuthResult.Success -> ctx.json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 
@@ -142,11 +142,11 @@ class ProviderDatasetHandler(private val datasetService: ProviderDatasetService)
         val request = ctx.bodyAsClass(ResolveDisputeRequest::class.java)
 
         when (val result = datasetService.resolveDisputedDataItem(providerId, datasetId, itemId, request)) {
-            is AuthResult.Success -> ctx.json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 
@@ -160,11 +160,11 @@ class ProviderDatasetHandler(private val datasetService: ProviderDatasetService)
         val datasetId = UUID.fromString(ctx.pathParam("datasetId"))
 
         when (val result = datasetService.publishProviderDataset(providerId, datasetId)) {
-            is AuthResult.Success -> ctx.json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 
@@ -178,11 +178,11 @@ class ProviderDatasetHandler(private val datasetService: ProviderDatasetService)
         val datasetId = UUID.fromString(ctx.pathParam("datasetId"))
 
         when (val result = datasetService.listDisputedDataItems(providerId, datasetId)) {
-            is AuthResult.Success -> ctx.json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 
@@ -197,11 +197,11 @@ class ProviderDatasetHandler(private val datasetService: ProviderDatasetService)
         val itemId = UUID.fromString(ctx.pathParam("itemId"))
 
         when (val result = datasetService.getDisputeDetail(providerId, datasetId, itemId)) {
-            is AuthResult.Success -> ctx.json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 
@@ -215,11 +215,11 @@ class ProviderDatasetHandler(private val datasetService: ProviderDatasetService)
         val datasetId = UUID.fromString(ctx.pathParam("datasetId"))
 
         when (val result = datasetService.deleteProviderDataset(providerId, datasetId)) {
-            is AuthResult.Success -> ctx.json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 }

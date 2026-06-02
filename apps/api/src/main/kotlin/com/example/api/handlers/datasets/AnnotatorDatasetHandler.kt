@@ -7,7 +7,7 @@ import com.example.api.http.unauthorized
 import com.example.api.middleware.auth.currentUser
 import com.example.api.models.ClaimTasksRequest
 import com.example.api.models.SubmitAnnotationBatchRequest
-import com.example.api.service.auth.AuthResult
+import com.example.api.http.Result
 import com.example.api.service.dataset.AnnotatorDatasetService
 import io.javalin.http.Context
 import java.util.UUID
@@ -27,11 +27,11 @@ class AnnotatorDatasetHandler(private val datasetService: AnnotatorDatasetServic
         val annotatorId = UUID.fromString(ctx.currentUser().id)
 
         when (val result = datasetService.listOpenDatasets(annotatorId)) {
-            is AuthResult.Success -> ctx.json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 
@@ -46,11 +46,11 @@ class AnnotatorDatasetHandler(private val datasetService: AnnotatorDatasetServic
         val request = ctx.bodyAsClass(ClaimTasksRequest::class.java)
 
         when (val result = datasetService.claimAnnotatorTasks(annotatorId, datasetId, request.count, request.taskType)) {
-            is AuthResult.Success -> ctx.status(201).json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.status(201).json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 
@@ -64,11 +64,11 @@ class AnnotatorDatasetHandler(private val datasetService: AnnotatorDatasetServic
         val statusFilter = ctx.queryParam("status")
 
         when (val result = datasetService.listAnnotatorTasks(annotatorId, statusFilter)) {
-            is AuthResult.Success -> ctx.json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 
@@ -82,11 +82,11 @@ class AnnotatorDatasetHandler(private val datasetService: AnnotatorDatasetServic
         val batchId = UUID.fromString(ctx.pathParam("batchId"))
 
         when (val result = datasetService.listBatchTasks(annotatorId, batchId)) {
-            is AuthResult.Success -> ctx.json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 
@@ -100,11 +100,11 @@ class AnnotatorDatasetHandler(private val datasetService: AnnotatorDatasetServic
         val batchId = UUID.fromString(ctx.pathParam("batchId"))
 
         when (val result = datasetService.getAnnotatorTaskWorkspace(annotatorId, batchId)) {
-            is AuthResult.Success -> ctx.json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 
@@ -118,11 +118,11 @@ class AnnotatorDatasetHandler(private val datasetService: AnnotatorDatasetServic
         val batchId = UUID.fromString(ctx.pathParam("batchId"))
 
         when (val result = datasetService.returnTaskBatch(annotatorId, batchId)) {
-            is AuthResult.Success -> ctx.json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 
@@ -137,11 +137,11 @@ class AnnotatorDatasetHandler(private val datasetService: AnnotatorDatasetServic
         val request = ctx.bodyAsClass(SubmitAnnotationBatchRequest::class.java)
 
         when (val result = datasetService.submitAnnotationBatch(annotatorId, batchId, request.submissions)) {
-            is AuthResult.Success -> ctx.json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 
@@ -155,11 +155,11 @@ class AnnotatorDatasetHandler(private val datasetService: AnnotatorDatasetServic
         val batchId = UUID.fromString(ctx.pathParam("batchId"))
 
         when (val result = datasetService.startTaskBatch(annotatorId, batchId)) {
-            is AuthResult.Success -> ctx.json(result.value)
-            is AuthResult.BadRequest -> ctx.badRequest(result.message)
-            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
-            is AuthResult.Forbidden -> ctx.forbidden(result.message)
-            is AuthResult.Conflict -> ctx.conflict(result.message)
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
         }
     }
 }
