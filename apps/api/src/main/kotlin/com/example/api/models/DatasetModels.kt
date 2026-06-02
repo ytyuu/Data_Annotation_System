@@ -52,6 +52,7 @@ data class DatasetResponse(
     val canClaim: Boolean? = null,
     val pendingItemCount: Int? = null,
     val reviewableItemCount: Int? = null,
+    val disputedItemCount: Int? = null,
 )
 
 /**
@@ -279,4 +280,46 @@ data class AnnotatorTaskDetailResponse(
     val submittedAt: String?,
     val annotationResult: String? = null,
     val annotationIsDisputed: Boolean? = null,
+)
+
+/**
+ * 单条标注详情（用于争议处理展示）。
+ *
+ * @property id 标注记录 ID
+ * @property annotatorId 标注员用户 ID
+ * @property annotatorName 标注员显示名称
+ * @property annotationType 标注类型：`annotation` 原始标注，`review` 互查标注
+ * @property result 标注结果 JSON 字符串
+ * @property comment 标注备注
+ * @property isDisputed 是否存在争议
+ * @property status 标注记录状态
+ * @property submittedAt 提交时间
+ */
+data class AnnotationDetailResponse(
+    val id: String,
+    val annotatorId: String,
+    val annotatorName: String,
+    val annotationType: String,
+    val result: String,
+    val comment: String?,
+    val isDisputed: Boolean,
+    val status: String,
+    val submittedAt: String,
+)
+
+/**
+ * 争议数据项详情响应。
+ *
+ * @property item 数据项信息
+ * @property annotations 该数据项的标注记录列表（原始标注 + 互查标注）
+ * @property annotationSchema 数据集标注结构 JSON 字符串
+ * @property annotationGuide 数据集标注说明
+ * @property datasetName 数据集名称
+ */
+data class DisputedItemDetailResponse(
+    val item: DataItemResponse,
+    val annotations: List<AnnotationDetailResponse>,
+    val annotationSchema: String,
+    val annotationGuide: String?,
+    val datasetName: String,
 )

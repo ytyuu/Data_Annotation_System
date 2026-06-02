@@ -3,10 +3,13 @@ package com.example.api.service.dataset
 import com.example.api.db.AnnotationsTable
 import com.example.api.db.DatasetsTable
 import com.example.api.db.DataItemsTable
+import com.example.api.db.UsersTable
+import com.example.api.models.AnnotationDetailResponse
 import com.example.api.models.CreateDatasetRequest
 import com.example.api.models.DataItemResponse
 import com.example.api.models.DeleteDataItemResponse
 import com.example.api.models.DeleteDatasetResponse
+import com.example.api.models.DisputedItemDetailResponse
 import com.example.api.models.DatasetResponse
 import com.example.api.models.ImportDataItemsRequest
 import com.example.api.models.ImportDataItemsResponse
@@ -124,10 +127,14 @@ class ProviderDatasetService {
             // 查询每个数据集中已经形成最终结果的数据项数量。
             val completedCounts = DatasetQueryHelper.countCompletedItems(datasetIds)
 
+            // 查询每个数据集中处于争议状态的数据项数量。
+            val disputedCounts = DatasetQueryHelper.countDisputedItems(datasetIds)
+
             datasetRows.map { row ->
                 toDatasetResponse(
                     row,
                     completedItemCount = completedCounts[row[DatasetsTable.id]] ?: 0,
+                    disputedItemCount = disputedCounts[row[DatasetsTable.id]] ?: 0,
                 )
             }
         }
@@ -528,6 +535,129 @@ class ProviderDatasetService {
         }
     }
 
+    /**
+     * 查询指定提供者数据集下所有争议状态的数据项。
+     *
+     * @param providerId 数据集提供者用户 ID
+     * @param datasetId 数据集 ID
+     * @return 查询结果，成功时返回争议数据项列表
+     */
+    fun listDisputedDataItems(
+        providerId: UUID,
+        datasetId: UUID,
+    ): AuthResult<List<DataItemResponse>> {
+        val items = transaction {
+            findProviderDataset(providerId, datasetId)
+                ?: return@transaction null
+
+            DataItemsTable
+                .selectAll()
+                .where {
+                    (DataItemsTable.datasetId eq datasetId) and
+                        (DataItemsTable.status eq "disputed")
+                }
+                .orderBy(DataItemsTable.updatedAt to SortOrder.DESC)
+                .map(::toDataItemResponse)
+        }
+
+        return if (items == null) {
+            AuthResult.BadRequest("数据集不存在或无权访问")
+        } else {
+            AuthResult.Success(items)
+        }
+    }
+
+    /**
+     * 查询指定争议数据项的详情，包含数据项内容、标注记录和数据集标注结构。
+     *
+     * @param providerId 数据集提供者用户 ID
+     * @param datasetId 数据集 ID
+     * @param itemId 数据项 ID
+     * @return 查询结果，成功时返回争议详情
+     */
+    fun getDisputeDetail(
+        providerId: UUID,
+        datasetId: UUID,
+        itemId: UUID,
+    ): AuthResult<DisputedItemDetailResponse> {
+        val result = transaction {
+            findProviderDataset(providerId, datasetId)
+                ?: return@transaction DisputeDetailResult.NotFound
+
+            val item = DataItemsTable
+                .selectAll()
+                .where {
+                    (DataItemsTable.id eq itemId) and
+                        (DataItemsTable.datasetId eq datasetId)
+                }
+                .limit(1)
+                .firstOrNull()
+                ?: return@transaction DisputeDetailResult.NotFound
+
+            if (item[DataItemsTable.status] != "disputed") {
+                return@transaction DisputeDetailResult.InvalidStatus
+            }
+
+            val dataset = DatasetsTable
+                .selectAll()
+                .where { DatasetsTable.id eq datasetId }
+                .limit(1)
+                .firstOrNull()
+                ?: return@transaction DisputeDetailResult.NotFound
+
+            // 查询该数据项的原始标注和互查标注。
+            val annotations = AnnotationsTable
+                .selectAll()
+                .where {
+                    (AnnotationsTable.itemId eq itemId) and
+                        (AnnotationsTable.annotationType inList listOf("annotation", "review"))
+                }
+                .orderBy(AnnotationsTable.annotationType to SortOrder.ASC)
+                .toList()
+
+            // 批量查询标注员名称。
+            val annotatorIds = annotations.map { it[AnnotationsTable.annotatorId] }.toSet()
+            val annotatorNames = if (annotatorIds.isEmpty()) {
+                emptyMap()
+            } else {
+                UsersTable
+                    .selectAll()
+                    .where { UsersTable.id inList annotatorIds }
+                    .associate { it[UsersTable.id].toString() to it[UsersTable.displayName] }
+            }
+
+            val annotationDetails = annotations.map { ann ->
+                AnnotationDetailResponse(
+                    id = ann[AnnotationsTable.id].toString(),
+                    annotatorId = ann[AnnotationsTable.annotatorId].toString(),
+                    annotatorName = annotatorNames[ann[AnnotationsTable.annotatorId].toString()] ?: "未知标注员",
+                    annotationType = ann[AnnotationsTable.annotationType],
+                    result = ann[AnnotationsTable.result],
+                    comment = ann[AnnotationsTable.comment],
+                    isDisputed = ann[AnnotationsTable.isDisputed],
+                    status = ann[AnnotationsTable.status],
+                    submittedAt = ann[AnnotationsTable.submittedAt].toString(),
+                )
+            }
+
+            DisputeDetailResult.Success(
+                DisputedItemDetailResponse(
+                    item = toDataItemResponse(item),
+                    annotations = annotationDetails,
+                    annotationSchema = dataset[DatasetsTable.annotationSchema],
+                    annotationGuide = dataset[DatasetsTable.annotationGuide],
+                    datasetName = dataset[DatasetsTable.name],
+                )
+            )
+        }
+
+        return when (result) {
+            DisputeDetailResult.NotFound -> AuthResult.BadRequest("数据项不存在或无权访问")
+            DisputeDetailResult.InvalidStatus -> AuthResult.BadRequest("仅可查看争议状态的数据项")
+            is DisputeDetailResult.Success -> AuthResult.Success(result.value)
+        }
+    }
+
 
     private fun validateDataset(
         name: String,
@@ -616,6 +746,7 @@ class ProviderDatasetService {
         row: ResultRow,
         canClaim: Boolean? = null,
         completedItemCount: Int? = null,
+        disputedItemCount: Int? = null,
     ): DatasetResponse {
         return DatasetResponse(
             id = row[DatasetsTable.id].toString(),
@@ -631,6 +762,7 @@ class ProviderDatasetService {
             createdAt = row[DatasetsTable.createdAt].toString(),
             updatedAt = row[DatasetsTable.updatedAt].toString(),
             canClaim = canClaim,
+            disputedItemCount = disputedItemCount,
         )
     }
 
@@ -672,6 +804,12 @@ class ProviderDatasetService {
         val id: UUID,
         val status: String,
     )
+
+    private sealed class DisputeDetailResult {
+        data class Success(val value: DisputedItemDetailResponse) : DisputeDetailResult()
+        data object NotFound : DisputeDetailResult()
+        data object InvalidStatus : DisputeDetailResult()
+    }
 
     private sealed class ImportDataItemsTransactionResult {
         data class Success(val value: ImportDataItemsResponse) : ImportDataItemsTransactionResult()

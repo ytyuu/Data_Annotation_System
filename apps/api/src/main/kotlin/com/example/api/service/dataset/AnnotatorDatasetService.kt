@@ -399,6 +399,7 @@ class AnnotatorDatasetService {
             canClaim = canClaim,
             pendingItemCount = pendingItemCount,
             reviewableItemCount = reviewableItemCount,
+            disputedItemCount = null,
         )
     }
 

@@ -169,6 +169,43 @@ class ProviderDatasetHandler(private val datasetService: ProviderDatasetService)
     }
 
     /**
+     * 处理 `GET /api/provider/datasets/{datasetId}/disputed-items` 请求。
+     *
+     * @param ctx Javalin 请求上下文
+     */
+    fun listDisputedItems(ctx: Context) {
+        val providerId = UUID.fromString(ctx.currentUser().id)
+        val datasetId = UUID.fromString(ctx.pathParam("datasetId"))
+
+        when (val result = datasetService.listDisputedDataItems(providerId, datasetId)) {
+            is AuthResult.Success -> ctx.json(result.value)
+            is AuthResult.BadRequest -> ctx.badRequest(result.message)
+            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
+            is AuthResult.Forbidden -> ctx.forbidden(result.message)
+            is AuthResult.Conflict -> ctx.conflict(result.message)
+        }
+    }
+
+    /**
+     * 处理 `GET /api/provider/datasets/{datasetId}/items/{itemId}/dispute-detail` 请求。
+     *
+     * @param ctx Javalin 请求上下文
+     */
+    fun getDisputeDetail(ctx: Context) {
+        val providerId = UUID.fromString(ctx.currentUser().id)
+        val datasetId = UUID.fromString(ctx.pathParam("datasetId"))
+        val itemId = UUID.fromString(ctx.pathParam("itemId"))
+
+        when (val result = datasetService.getDisputeDetail(providerId, datasetId, itemId)) {
+            is AuthResult.Success -> ctx.json(result.value)
+            is AuthResult.BadRequest -> ctx.badRequest(result.message)
+            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
+            is AuthResult.Forbidden -> ctx.forbidden(result.message)
+            is AuthResult.Conflict -> ctx.conflict(result.message)
+        }
+    }
+
+    /**
      * 处理 `DELETE /api/provider/datasets/{datasetId}` 请求。
      *
      * @param ctx Javalin 请求上下文

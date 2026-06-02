@@ -63,6 +63,27 @@ object DatasetQueryHelper {
     }
 
     /**
+     * 查询每个数据集中处于争议状态的数据项数量。
+     *
+     * @param datasetIds 数据集 ID 列表
+     * @return 数据集 ID 到争议数据项数量的映射
+     */
+    fun countDisputedItems(datasetIds: List<UUID>): Map<UUID, Int> {
+        if (datasetIds.isEmpty()) {
+            return emptyMap()
+        }
+
+        return DataItemsTable
+            .select(DataItemsTable.datasetId)
+            .where {
+                (DataItemsTable.datasetId inList datasetIds) and
+                    (DataItemsTable.status eq "disputed")
+            }
+            .groupingBy { it[DataItemsTable.datasetId] }
+            .eachCount()
+    }
+
+    /**
      * 重新计算并写回指定数据集的已完成数据项数量。
      *
      * 数据项状态为 `annotated` 或 `accepted` 时视为已完成，
