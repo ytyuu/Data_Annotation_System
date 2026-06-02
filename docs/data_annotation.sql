@@ -85,6 +85,10 @@ CREATE TABLE "public"."annotations" (
                                         "comment" text COLLATE "pg_catalog"."default",
                                         "is_disputed" bool NOT NULL DEFAULT false,
                                         "status" varchar(32) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'submitted'::character varying,
+                                        "adoption_status" int2 NOT NULL DEFAULT 0,
+                                        "adopted_at" timestamptz(6),
+                                        "adopted_by" uuid,
+                                        "adoption_comment" text COLLATE "pg_catalog"."default",
                                         "submitted_at" timestamptz(6) NOT NULL DEFAULT now(),
                                         "reviewed_at" timestamptz(6),
                                         "created_at" timestamptz(6) NOT NULL DEFAULT now(),
@@ -101,6 +105,10 @@ COMMENT ON COLUMN "public"."annotations"."review_of_annotation_id" IS '互查复
 COMMENT ON COLUMN "public"."annotations"."comment" IS '标注员备注';
 COMMENT ON COLUMN "public"."annotations"."is_disputed" IS '是否存在争议';
 COMMENT ON COLUMN "public"."annotations"."status" IS '标注结果状态：submitted、returned、accepted、rejected';
+COMMENT ON COLUMN "public"."annotations"."adoption_status" IS '采纳状态：0 未处理、1 已采纳、2 已拒绝';
+COMMENT ON COLUMN "public"."annotations"."adopted_at" IS '采纳时间';
+COMMENT ON COLUMN "public"."annotations"."adopted_by" IS '执行采纳的提供方用户 ID';
+COMMENT ON COLUMN "public"."annotations"."adoption_comment" IS '采纳/拒绝说明';
 COMMENT ON COLUMN "public"."annotations"."submitted_at" IS '提交时间';
 COMMENT ON COLUMN "public"."annotations"."reviewed_at" IS '审核时间';
 COMMENT ON COLUMN "public"."annotations"."created_at" IS '创建时间';
@@ -117,6 +125,9 @@ CREATE TABLE "public"."data_items" (
                                        "content" text COLLATE "pg_catalog"."default" NOT NULL,
                                        "content_type" varchar(32) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'text'::character varying,
                                        "metadata" jsonb NOT NULL DEFAULT '{}'::jsonb,
+                                       "final_result" jsonb,
+                                       "finalized_at" timestamptz(6),
+                                       "finalized_by" uuid,
                                        "status" varchar(32) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'pending'::character varying,
                                        "created_at" timestamptz(6) NOT NULL DEFAULT now(),
                                        "updated_at" timestamptz(6) NOT NULL DEFAULT now()
@@ -126,7 +137,10 @@ COMMENT ON COLUMN "public"."data_items"."id" IS '数据项 ID';
 COMMENT ON COLUMN "public"."data_items"."dataset_id" IS '所属数据集 ID';
 COMMENT ON COLUMN "public"."data_items"."content" IS '数据内容或资源地址';
 COMMENT ON COLUMN "public"."data_items"."content_type" IS '内容类型：text、image、audio、video、json';
-COMMENT ON COLUMN "public"."data_items"."metadata" IS '数据项扩展信息，例如来源、文件名、尺寸、语言、导入批次等，不保存标注规则或标注结果';
+COMMENT ON COLUMN "public"."data_items"."metadata" IS '数据项扩展信息，例如来源、文件名、尺寸、语言、导入批次等，不保存标注规则';
+COMMENT ON COLUMN "public"."data_items"."final_result" IS '争议裁决后的最终标注结果';
+COMMENT ON COLUMN "public"."data_items"."finalized_at" IS '最终结果确认时间';
+COMMENT ON COLUMN "public"."data_items"."finalized_by" IS '确认最终结果的提供方用户 ID';
 COMMENT ON COLUMN "public"."data_items"."status" IS '数据项状态：pending、assigned、annotated、disputed、accepted、rejected';
 COMMENT ON COLUMN "public"."data_items"."created_at" IS '创建时间';
 COMMENT ON COLUMN "public"."data_items"."updated_at" IS '更新时间';
@@ -646,6 +660,7 @@ ALTER TABLE "public"."annotations" ADD CONSTRAINT "annotations_task_id_key" UNIQ
 -- ----------------------------
 ALTER TABLE "public"."annotations" ADD CONSTRAINT "annotations_status_check" CHECK (status::text = ANY (ARRAY['submitted'::character varying, 'returned'::character varying, 'accepted'::character varying, 'rejected'::character varying]::text[]));
 ALTER TABLE "public"."annotations" ADD CONSTRAINT "annotations_annotation_type_check" CHECK (annotation_type::text = ANY (ARRAY['annotation'::character varying, 'review'::character varying]::text[]));
+ALTER TABLE "public"."annotations" ADD CONSTRAINT "annotations_adoption_status_check" CHECK (adoption_status = ANY (ARRAY[0, 1, 2]));
 
 -- ----------------------------
 -- Primary Key structure for table annotations

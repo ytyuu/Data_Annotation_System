@@ -7,6 +7,7 @@ import com.example.api.http.unauthorized
 import com.example.api.middleware.auth.currentUser
 import com.example.api.models.CreateDatasetRequest
 import com.example.api.models.ImportDataItemsRequest
+import com.example.api.models.ResolveDisputeRequest
 import com.example.api.models.UpdateDatasetRequest
 import com.example.api.service.auth.AuthResult
 import com.example.api.service.dataset.ProviderDatasetService
@@ -121,6 +122,26 @@ class ProviderDatasetHandler(private val datasetService: ProviderDatasetService)
         val itemId = UUID.fromString(ctx.pathParam("itemId"))
 
         when (val result = datasetService.deleteProviderDataItem(providerId, datasetId, itemId)) {
+            is AuthResult.Success -> ctx.json(result.value)
+            is AuthResult.BadRequest -> ctx.badRequest(result.message)
+            is AuthResult.Unauthorized -> ctx.unauthorized(result.message)
+            is AuthResult.Forbidden -> ctx.forbidden(result.message)
+            is AuthResult.Conflict -> ctx.conflict(result.message)
+        }
+    }
+
+    /**
+     * 处理 `POST /api/provider/datasets/{datasetId}/items/{itemId}/resolve-dispute` 请求。
+     *
+     * @param ctx Javalin 请求上下文
+     */
+    fun resolveDispute(ctx: Context) {
+        val providerId = UUID.fromString(ctx.currentUser().id)
+        val datasetId = UUID.fromString(ctx.pathParam("datasetId"))
+        val itemId = UUID.fromString(ctx.pathParam("itemId"))
+        val request = ctx.bodyAsClass(ResolveDisputeRequest::class.java)
+
+        when (val result = datasetService.resolveDisputedDataItem(providerId, datasetId, itemId, request)) {
             is AuthResult.Success -> ctx.json(result.value)
             is AuthResult.BadRequest -> ctx.badRequest(result.message)
             is AuthResult.Unauthorized -> ctx.unauthorized(result.message)

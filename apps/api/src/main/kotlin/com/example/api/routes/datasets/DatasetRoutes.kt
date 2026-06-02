@@ -24,6 +24,9 @@ fun registerDatasetRoutes(authMiddleware: AuthMiddleware?) {
         put("/provider/datasets/{datasetId}") { ctx -> providerDatasetHandler.update(ctx) }
         get("/provider/datasets/{datasetId}/items") { ctx -> providerDatasetHandler.listItems(ctx) }
         post("/provider/datasets/{datasetId}/items") { ctx -> providerDatasetHandler.importItems(ctx) }
+        post("/provider/datasets/{datasetId}/items/{itemId}/resolve-dispute") { ctx ->
+            providerDatasetHandler.resolveDispute(ctx)
+        }
         delete("/provider/datasets/{datasetId}/items/{itemId}") { ctx -> providerDatasetHandler.deleteItem(ctx) }
         post("/provider/datasets/{datasetId}/publish") { ctx -> providerDatasetHandler.publish(ctx) }
         delete("/provider/datasets/{datasetId}") { ctx -> providerDatasetHandler.delete(ctx) }

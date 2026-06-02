@@ -16,8 +16,6 @@ import com.example.api.models.SubmitAnnotationBatchResponse
 import com.example.api.models.TaskAssignmentResponse
 import com.example.api.models.UpdateDatasetResponse
 import com.example.api.service.auth.AuthResult
-import com.fasterxml.jackson.databind.JsonNode
-import com.fasterxml.jackson.databind.ObjectMapper
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.Op
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
@@ -38,7 +36,6 @@ import java.util.UUID
 class AnnotatorDatasetService {
     private val activeTaskStatuses = listOf("assigned", "in_progress")
     private val activeBatchStatuses = listOf("assigned", "in_progress")
-    private val objectMapper = ObjectMapper()
 
     /**
      * 查询标注员可领取任务的开放数据集列表。
@@ -123,7 +120,7 @@ class AnnotatorDatasetService {
                     .mapValues { it.value.size.toLong() }
             }
 
-            // 查询当前标注员所有活跃任务单的任务项总量，用于限制同时持有数量。
+            // 限制同时持有的活跃任务项总数不超过 5 个，避免单用户过度占用系统资源。
             val totalActive = AnnotationTaskBatchesTable
                 .selectAll()
                 .where {
@@ -132,28 +129,17 @@ class AnnotatorDatasetService {
                 }
                 .sumOf { it[AnnotationTaskBatchesTable.totalCount] }
 
-            // 查询每个数据集下已被标注、且当前标注员未参与过的数据项数量（互查任务来源）。
+            // 查询每个数据集下已有原始标注、尚未互查且当前标注员未参与过的数据项数量（互查任务来源）。
             val reviewableCounts = if (datasetIds.isEmpty()) {
                 emptyMap()
             } else {
-                val reviewableItemCount = DataItemsTable.id.count()
-                DataItemsTable
-                    .select(DataItemsTable.datasetId, reviewableItemCount)
-                    .where {
-                        (DataItemsTable.datasetId inList datasetIds) and
-                            (DataItemsTable.status inList listOf("annotated", "disputed")) and
-                            if (alreadyAssignedItemIds.isEmpty()) {
-                                Op.TRUE
-                            } else {
-                                DataItemsTable.id notInList alreadyAssignedItemIds
-                            }
-                    }
-                    .groupBy(DataItemsTable.datasetId)
-                    .associate { it[DataItemsTable.datasetId] to it[reviewableItemCount] }
+                findReviewableItemRows(datasetIds, alreadyAssignedItemIds)
+                    .groupingBy { it[DataItemsTable.datasetId] }
+                    .eachCount()
             }
 
-            // 查询每个数据集中同时有 annotation 和 review 且 is_disputed=false 的数据项数量。
-            val completedCounts = DatasetQueryHelper.countFullyAnnotatedItems(datasetIds)
+            // 查询每个数据集中已经形成最终结果的数据项数量。
+            val completedCounts = DatasetQueryHelper.countCompletedItems(datasetIds)
 
             datasetRows.map { row ->
                 val datasetId = row[DatasetsTable.id]
@@ -166,7 +152,7 @@ class AnnotatorDatasetService {
                 val canClaim = canClaimAnnotation || canClaimReview
 
                 val pendingCount = (pendingCounts[datasetId] ?: 0).toInt()
-                val reviewableCount = (reviewableCounts[datasetId] ?: 0).toInt()
+                val reviewableCount = reviewableCounts[datasetId] ?: 0
                 val completedCount = completedCounts[datasetId] ?: 0
 
                 toDatasetResponse(
@@ -241,6 +227,7 @@ class AnnotatorDatasetService {
                 }
                 .sumOf { it[AnnotationTaskBatchesTable.totalCount] }
 
+            // 限制同时持有的活跃任务项总数不超过 5 个，避免单用户过度占用系统资源。
             if (totalActive >= 5) {
                 return@transaction ClaimTasksTransactionResult.TooManyActive
             }
@@ -255,21 +242,8 @@ class AnnotatorDatasetService {
                 .toSet()
 
             val items = if (taskType == "review") {
-                // 互查任务：查询已被标注的数据项，排除当前标注员已参与过的。
-                DataItemsTable
-                    .selectAll()
-                    .where {
-                        (DataItemsTable.datasetId eq datasetId) and
-                            (DataItemsTable.status inList listOf("annotated", "disputed")) and
-                            if (alreadyAssignedItemIds.isEmpty()) {
-                                Op.TRUE
-                            } else {
-                                DataItemsTable.id notInList alreadyAssignedItemIds
-                            }
-                    }
-                    .orderBy(DataItemsTable.createdAt to SortOrder.ASC)
-                    .limit(requestedCount)
-                    .toList()
+                // 互查任务：查询已有原始标注但尚未互查的数据项，排除当前标注员已参与过的。
+                findReviewableItemRows(listOf(datasetId), alreadyAssignedItemIds, requestedCount)
             } else {
                 // 标注任务：查询 pending 数据项，排除当前标注员已参与过的。
                 DataItemsTable
@@ -351,6 +325,9 @@ class AnnotatorDatasetService {
                         content = item[DataItemsTable.content],
                         contentType = item[DataItemsTable.contentType],
                         metadata = item[DataItemsTable.metadata],
+                        finalResult = item[DataItemsTable.finalResult],
+                        finalizedAt = item[DataItemsTable.finalizedAt]?.toString(),
+                        finalizedBy = item[DataItemsTable.finalizedBy]?.toString(),
                         status = item[DataItemsTable.status],
                         createdAt = item[DataItemsTable.createdAt].toString(),
                         updatedAt = now.toString(),
@@ -379,6 +356,13 @@ class AnnotatorDatasetService {
         }
     }
 
+    /**
+     * 生成任务单编号。
+     *
+     * @param now 当前时间，用于生成时间戳前缀
+     * @param taskType 任务类型，`review` 时前缀为 REVIEW，否则为 TASK
+     * @return 格式为 `{PREFIX}-{yyyyMMddHHmmss}-{6位随机后缀}` 的订单号
+     */
     private fun generateOrderNo(now: OffsetDateTime, taskType: String = "annotation"): String {
         val timestamp = now.format(DateTimeFormatter.ofPattern("yyyyMMddHHmmss"))
         val suffix = UUID.randomUUID().toString().take(6).uppercase()
@@ -419,7 +403,69 @@ class AnnotatorDatasetService {
     }
 
     /**
+     * 查询可供互查的数据项。
+     *
+     * 互查候选需同时满足：
+     * 1. 已有原始标注（annotation_type = 'annotation' 且 status = 'submitted'）
+     * 2. 尚未被互查过（不存在 annotation_type = 'review' 的记录）
+     * 3. 排除当前标注员已参与过的数据项
+     * 4. 数据项状态为 assigned / annotated / disputed（已有原始标注但尚未完结）
+     */
+    private fun findReviewableItemRows(
+        datasetIds: List<UUID>,
+        excludedItemIds: Set<UUID>,
+        limit: Int? = null,
+    ): List<ResultRow> {
+        if (datasetIds.isEmpty()) {
+            return emptyList()
+        }
+
+        val originalItemIds = AnnotationsTable
+            .select(AnnotationsTable.itemId)
+            .where {
+                (AnnotationsTable.annotationType eq "annotation") and
+                    (AnnotationsTable.status eq "submitted")
+            }
+            .map { it[AnnotationsTable.itemId] }
+            .toSet()
+
+        if (originalItemIds.isEmpty()) {
+            return emptyList()
+        }
+
+        val reviewedItemIds = AnnotationsTable
+            .select(AnnotationsTable.itemId)
+            .where { AnnotationsTable.annotationType eq "review" }
+            .map { it[AnnotationsTable.itemId] }
+            .toSet()
+
+        val candidateItemIds = originalItemIds - reviewedItemIds - excludedItemIds
+        if (candidateItemIds.isEmpty()) {
+            return emptyList()
+        }
+
+        val query = DataItemsTable
+            .selectAll()
+            .where {
+                (DataItemsTable.datasetId inList datasetIds) and
+                    (DataItemsTable.id inList candidateItemIds) and
+                    (DataItemsTable.status inList listOf("assigned", "annotated", "disputed"))
+            }
+            .orderBy(DataItemsTable.createdAt to SortOrder.ASC)
+
+        return if (limit == null) {
+            query.toList()
+        } else {
+            query.limit(limit).toList()
+        }
+    }
+
+    /**
      * 批量查询任务单详情所需的任务项、数据项和已有标注结果。
+     *
+     * @param annotatorId 标注员用户 ID，用于校验任务单归属
+     * @param batchId 任务单 ID
+     * @return 包含任务项列表、标注结果映射和数据项映射的复合查询结果
      */
     private fun fetchBatchTaskRows(
         annotatorId: UUID,
@@ -465,6 +511,14 @@ class AnnotatorDatasetService {
         )
     }
 
+    /**
+     * 将批量查询的原始数据转换为任务详情响应列表。
+     *
+     * @param batchId 任务单 ID
+     * @param orderNo 任务单编号
+     * @param batchTasks 包含任务项、标注结果和数据项的复合查询结果
+     * @return 任务详情响应列表，数据项缺失时自动过滤
+     */
     private fun toTaskDetailResponses(
         batchId: UUID,
         orderNo: String,
@@ -485,6 +539,9 @@ class AnnotatorDatasetService {
                     content = item[DataItemsTable.content],
                     contentType = item[DataItemsTable.contentType],
                     metadata = item[DataItemsTable.metadata],
+                    finalResult = item[DataItemsTable.finalResult],
+                    finalizedAt = item[DataItemsTable.finalizedAt]?.toString(),
+                    finalizedBy = item[DataItemsTable.finalizedBy]?.toString(),
                     status = item[DataItemsTable.status],
                     createdAt = item[DataItemsTable.createdAt].toString(),
                     updatedAt = item[DataItemsTable.updatedAt].toString(),
@@ -689,6 +746,7 @@ class AnnotatorDatasetService {
                 }
 
                 // 仅标注任务退回时才恢复数据项状态为 pending；互查任务不影响原标注状态。
+                // 互查退回后原始标注仍然有效，数据项保持 annotated/assigned 等原有状态。
                 if (!isReviewBatch) {
                     DataItemsTable.update({ DataItemsTable.id eq itemId }) {
                         it[status] = "pending"
@@ -828,9 +886,10 @@ class AnnotatorDatasetService {
     /**
      * 批量提交标注员在任务单下的标注结果。
      *
-     * 标注任务提交时会更新 `data_items.status` 为 `annotated` 或 `disputed`。
+     * 标注任务提交时仅写入原始标注结果。
      * 互查任务（`batch_type = 'review'`）提交时会新增或更新 review 类型标注记录，
-     * 并通过 `annotations.review_of_annotation_id` 指向原始标注结果。
+     * 并通过 `annotations.review_of_annotation_id` 指向原始标注结果。原始标注与互查均完成后，
+     * 系统才会推进 `data_items.status` 为 `annotated` 或 `disputed`。
      *
      * @param annotatorId 标注员用户 ID
      * @param batchId 任务单 ID
@@ -927,9 +986,13 @@ class AnnotatorDatasetService {
                 } else {
                     null
                 }
+                // 互查任务需要比对原始标注与互查结果的一致性：
+                // - 若原始标注已被标记争议，或互查员主动标记争议，或结果不一致，则视为争议。
+                // 标注任务直接使用提交时的争议标记。
                 val isDisputed = if (isReviewBatch && originalAnnotation != null) {
                     originalAnnotation[AnnotationsTable.isDisputed] ||
-                        !areAnnotationResultsConsistent(
+                        submission.isDisputed ||
+                        !DatasetQueryHelper.areAnnotationResultsConsistent(
                             originalAnnotation[AnnotationsTable.result],
                             submission.result,
                         )
@@ -982,23 +1045,14 @@ class AnnotatorDatasetService {
                     it[updatedAt] = now
                 }
 
-                if (isReviewBatch) {
-                    if (originalAnnotation != null) {
-                        AnnotationsTable.update({ AnnotationsTable.id eq originalAnnotation[AnnotationsTable.id] }) {
-                            it[AnnotationsTable.isDisputed] = isDisputed
-                            it[reviewedAt] = now
-                            it[updatedAt] = now
-                        }
-                    }
-                    DataItemsTable.update({ DataItemsTable.id eq submission.itemId }) {
-                        it[status] = if (isDisputed) "disputed" else "annotated"
-                        it[updatedAt] = now
-                    }
-                } else {
-                    DataItemsTable.update({ DataItemsTable.id eq submission.itemId }) {
-                        it[status] = if (isDisputed) "disputed" else "annotated"
-                        it[updatedAt] = now
-                    }
+                // 互查提交完成后，触发数据项状态机推进（一致则采纳，不一致则争议）。
+                if (isReviewBatch && originalAnnotation != null) {
+                    finalizeReviewedItem(
+                        datasetId = taskRow[AnnotationTasksTable.datasetId],
+                        itemId = submission.itemId,
+                        originalAnnotationId = originalAnnotation[AnnotationsTable.id],
+                        now = now,
+                    )
                 }
             }
 
@@ -1063,32 +1117,87 @@ class AnnotatorDatasetService {
         data class Success(val submittedCount: Int, val totalCount: Int) : SubmitAnnotationBatchResult()
     }
 
-    private fun areAnnotationResultsConsistent(left: String, right: String): Boolean {
-        val leftNode = runCatching { objectMapper.readTree(left) }.getOrNull() ?: return left == right
-        val rightNode = runCatching { objectMapper.readTree(right) }.getOrNull() ?: return left == right
+    /**
+     * 原始标注与互查均提交后，推进数据项的最终状态。
+     *
+     * 状态机规则：
+     * - 若原始标注与互查结果一致且无争议标记 → 自动采纳，标注记录变为 accepted，数据项状态变为 annotated
+     * - 若结果不一致或存在争议标记 → 标注记录保持 submitted，数据项状态变为 disputed，等待提供者裁决
+     *
+     * 同时更新两条标注记录的采纳状态和采纳时间，并刷新数据集完成计数。
+     *
+     * @param datasetId 数据项所属的数据集 ID，用于刷新完成计数
+     * @param itemId 数据项 ID
+     * @param originalAnnotationId 原始标注记录 ID，用于定位原始标注
+     * @param now 当前时间，用于更新各字段的时间戳
+     */
+    private fun finalizeReviewedItem(
+        datasetId: UUID,
+        itemId: UUID,
+        originalAnnotationId: UUID,
+        now: OffsetDateTime,
+    ) {
+        val annotations = AnnotationsTable
+            .selectAll()
+            .where {
+                (AnnotationsTable.itemId eq itemId) and
+                    (AnnotationsTable.annotationType inList listOf("annotation", "review"))
+            }
+            .toList()
 
-        val leftValues = extractSelectionValues(leftNode)
-        val rightValues = extractSelectionValues(rightNode)
-        if (leftValues != null || rightValues != null) {
-            return leftValues == rightValues
+        val originalAnnotation = annotations.firstOrNull { it[AnnotationsTable.id] == originalAnnotationId } ?: return
+        val reviewAnnotation = annotations.firstOrNull { it[AnnotationsTable.annotationType] == "review" } ?: return
+        val isDisputed = originalAnnotation[AnnotationsTable.isDisputed] ||
+            reviewAnnotation[AnnotationsTable.isDisputed] ||
+            !DatasetQueryHelper.areAnnotationResultsConsistent(
+                originalAnnotation[AnnotationsTable.result],
+                reviewAnnotation[AnnotationsTable.result],
+            )
+
+        if (isDisputed) {
+            AnnotationsTable.update({
+                (AnnotationsTable.itemId eq itemId) and
+                    (AnnotationsTable.annotationType inList listOf("annotation", "review"))
+            }) {
+                it[AnnotationsTable.isDisputed] = true
+                it[status] = "submitted"
+                it[adoptionStatus] = 0.toShort()
+                it[adoptedAt] = null
+                it[adoptedBy] = null
+                it[adoptionComment] = null
+                it[reviewedAt] = now
+                it[updatedAt] = now
+            }
+            DataItemsTable.update({ DataItemsTable.id eq itemId }) {
+                it[status] = "disputed"
+                it[finalResult] = null
+                it[finalizedAt] = null
+                it[finalizedBy] = null
+                it[updatedAt] = now
+            }
+        } else {
+            AnnotationsTable.update({
+                (AnnotationsTable.itemId eq itemId) and
+                    (AnnotationsTable.annotationType inList listOf("annotation", "review"))
+            }) {
+                it[AnnotationsTable.isDisputed] = false
+                it[status] = "accepted"
+                it[adoptionStatus] = 1.toShort()
+                it[adoptedAt] = now
+                it[adoptedBy] = null
+                it[adoptionComment] = "原始标注与互查一致，系统自动采纳"
+                it[reviewedAt] = now
+                it[updatedAt] = now
+            }
+            DataItemsTable.update({ DataItemsTable.id eq itemId }) {
+                it[status] = "annotated"
+                it[finalResult] = originalAnnotation[AnnotationsTable.result]
+                it[finalizedAt] = now
+                it[finalizedBy] = null
+                it[updatedAt] = now
+            }
         }
 
-        return leftNode == rightNode
-    }
-
-    private fun extractSelectionValues(node: JsonNode): List<String>? {
-        val valueNode = node.get("value")
-        if (valueNode?.isTextual == true) {
-            return listOf(valueNode.asText())
-        }
-
-        val valuesNode = node.get("values")
-        if (valuesNode?.isArray == true) {
-            return valuesNode
-                .mapNotNull { if (it.isTextual) it.asText() else null }
-                .sorted()
-        }
-
-        return null
+        DatasetQueryHelper.refreshDatasetCompletedItemCount(datasetId, now)
     }
 }

@@ -22,7 +22,7 @@
 | --- | --- | --- |
 | 用户 | `users` | 记录提供者、标注员和管理员账号 |
 | 数据集 | `datasets` | 提供者上传的数据集主记录，包含标注说明、标注配置结构和整体状态 |
-| 数据项 | `data_items` | 数据集中每个待标注样本，可通过 `metadata` 保存来源、文件名、尺寸、语言、导入批次等扩展信息 |
+| 数据项 | `data_items` | 数据集中每个待标注样本，可通过 `metadata` 保存来源、文件名、尺寸、语言、导入批次等扩展信息，争议裁决后的最终结果保存在 `final_result` |
 | 标注任务单 | `annotation_task_batches` | 标注员每次领取任务生成的统一单号，用于展示任务、退回、开始标注和再次领取判断。支持 `batch_type` 区分标注任务和互查任务 |
 | 标注任务项 | `annotation_tasks` | 任务单下每个数据项对应的执行记录，保留独立任务项 ID |
 | 标注结果 | `annotations` | 标注员提交的结构化结果和争议标记。原始标注与互查复核分行保存，通过 `annotation_type` 区分，并由 `review_of_annotation_id` 关联 |
@@ -238,7 +238,7 @@ draft -> open -> annotating -> reviewing -> completed
 }
 ```
 
-`data_items.metadata` 用于描述单条原始数据的扩展信息，不用于保存标注配置或标注结果。
+`data_items.metadata` 用于描述单条原始数据的扩展信息，不用于保存标注配置。争议裁决后的最终结果保存到 `data_items.final_result`，并记录 `finalized_at`/`finalized_by`。
 
 示例：
 

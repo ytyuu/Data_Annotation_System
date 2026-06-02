@@ -1,53 +1,110 @@
 package com.example.api.service.dataset
 
-import com.example.api.db.AnnotationsTable
 import com.example.api.db.DataItemsTable
+import com.example.api.db.DatasetsTable
+import com.fasterxml.jackson.databind.JsonNode
+import com.fasterxml.jackson.databind.ObjectMapper
 import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 import org.jetbrains.exposed.sql.select
+import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.update
+import java.time.OffsetDateTime
 import java.util.UUID
 
 /**
  * 数据集查询工具函数，供 ProviderDatasetService 和 AnnotatorDatasetService 复用。
  */
 object DatasetQueryHelper {
+    private val objectMapper = ObjectMapper()
 
     /**
-     * 查询每个数据集中同时有 annotation 和 review 且 is_disputed=false 的数据项数量。
+     * 查询每个数据集中已经形成最终结果的数据项数量。
      *
      * @param datasetIds 数据集 ID 列表
      * @return 数据集 ID 到已完成数据项数量的映射
      */
-    fun countFullyAnnotatedItems(datasetIds: List<UUID>): Map<UUID, Int> {
+    fun countCompletedItems(datasetIds: List<UUID>): Map<UUID, Int> {
         if (datasetIds.isEmpty()) {
             return emptyMap()
         }
 
-        val annotationRows = (AnnotationsTable innerJoin DataItemsTable)
-            .select(
-                DataItemsTable.datasetId,
-                AnnotationsTable.itemId,
-                AnnotationsTable.annotationType,
-            )
+        return DataItemsTable
+            .select(DataItemsTable.datasetId)
             .where {
                 (DataItemsTable.datasetId inList datasetIds) and
-                    (AnnotationsTable.annotationType inList listOf("annotation", "review")) and
-                    (AnnotationsTable.isDisputed eq false)
+                    (DataItemsTable.status inList listOf("annotated", "accepted"))
             }
-            .toList()
+            .groupingBy { it[DataItemsTable.datasetId] }
+            .eachCount()
+    }
 
-        val itemTypesByDataset = mutableMapOf<UUID, MutableMap<UUID, MutableSet<String>>>()
-        for (row in annotationRows) {
-            val dsId = row[DataItemsTable.datasetId]
-            val itemId = row[AnnotationsTable.itemId]
-            val annType = row[AnnotationsTable.annotationType]
-            itemTypesByDataset
-                .getOrPut(dsId) { mutableMapOf() }
-                .getOrPut(itemId) { mutableSetOf() }
-                .add(annType)
+    /**
+     * 比较两条标注结果是否一致。
+     *
+     * 比较策略：
+     * 1. 优先提取 JSON 中 "value" 或 "values" 字段的选择值进行比对，
+     *    忽略其他元数据差异（如坐标、时间戳等），适配选择型标注场景。
+     * 2. 若不存在选择值字段，则回退到完整 JSON 对象逐字段比较。
+     * 3. 若任一输入不是合法 JSON，则按字符串精确匹配。
+     */
+    fun areAnnotationResultsConsistent(left: String, right: String): Boolean {
+        val leftNode = runCatching { objectMapper.readTree(left) }.getOrNull() ?: return left == right
+        val rightNode = runCatching { objectMapper.readTree(right) }.getOrNull() ?: return left == right
+
+        val leftValues = extractSelectionValues(leftNode)
+        val rightValues = extractSelectionValues(rightNode)
+        if (leftValues != null || rightValues != null) {
+            return leftValues == rightValues
         }
 
-        return itemTypesByDataset.mapValues { (_, items) ->
-            items.count { (_, types) -> types.size == 2 }
+        return leftNode == rightNode
+    }
+
+    /**
+     * 重新计算并写回指定数据集的已完成数据项数量。
+     *
+     * 数据项状态为 `annotated` 或 `accepted` 时视为已完成，
+     * 用于前端展示数据集进度和判断数据集是否达到目标完成比例。
+     */
+    fun refreshDatasetCompletedItemCount(datasetId: UUID, now: OffsetDateTime = OffsetDateTime.now()): Int {
+        val completedCount = DataItemsTable
+            .selectAll()
+            .where {
+                (DataItemsTable.datasetId eq datasetId) and
+                    (DataItemsTable.status inList listOf("annotated", "accepted"))
+            }
+            .count()
+            .toInt()
+
+        DatasetsTable.update({ DatasetsTable.id eq datasetId }) {
+            it[completedItemCount] = completedCount
+            it[updatedAt] = now
         }
+
+        return completedCount
+    }
+
+    /**
+     * 从标注结果 JSON 中提取选择值，用于一致性比对。
+     *
+     * 支持 "value"（单选）和 "values"（多选）两种字段格式，
+     * 多选时返回已排序的字符串列表，便于比较时忽略顺序差异。
+     */
+    private fun extractSelectionValues(node: JsonNode): List<String>? {
+        val valueNode = node.get("value")
+        if (valueNode?.isTextual == true) {
+            return listOf(valueNode.asText())
+        }
+
+        val valuesNode = node.get("values")
+        if (valuesNode?.isArray == true) {
+            return valuesNode
+                .mapNotNull { if (it.isTextual) it.asText() else null }
+                .sorted()
+        }
+
+        return null
     }
 }

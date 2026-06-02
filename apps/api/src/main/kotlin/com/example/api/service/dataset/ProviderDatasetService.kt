@@ -1,5 +1,6 @@
 package com.example.api.service.dataset
 
+import com.example.api.db.AnnotationsTable
 import com.example.api.db.DatasetsTable
 import com.example.api.db.DataItemsTable
 import com.example.api.models.CreateDatasetRequest
@@ -10,6 +11,7 @@ import com.example.api.models.DatasetResponse
 import com.example.api.models.ImportDataItemsRequest
 import com.example.api.models.ImportDataItemsResponse
 import com.example.api.models.PublishDatasetResponse
+import com.example.api.models.ResolveDisputeRequest
 import com.example.api.models.UpdateDatasetRequest
 import com.example.api.models.UpdateDatasetResponse
 import com.example.api.service.auth.AuthResult
@@ -17,6 +19,7 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.jetbrains.exposed.exceptions.ExposedSQLException
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
+import org.jetbrains.exposed.sql.SqlExpressionBuilder.inList
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteWhere
@@ -35,6 +38,13 @@ class ProviderDatasetService {
     private val objectMapper = ObjectMapper()
     private val supportedContentTypes = setOf("text", "image", "audio", "video", "json")
 
+    /**
+     * 创建新的草稿数据集。
+     *
+     * @param providerId 数据集提供者用户 ID
+     * @param request 创建数据集请求，包含名称、描述、标注结构等信息
+     * @return 创建结果，成功时返回新建的数据集信息
+     */
     fun createProviderDataset(
         providerId: UUID,
         request: CreateDatasetRequest,
@@ -111,8 +121,8 @@ class ProviderDatasetService {
 
             val datasetIds = datasetRows.map { it[DatasetsTable.id] }
 
-            // 查询每个数据集中同时有 annotation 和 review 且 is_disputed=false 的数据项数量。
-            val completedCounts = DatasetQueryHelper.countFullyAnnotatedItems(datasetIds)
+            // 查询每个数据集中已经形成最终结果的数据项数量。
+            val completedCounts = DatasetQueryHelper.countCompletedItems(datasetIds)
 
             datasetRows.map { row ->
                 toDatasetResponse(
@@ -176,7 +186,8 @@ class ProviderDatasetService {
                     }
                 }
 
-                // 重新查询数据集的数据项总数，并同步写回 datasets.item_count。
+                // 重新查询数据集的数据项总数并同步写回 datasets.item_count。
+                // 使用实际查询值而非 items.size，确保与数据库状态一致（并发导入等场景）。
                 val itemCount = DataItemsTable
                     .selectAll()
                     .where { DataItemsTable.datasetId eq datasetId }
@@ -230,6 +241,109 @@ class ProviderDatasetService {
             AuthResult.BadRequest("数据集不存在或无权访问")
         } else {
             AuthResult.Success(items)
+        }
+    }
+
+    /**
+     * 处理指定数据项的争议结果。
+     *
+     * 如果提供者最终结果与某条标注结果一致，则采纳对应标注；如果都不一致，
+     * 则拒绝所有标注，并将提供者结果作为最终采纳结果保存到数据项。
+     *
+     * @param providerId 数据集提供者用户 ID
+     * @param datasetId 数据集 ID
+     * @param itemId 数据项 ID
+     * @param request 争议处理请求
+     * @return 处理结果
+     */
+    fun resolveDisputedDataItem(
+        providerId: UUID,
+        datasetId: UUID,
+        itemId: UUID,
+        request: ResolveDisputeRequest,
+    ): AuthResult<UpdateDatasetResponse> {
+        val finalResult = request.finalResult.trim().ifEmpty { "{}" }
+        val comment = request.comment?.trim()?.takeIf { it.isNotEmpty() }
+
+        if (!isJsonObject(finalResult)) {
+            return AuthResult.BadRequest("最终标注结果必须是合法的 JSON 对象")
+        }
+
+        val result = transaction {
+            findProviderDataset(providerId, datasetId)
+                ?: return@transaction ResolveDisputeTransactionResult.NotFound
+
+            val item = DataItemsTable
+                .selectAll()
+                .where {
+                    (DataItemsTable.id eq itemId) and
+                        (DataItemsTable.datasetId eq datasetId)
+                }
+                .limit(1)
+                .firstOrNull()
+                ?: return@transaction ResolveDisputeTransactionResult.NotFound
+
+            if (item[DataItemsTable.status] != "disputed") {
+                return@transaction ResolveDisputeTransactionResult.InvalidStatus
+            }
+
+            val annotations = AnnotationsTable
+                .selectAll()
+                .where {
+                    (AnnotationsTable.itemId eq itemId) and
+                        (AnnotationsTable.annotationType inList listOf("annotation", "review"))
+                }
+                .toList()
+
+            val hasOriginal = annotations.any { it[AnnotationsTable.annotationType] == "annotation" }
+            val hasReview = annotations.any { it[AnnotationsTable.annotationType] == "review" }
+            if (!hasOriginal || !hasReview) {
+                return@transaction ResolveDisputeTransactionResult.InvalidAnnotations
+            }
+
+            val now = OffsetDateTime.now()
+            // 将提供者给出的最终结果与每条标注结果逐一比对，
+            // 结果一致的标注被标记为采纳（accepted），不一致的标记为拒绝（rejected）。
+            val matchedAnnotationIds = annotations
+                .filter {
+                    DatasetQueryHelper.areAnnotationResultsConsistent(
+                        it[AnnotationsTable.result],
+                        finalResult,
+                    )
+                }
+                .map { it[AnnotationsTable.id] }
+                .toSet()
+
+            annotations.forEach { annotation ->
+                val adopted = annotation[AnnotationsTable.id] in matchedAnnotationIds
+                AnnotationsTable.update({ AnnotationsTable.id eq annotation[AnnotationsTable.id] }) {
+                    it[AnnotationsTable.isDisputed] = false
+                    it[status] = if (adopted) "accepted" else "rejected"
+                    it[adoptionStatus] = if (adopted) 1.toShort() else 2.toShort()
+                    it[adoptedAt] = now
+                    it[adoptedBy] = providerId
+                    it[adoptionComment] = comment
+                    it[updatedAt] = now
+                }
+            }
+
+            DataItemsTable.update({ DataItemsTable.id eq itemId }) {
+                it[status] = "accepted"
+                it[DataItemsTable.finalResult] = finalResult
+                it[finalizedAt] = now
+                it[finalizedBy] = providerId
+                it[updatedAt] = now
+            }
+
+            DatasetQueryHelper.refreshDatasetCompletedItemCount(datasetId, now)
+            ResolveDisputeTransactionResult.Success
+        }
+
+        return when (result) {
+            ResolveDisputeTransactionResult.NotFound -> AuthResult.BadRequest("数据项不存在或无权访问")
+            ResolveDisputeTransactionResult.InvalidStatus -> AuthResult.BadRequest("仅可处理争议状态的数据项")
+            ResolveDisputeTransactionResult.InvalidAnnotations -> AuthResult.BadRequest("争议数据项缺少原始标注或互查结果")
+            ResolveDisputeTransactionResult.Success -> AuthResult.Success(UpdateDatasetResponse("争议处理已保存"))
         }
     }
 
@@ -335,9 +449,12 @@ class ProviderDatasetService {
     /**
      * 发布指定提供者的草稿数据集，使其对标注员开放。
      *
+     * 发布前会校验数据集是否包含至少一条数据项，且数据集当前必须为 `draft` 状态。
+     * 发布后数据集状态变为 `open`，标注员可以领取其中的任务。
+     *
      * @param providerId 数据集提供者用户 ID
-     * @param datasetId 数据集 ID
-     * @return 发布结果
+     * @param datasetId 要发布的数据集 ID
+     * @return 发布结果，成功时返回数据集的最新状态
      */
     fun publishProviderDataset(providerId: UUID, datasetId: UUID): AuthResult<PublishDatasetResponse> {
         val result = transaction {
@@ -348,7 +465,7 @@ class ProviderDatasetService {
                 return@transaction PublishDatasetTransactionResult.InvalidStatus
             }
 
-            // 查询数据集的数据项总数，发布前必须确保至少有一条数据。
+            // 发布前校验数据集非空，避免标注员领取到空任务。
             val itemCount = DataItemsTable
                 .selectAll()
                 .where { DataItemsTable.datasetId eq datasetId }
@@ -480,6 +597,9 @@ class ProviderDatasetService {
             content = row[DataItemsTable.content],
             contentType = row[DataItemsTable.contentType],
             metadata = row[DataItemsTable.metadata],
+            finalResult = row[DataItemsTable.finalResult],
+            finalizedAt = row[DataItemsTable.finalizedAt]?.toString(),
+            finalizedBy = row[DataItemsTable.finalizedBy]?.toString(),
             status = row[DataItemsTable.status],
             createdAt = row[DataItemsTable.createdAt].toString(),
             updatedAt = row[DataItemsTable.updatedAt].toString(),
@@ -575,6 +695,13 @@ class ProviderDatasetService {
         NotFound,
         InvalidStatus,
         EmptyDataset,
+    }
+
+    private enum class ResolveDisputeTransactionResult {
+        Success,
+        NotFound,
+        InvalidStatus,
+        InvalidAnnotations,
     }
 
     private sealed class DeleteDataItemTransactionResult {

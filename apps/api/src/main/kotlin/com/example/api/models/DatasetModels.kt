@@ -95,6 +95,9 @@ data class ImportDataItemsResponse(
  * @property content 数据内容或资源地址
  * @property contentType 内容类型
  * @property metadata 数据项扩展信息 JSON 字符串
+ * @property finalResult 争议裁决后的最终标注结果 JSON 字符串
+ * @property finalizedAt 最终结果确认时间
+ * @property finalizedBy 确认最终结果的提供方用户 ID
  * @property status 数据项状态
  * @property createdAt 创建时间
  * @property updatedAt 更新时间
@@ -105,9 +108,23 @@ data class DataItemResponse(
     val content: String,
     val contentType: String,
     val metadata: String,
+    val finalResult: String? = null,
+    val finalizedAt: String? = null,
+    val finalizedBy: String? = null,
     val status: String,
     val createdAt: String,
     val updatedAt: String,
+)
+
+/**
+ * 提供者处理争议数据项请求。
+ *
+ * @property finalResult 提供者确认的最终标注结果 JSON 字符串
+ * @property comment 采纳/拒绝说明
+ */
+data class ResolveDisputeRequest(
+    val finalResult: String = "{}",
+    val comment: String? = null,
 )
 
 /**
