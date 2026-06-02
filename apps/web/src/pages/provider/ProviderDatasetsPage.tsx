@@ -1239,13 +1239,22 @@ export function ProviderDatasetsPage() {
           <div className="text-sm text-gray-500">
             共 {datasets.length} 个数据集
           </div>
-          <button
-            type="button"
-            className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            onClick={openCreateDatasetView}
-          >
-            创建数据集
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              onClick={loadProviderDatasets}
+            >
+              刷新
+            </button>
+            <button
+              type="button"
+              className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              onClick={openCreateDatasetView}
+            >
+              创建数据集
+            </button>
+          </div>
         </div>
 
         {datasetsError && <div className="app-alert-error">{datasetsError}</div>}
@@ -1323,14 +1332,30 @@ export function ProviderDatasetsPage() {
                         >
                           概览
                         </button>
-                        <button
-                          type="button"
-                          disabled={exportLoadingId === dataset.id}
-                          className="rounded border border-green-200 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50"
-                          onClick={() => handleExportDataset(dataset)}
-                        >
-                          {exportLoadingId === dataset.id ? '导出中' : '导出'}
-                        </button>
+                        {(() => {
+                          const completionRatio = dataset.itemCount > 0
+                            ? Math.round((dataset.completedItemCount / dataset.itemCount) * 100)
+                            : 0;
+                          const targetRatio = parseFloat(dataset.targetCompletionRatio);
+                          const canExport = completionRatio >= targetRatio && dataset.itemCount > 0;
+                          const exportTooltip = canExport
+                            ? ''
+                            : dataset.itemCount === 0
+                              ? '数据集暂无数据项，无法导出'
+                              : `当前完成率 ${completionRatio}%，需达到 ${targetRatio}% 才能导出`;
+                          return (
+                            <span title={exportTooltip} className="inline-block">
+                              <button
+                                type="button"
+                                disabled={!canExport || exportLoadingId === dataset.id}
+                                className="rounded border border-green-200 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50"
+                                onClick={() => handleExportDataset(dataset)}
+                              >
+                                {exportLoadingId === dataset.id ? '导出中' : '导出'}
+                              </button>
+                            </span>
+                          );
+                        })()}
                         {dataset.status === 'draft' && (
                           <>
                             <button
