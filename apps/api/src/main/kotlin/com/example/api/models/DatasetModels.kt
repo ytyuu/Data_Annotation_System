@@ -53,6 +53,7 @@ data class DatasetResponse(
     val pendingItemCount: Int? = null,
     val reviewableItemCount: Int? = null,
     val disputedItemCount: Int? = null,
+    val hasBeenReviewed: Boolean = false,
 )
 
 /**
@@ -328,4 +329,91 @@ data class DisputedItemDetailResponse(
     val annotationSchema: String,
     val annotationGuide: String?,
     val datasetName: String,
+)
+
+/**
+ * 审核数据项响应数据（含标注记录）。
+ *
+ * @property item 数据项信息
+ * @property annotations 该数据项的标注记录列表
+ */
+data class ReviewItemResponse(
+    val item: DataItemResponse,
+    val annotations: List<AnnotationDetailResponse>,
+)
+
+/**
+ * 数据集审核详情响应。
+ *
+ * @property datasetName 数据集名称
+ * @property annotationSchema 标注结构 JSON 字符串
+ * @property annotationGuide 标注说明
+ * @property items 数据项及标注记录列表
+ * @property reviewedItemCount 已审核数据项数量
+ * @property totalItemCount 数据项总数
+ */
+data class ReviewDetailResponse(
+    val datasetName: String,
+    val annotationSchema: String,
+    val annotationGuide: String?,
+    val items: List<ReviewItemResponse>,
+    val reviewedItemCount: Int,
+    val totalItemCount: Int,
+)
+
+/**
+ * 提交数据集审核请求。
+ *
+ * @property status 审核结果：`approved` / `revision_required` / `rejected`
+ * @property opinion 审核意见
+ * @property sampledItemCount 抽样审核的数据项数量
+ */
+data class SubmitReviewRequest(
+    val status: String = "",
+    val opinion: String? = null,
+    val sampledItemCount: Int? = null,
+)
+
+/**
+ * 提交数据集审核响应。
+ *
+ * @property message 处理结果消息
+ * @property datasetStatus 审核后的数据集状态
+ */
+data class SubmitReviewResponse(
+    val message: String,
+    val datasetStatus: String,
+)
+
+/**
+ * 逐条审核数据项请求。
+ *
+ * @property accepted 是否通过审核
+ */
+data class ReviewItemActionRequest(
+    val accepted: Boolean = false,
+)
+
+/**
+ * 完成数据集审核请求。
+ *
+ * @property opinion 审核意见（可选）
+ */
+data class FinishReviewRequest(
+    val opinion: String? = null,
+)
+
+/**
+ * 完成数据集审核响应。
+ *
+ * @property message 处理结果消息
+ * @property datasetStatus 完成后的数据集状态
+ * @property acceptedCount 通过审核的数据项数
+ * @property rejectedCount 未通过审核的数据项数
+ */
+data class FinishReviewResponse(
+    val message: String,
+    val datasetStatus: String,
+    val acceptedCount: Int,
+    val rejectedCount: Int,
 )

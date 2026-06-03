@@ -8,6 +8,9 @@ import com.example.api.middleware.auth.currentUser
 import com.example.api.models.CreateDatasetRequest
 import com.example.api.models.ImportDataItemsRequest
 import com.example.api.models.ResolveDisputeRequest
+import com.example.api.models.SubmitReviewRequest
+import com.example.api.models.ReviewItemActionRequest
+import com.example.api.models.FinishReviewRequest
 import com.example.api.models.UpdateDatasetRequest
 import com.example.api.http.Result
 import com.example.api.service.dataset.ProviderDatasetService
@@ -202,6 +205,82 @@ class ProviderDatasetHandler(private val datasetService: ProviderDatasetService)
             is Result.Unauthorized -> ctx.unauthorized(result.message)
             is Result.Forbidden -> ctx.forbidden(result.message)
             is Result.Conflict -> ctx.conflict(result.message)
+        }
+    }
+
+    /**
+     * 处理 `GET /api/provider/datasets/{datasetId}/review-items` 请求。
+     *
+     * @param ctx Javalin 请求上下文
+     */
+    fun listReviewItems(ctx: Context) {
+        val providerId = UUID.fromString(ctx.currentUser().id)
+        val datasetId = UUID.fromString(ctx.pathParam("datasetId"))
+
+        when (val result = datasetService.listReviewItems(providerId, datasetId)) {
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
+        }
+    }
+
+    /**
+     * 处理 `POST /api/provider/datasets/{datasetId}/submit-review` 请求。
+     *
+     * @param ctx Javalin 请求上下文
+     */
+    fun submitReview(ctx: Context) {
+        val providerId = UUID.fromString(ctx.currentUser().id)
+        val datasetId = UUID.fromString(ctx.pathParam("datasetId"))
+        val request = ctx.bodyAsClass(SubmitReviewRequest::class.java)
+
+        when (val result = datasetService.submitReview(providerId, datasetId, request)) {
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
+        }
+    }
+
+    /**
+     * 处理 `POST /api/provider/datasets/{datasetId}/review-item/{itemId}` 请求。
+     *
+     * @param ctx Javalin 请求上下文
+     */
+    fun reviewItem(ctx: Context) {
+        val providerId = UUID.fromString(ctx.currentUser().id)
+        val datasetId = UUID.fromString(ctx.pathParam("datasetId"))
+        val itemId = UUID.fromString(ctx.pathParam("itemId"))
+        val request = ctx.bodyAsClass(ReviewItemActionRequest::class.java)
+
+        when (val result = datasetService.reviewItem(providerId, datasetId, itemId, request.accepted)) {
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
+        }
+    }
+
+    /**
+     * 处理 `POST /api/provider/datasets/{datasetId}/finish-review` 请求。
+     *
+     * @param ctx Javalin 请求上下文
+     */
+    fun finishReview(ctx: Context) {
+        val providerId = UUID.fromString(ctx.currentUser().id)
+        val datasetId = UUID.fromString(ctx.pathParam("datasetId"))
+        val request = ctx.bodyAsClass(FinishReviewRequest::class.java)
+
+        when (val result = datasetService.finishReview(providerId, datasetId, request)) {
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
         }
     }
 

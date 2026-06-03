@@ -3,6 +3,7 @@ package com.example.api.service.dataset
 import com.example.api.db.AnnotationsTable
 import com.example.api.db.DatasetsTable
 import com.example.api.db.DataItemsTable
+import com.example.api.db.DatasetReviewsTable
 import com.example.api.db.UsersTable
 import com.example.api.models.AnnotationDetailResponse
 import com.example.api.models.CreateDatasetRequest
@@ -15,6 +16,13 @@ import com.example.api.models.ImportDataItemsRequest
 import com.example.api.models.ImportDataItemsResponse
 import com.example.api.models.PublishDatasetResponse
 import com.example.api.models.ResolveDisputeRequest
+import com.example.api.models.ReviewDetailResponse
+import com.example.api.models.ReviewItemResponse
+import com.example.api.models.SubmitReviewRequest
+import com.example.api.models.SubmitReviewResponse
+import com.example.api.models.ReviewItemActionRequest
+import com.example.api.models.FinishReviewRequest
+import com.example.api.models.FinishReviewResponse
 import com.example.api.models.UpdateDatasetRequest
 import com.example.api.models.UpdateDatasetResponse
 import com.example.api.http.Result
@@ -97,6 +105,7 @@ class ProviderDatasetService {
                     completedItemCount = 0,
                     createdAt = now.toString(),
                     updatedAt = now.toString(),
+                    hasBeenReviewed = false,
                 )
             }
 
@@ -342,6 +351,7 @@ class ProviderDatasetService {
             }
 
             DatasetQueryHelper.refreshDatasetCompletedItemCount(datasetId, now)
+            DatasetQueryHelper.checkAndTransitionToReviewing(datasetId, now)
             ResolveDisputeTransactionResult.Success
         }
 
@@ -658,6 +668,432 @@ class ProviderDatasetService {
     }
 
 
+    /**
+     * 查询指定数据集中所有已标注数据项及其标注记录，供提供者审核。
+     *
+     * @param providerId 数据集提供者用户 ID
+     * @param datasetId 数据集 ID
+     * @return 审核详情，包含数据项列表及对应标注记录
+     */
+    fun listReviewItems(
+        providerId: UUID,
+        datasetId: UUID,
+    ): Result<ReviewDetailResponse> {
+        val result = transaction {
+            val dataset = findProviderDataset(providerId, datasetId)
+                ?: return@transaction ReviewItemsResult.NotFound
+
+            val ds = DatasetsTable
+                .selectAll()
+                .where { DatasetsTable.id eq datasetId }
+                .limit(1)
+                .firstOrNull()
+                ?: return@transaction ReviewItemsResult.NotFound
+
+            val currentStatus = ds[DatasetsTable.status]
+            if (currentStatus != "reviewing") {
+                val itemCount = ds[DatasetsTable.itemCount]
+                if (itemCount > 0 && currentStatus in listOf("open", "annotating")) {
+                    val completedCount = ds[DatasetsTable.completedItemCount]
+                    val targetRatio = ds[DatasetsTable.targetCompletionRatio]
+                    if (completedCount.toDouble() / itemCount.toDouble() * 100.0 >= targetRatio.toDouble()) {
+                        DatasetsTable.update({ DatasetsTable.id eq datasetId }) {
+                            it[status] = "reviewing"
+                            it[updatedAt] = OffsetDateTime.now()
+                        }
+                    } else {
+                        return@transaction ReviewItemsResult.InvalidStatus
+                    }
+                } else {
+                    return@transaction ReviewItemsResult.InvalidStatus
+                }
+            }
+
+            val items = DataItemsTable
+                .selectAll()
+                .where {
+                    (DataItemsTable.datasetId eq datasetId) and
+                        (DataItemsTable.status inList listOf("annotated", "accepted"))
+                }
+                .orderBy(DataItemsTable.updatedAt to SortOrder.DESC)
+                .toList()
+
+            val itemIds = items.map { it[DataItemsTable.id] }
+            val annotationsByItem = if (itemIds.isEmpty()) {
+                emptyMap()
+            } else {
+                val annRows = AnnotationsTable
+                    .selectAll()
+                    .where {
+                        (AnnotationsTable.itemId inList itemIds) and
+                            (AnnotationsTable.annotationType inList listOf("annotation", "review"))
+                    }
+                    .orderBy(AnnotationsTable.annotationType to SortOrder.ASC)
+                    .toList()
+
+                val annotatorIds = annRows.map { it[AnnotationsTable.annotatorId] }.toSet()
+                val annotatorNames = if (annotatorIds.isEmpty()) {
+                    emptyMap()
+                } else {
+                    UsersTable
+                        .selectAll()
+                        .where { UsersTable.id inList annotatorIds }
+                        .associate { it[UsersTable.id].toString() to it[UsersTable.displayName] }
+                }
+
+                annRows.groupBy { it[AnnotationsTable.itemId] }.mapValues { (_, anns) ->
+                    anns.map { ann ->
+                        AnnotationDetailResponse(
+                            id = ann[AnnotationsTable.id].toString(),
+                            annotatorId = ann[AnnotationsTable.annotatorId].toString(),
+                            annotatorName = annotatorNames[ann[AnnotationsTable.annotatorId].toString()] ?: "未知标注员",
+                            annotationType = ann[AnnotationsTable.annotationType],
+                            result = ann[AnnotationsTable.result],
+                            comment = ann[AnnotationsTable.comment],
+                            isDisputed = ann[AnnotationsTable.isDisputed],
+                            status = ann[AnnotationsTable.status],
+                            submittedAt = ann[AnnotationsTable.submittedAt].toString(),
+                        )
+                    }
+                }
+            }
+
+            val reviewedCount = DataItemsTable
+                .selectAll()
+                .where {
+                    (DataItemsTable.datasetId eq datasetId) and
+                        (DataItemsTable.status inList listOf("accepted", "rejected"))
+                }
+                .count()
+                .toInt()
+
+            val reviewItems = items.map { row ->
+                ReviewItemResponse(
+                    item = toDataItemResponse(row),
+                    annotations = annotationsByItem[row[DataItemsTable.id]] ?: emptyList(),
+                )
+            }
+
+            ReviewItemsResult.Success(
+                ReviewDetailResponse(
+                    datasetName = ds[DatasetsTable.name],
+                    annotationSchema = ds[DatasetsTable.annotationSchema],
+                    annotationGuide = ds[DatasetsTable.annotationGuide],
+                    items = reviewItems,
+                    reviewedItemCount = reviewedCount,
+                    totalItemCount = ds[DatasetsTable.itemCount],
+                )
+            )
+        }
+
+        return when (result) {
+            ReviewItemsResult.NotFound -> Result.BadRequest("数据集不存在或无权访问")
+            ReviewItemsResult.InvalidStatus -> Result.BadRequest("仅可审核状态为「审核中」的数据集")
+            is ReviewItemsResult.Success -> Result.Success(result.value)
+        }
+    }
+
+    /**
+     * 提交数据集审核结果。
+     *
+     * 提供者审核数据集标注质量后，可选择：
+     * - `approved`：审核通过，数据集进入完成状态
+     * - `revision_required`：需要修改，数据集退回标注阶段
+     * - `rejected`：审核拒绝，数据集关闭
+     *
+     * @param providerId 数据集提供者用户 ID
+     * @param datasetId 数据集 ID
+     * @param request 审核请求
+     * @return 提交结果
+     */
+    fun submitReview(
+        providerId: UUID,
+        datasetId: UUID,
+        request: SubmitReviewRequest,
+    ): Result<SubmitReviewResponse> {
+        val reviewStatus = request.status.trim().lowercase()
+        val opinion = request.opinion?.trim()?.takeIf { it.isNotEmpty() }
+        val validStatuses = setOf("approved", "revision_required", "rejected")
+
+        if (reviewStatus !in validStatuses) {
+            return Result.BadRequest("审核结果必须为 approved、revision_required 或 rejected")
+        }
+
+        val result = transaction {
+            findProviderDataset(providerId, datasetId)
+                ?: return@transaction SubmitReviewTransactionResult.NotFound
+
+            val ds = DatasetsTable
+                .selectAll()
+                .where { DatasetsTable.id eq datasetId }
+                .limit(1)
+                .firstOrNull()
+                ?: return@transaction SubmitReviewTransactionResult.NotFound
+
+            if (ds[DatasetsTable.status] != "reviewing") {
+                return@transaction SubmitReviewTransactionResult.InvalidStatus
+            }
+
+            val now = OffsetDateTime.now()
+            val sampledCount = request.sampledItemCount
+                ?: DataItemsTable
+                    .selectAll()
+                    .where {
+                        (DataItemsTable.datasetId eq datasetId) and
+                            (DataItemsTable.status inList listOf("annotated", "disputed", "accepted"))
+                    }
+                    .count()
+                    .toInt()
+
+            val disputedCount = DataItemsTable
+                .selectAll()
+                .where {
+                    (DataItemsTable.datasetId eq datasetId) and
+                        (DataItemsTable.status eq "disputed")
+                }
+                .count()
+                .toInt()
+
+            // 创建或更新审核记录
+            val existingReview = DatasetReviewsTable
+                .selectAll()
+                .where {
+                    (DatasetReviewsTable.datasetId eq datasetId) and
+                        (DatasetReviewsTable.providerId eq providerId)
+                }
+                .limit(1)
+                .firstOrNull()
+
+            if (existingReview != null) {
+                DatasetReviewsTable.update({ DatasetReviewsTable.id eq existingReview[DatasetReviewsTable.id] }) {
+                    it[DatasetReviewsTable.status] = reviewStatus
+                    it[DatasetReviewsTable.sampledItemCount] = sampledCount
+                    it[DatasetReviewsTable.disputedItemCount] = disputedCount
+                    it[DatasetReviewsTable.opinion] = opinion
+                    it[DatasetReviewsTable.reviewedAt] = now
+                    it[updatedAt] = now
+                }
+            } else {
+                DatasetReviewsTable.insert {
+                    it[id] = UUID.randomUUID()
+                    it[DatasetReviewsTable.datasetId] = datasetId
+                    it[DatasetReviewsTable.providerId] = providerId
+                    it[DatasetReviewsTable.status] = reviewStatus
+                    it[DatasetReviewsTable.sampledItemCount] = sampledCount
+                    it[DatasetReviewsTable.disputedItemCount] = disputedCount
+                    it[DatasetReviewsTable.opinion] = opinion
+                    it[DatasetReviewsTable.reviewedAt] = now
+                    it[createdAt] = now
+                    it[updatedAt] = now
+                }
+            }
+
+            // 更新数据集状态
+            val datasetStatus = when (reviewStatus) {
+                "approved" -> "completed"
+                "revision_required" -> "revision_required"
+                "rejected" -> "closed"
+                else -> "reviewing"
+            }
+
+            DatasetsTable.update({ DatasetsTable.id eq datasetId }) {
+                it[DatasetsTable.status] = datasetStatus
+                it[updatedAt] = now
+            }
+
+            SubmitReviewTransactionResult.Success(datasetStatus)
+        }
+
+        return when (result) {
+            SubmitReviewTransactionResult.NotFound -> Result.BadRequest("数据集不存在或无权访问")
+            SubmitReviewTransactionResult.InvalidStatus -> Result.BadRequest("仅可审核状态为「审核中」的数据集")
+            is SubmitReviewTransactionResult.Success -> Result.Success(
+                SubmitReviewResponse(
+                    message = "审核结果已提交",
+                    datasetStatus = result.datasetStatus,
+                )
+            )
+        }
+    }
+
+    /**
+     * 逐条审核数据项，标记为通过或不通过。
+     *
+     * @param providerId 数据集提供者用户 ID
+     * @param datasetId 数据集 ID
+     * @param itemId 数据项 ID
+     * @param accepted 是否通过审核
+     * @return 操作结果
+     */
+    fun reviewItem(
+        providerId: UUID,
+        datasetId: UUID,
+        itemId: UUID,
+        accepted: Boolean,
+    ): Result<UpdateDatasetResponse> {
+        val result = transaction {
+            val dataset = findProviderDataset(providerId, datasetId)
+                ?: return@transaction ReviewItemTransactionResult.NotFound
+
+            if (dataset.status !in listOf("reviewing", "open", "annotating")) {
+                return@transaction ReviewItemTransactionResult.InvalidStatus
+            }
+
+            val item = DataItemsTable
+                .selectAll()
+                .where {
+                    (DataItemsTable.id eq itemId) and
+                        (DataItemsTable.datasetId eq datasetId)
+                }
+                .limit(1)
+                .firstOrNull()
+                ?: return@transaction ReviewItemTransactionResult.NotFound
+
+            if (item[DataItemsTable.status] !in listOf("annotated", "accepted")) {
+                return@transaction ReviewItemTransactionResult.InvalidStatus
+            }
+
+            val now = OffsetDateTime.now()
+            DataItemsTable.update({ DataItemsTable.id eq itemId }) {
+                it[DataItemsTable.status] = if (accepted) "accepted" else "rejected"
+                it[updatedAt] = now
+            }
+
+            ReviewItemTransactionResult.Success
+        }
+
+        return when (result) {
+            ReviewItemTransactionResult.NotFound -> Result.BadRequest("数据项不存在或无权访问")
+            ReviewItemTransactionResult.InvalidStatus -> Result.BadRequest("该数据项尚无法审核")
+            ReviewItemTransactionResult.Success -> Result.Success(UpdateDatasetResponse("审核结果已保存"))
+        }
+    }
+
+    /**
+     * 完成数据集审核，根据逐条审核结果更新数据集状态。
+     *
+     * 全部通过时数据集转为 `completed`，存在不通过时转为 `revision_required`。
+     *
+     * @param providerId 数据集提供者用户 ID
+     * @param datasetId 数据集 ID
+     * @param request 完成审核请求（含可选意见）
+     * @return 操作结果
+     */
+    fun finishReview(
+        providerId: UUID,
+        datasetId: UUID,
+        request: FinishReviewRequest,
+    ): Result<FinishReviewResponse> {
+        val result = transaction {
+            findProviderDataset(providerId, datasetId)
+                ?: return@transaction FinishReviewTransactionResult.NotFound
+
+            val ds = DatasetsTable
+                .selectAll()
+                .where { DatasetsTable.id eq datasetId }
+                .limit(1)
+                .firstOrNull()
+                ?: return@transaction FinishReviewTransactionResult.NotFound
+
+            if (ds[DatasetsTable.status] !in listOf("reviewing", "open", "annotating")) {
+                return@transaction FinishReviewTransactionResult.InvalidStatus
+            }
+
+            val now = OffsetDateTime.now()
+            val opinion = request.opinion?.trim()?.takeIf { it.isNotEmpty() }
+
+            val acceptedCount = DataItemsTable
+                .selectAll()
+                .where {
+                    (DataItemsTable.datasetId eq datasetId) and
+                        (DataItemsTable.status eq "accepted")
+                }
+                .count()
+                .toInt()
+
+            val rejectedCount = DataItemsTable
+                .selectAll()
+                .where {
+                    (DataItemsTable.datasetId eq datasetId) and
+                        (DataItemsTable.status eq "rejected")
+                }
+                .count()
+                .toInt()
+
+            val totalReviewable = DataItemsTable
+                .selectAll()
+                .where {
+                    (DataItemsTable.datasetId eq datasetId) and
+                        (DataItemsTable.status inList listOf("annotated", "accepted", "rejected"))
+                }
+                .count()
+                .toInt()
+
+            val reviewedCount = acceptedCount + rejectedCount
+            if (reviewedCount < totalReviewable) {
+                return@transaction FinishReviewTransactionResult.NotAllReviewed
+            }
+
+            val datasetStatus = if (rejectedCount > 0) "revision_required" else "completed"
+            val reviewStatus = if (rejectedCount > 0) "revision_required" else "approved"
+
+            DatasetsTable.update({ DatasetsTable.id eq datasetId }) {
+                it[DatasetsTable.status] = datasetStatus
+                it[updatedAt] = now
+            }
+
+            val existingReview = DatasetReviewsTable
+                .selectAll()
+                .where {
+                    (DatasetReviewsTable.datasetId eq datasetId) and
+                        (DatasetReviewsTable.providerId eq providerId)
+                }
+                .limit(1)
+                .firstOrNull()
+
+            val sampledCount = acceptedCount + rejectedCount
+            if (existingReview != null) {
+                DatasetReviewsTable.update({ DatasetReviewsTable.id eq existingReview[DatasetReviewsTable.id] }) {
+                    it[DatasetReviewsTable.status] = reviewStatus
+                    it[DatasetReviewsTable.sampledItemCount] = sampledCount
+                    it[DatasetReviewsTable.disputedItemCount] = 0
+                    it[DatasetReviewsTable.opinion] = opinion
+                    it[DatasetReviewsTable.reviewedAt] = now
+                    it[updatedAt] = now
+                }
+            } else {
+                DatasetReviewsTable.insert {
+                    it[id] = UUID.randomUUID()
+                    it[DatasetReviewsTable.datasetId] = datasetId
+                    it[DatasetReviewsTable.providerId] = providerId
+                    it[DatasetReviewsTable.status] = reviewStatus
+                    it[DatasetReviewsTable.sampledItemCount] = sampledCount
+                    it[DatasetReviewsTable.disputedItemCount] = 0
+                    it[DatasetReviewsTable.opinion] = opinion
+                    it[DatasetReviewsTable.reviewedAt] = now
+                    it[createdAt] = now
+                    it[updatedAt] = now
+                }
+            }
+
+            FinishReviewTransactionResult.Success(datasetStatus, acceptedCount, rejectedCount)
+        }
+
+        return when (result) {
+            FinishReviewTransactionResult.NotFound -> Result.BadRequest("数据集不存在或无权访问")
+            FinishReviewTransactionResult.InvalidStatus -> Result.BadRequest("仅可完成审核状态为「审核中」的数据集")
+            FinishReviewTransactionResult.NotAllReviewed -> Result.BadRequest("尚有数据项未完成逐条审核")
+            is FinishReviewTransactionResult.Success -> Result.Success(
+                FinishReviewResponse(
+                    message = "审核已完成",
+                    datasetStatus = result.datasetStatus,
+                    acceptedCount = result.acceptedCount,
+                    rejectedCount = result.rejectedCount,
+                )
+            )
+        }
+    }
+
     private fun validateDataset(
         name: String,
         annotationSchema: String,
@@ -762,6 +1198,7 @@ class ProviderDatasetService {
             updatedAt = row[DatasetsTable.updatedAt].toString(),
             canClaim = canClaim,
             disputedItemCount = disputedItemCount,
+            hasBeenReviewed = row[DatasetsTable.status] in listOf("completed", "closed", "revision_required"),
         )
     }
 
@@ -845,6 +1282,31 @@ class ProviderDatasetService {
         data class Success(val itemCount: Int) : DeleteDataItemTransactionResult()
         data object NotFound : DeleteDataItemTransactionResult()
         data object InvalidStatus : DeleteDataItemTransactionResult()
+    }
+
+    private sealed class ReviewItemsResult {
+        data class Success(val value: ReviewDetailResponse) : ReviewItemsResult()
+        data object NotFound : ReviewItemsResult()
+        data object InvalidStatus : ReviewItemsResult()
+    }
+
+    private sealed class SubmitReviewTransactionResult {
+        data class Success(val datasetStatus: String) : SubmitReviewTransactionResult()
+        data object NotFound : SubmitReviewTransactionResult()
+        data object InvalidStatus : SubmitReviewTransactionResult()
+    }
+
+    private enum class ReviewItemTransactionResult {
+        Success,
+        NotFound,
+        InvalidStatus,
+    }
+
+    private sealed class FinishReviewTransactionResult {
+        data class Success(val datasetStatus: String, val acceptedCount: Int, val rejectedCount: Int) : FinishReviewTransactionResult()
+        data object NotFound : FinishReviewTransactionResult()
+        data object InvalidStatus : FinishReviewTransactionResult()
+        data object NotAllReviewed : FinishReviewTransactionResult()
     }
 
 }

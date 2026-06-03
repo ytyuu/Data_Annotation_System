@@ -281,6 +281,14 @@ class AnnotatorDatasetService {
                 items
             }
 
+            // 首次领取标注任务时，将数据集从 open 过渡到 annotating。
+            if (taskType == "annotation" && claimedItems.isNotEmpty() && dataset[DatasetsTable.status] == "open") {
+                DatasetsTable.update({ DatasetsTable.id eq datasetId }) {
+                    it[status] = "annotating"
+                    it[updatedAt] = now
+                }
+            }
+
             if (claimedItems.isEmpty()) {
                 return@transaction ClaimTasksTransactionResult.EmptyDataset
             }
@@ -400,6 +408,7 @@ class AnnotatorDatasetService {
             pendingItemCount = pendingItemCount,
             reviewableItemCount = reviewableItemCount,
             disputedItemCount = null,
+            hasBeenReviewed = row[DatasetsTable.status] in listOf("completed", "closed", "revision_required"),
         )
     }
 
@@ -1205,5 +1214,6 @@ class AnnotatorDatasetService {
         }
 
         DatasetQueryHelper.refreshDatasetCompletedItemCount(datasetId, now)
+        DatasetQueryHelper.checkAndTransitionToReviewing(datasetId, now)
     }
 }

@@ -84,6 +84,36 @@ object DatasetQueryHelper {
     }
 
     /**
+     * 检查数据集是否达到目标完成比例，若达到且当前为可过渡状态（`annotating` 或 `open`），
+     * 则自动过渡到 `reviewing` 状态，等待提供者审核。
+     *
+     * 应在 [refreshDatasetCompletedItemCount] 之后调用。
+     */
+    fun checkAndTransitionToReviewing(datasetId: UUID, now: OffsetDateTime = OffsetDateTime.now()) {
+        val dataset = DatasetsTable
+            .selectAll()
+            .where { DatasetsTable.id eq datasetId }
+            .limit(1)
+            .firstOrNull() ?: return
+
+        if (dataset[DatasetsTable.status] !in listOf("annotating", "open")) return
+
+        val itemCount = dataset[DatasetsTable.itemCount]
+        if (itemCount <= 0) return
+
+        val completedCount = dataset[DatasetsTable.completedItemCount]
+        val targetRatio = dataset[DatasetsTable.targetCompletionRatio]
+
+        val actualPercent = completedCount.toDouble() / itemCount.toDouble() * 100.0
+        if (actualPercent >= targetRatio.toDouble()) {
+            DatasetsTable.update({ DatasetsTable.id eq datasetId }) {
+                it[status] = "reviewing"
+                it[updatedAt] = now
+            }
+        }
+    }
+
+    /**
      * 重新计算并写回指定数据集的已完成数据项数量。
      *
      * 数据项状态为 `annotated` 或 `accepted` 时视为已完成，
