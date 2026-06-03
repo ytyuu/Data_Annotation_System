@@ -235,7 +235,11 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
       (o) => o.value === selectedMainValue
     );
     if (selectedMainOption?.hasSubOptions) {
-      // 有子选项，需要子选项也选中了才自动跳转
+      // 子选项为多选模式时，不自动跳转，让用户自行选择多个子选项后手动提交
+      if (selectedMainOption.subSelectionMode === 'multiple') {
+        return false;
+      }
+      // 子选项为单选模式，需要子选项也选中了才自动跳转
       const subSelection = selection.sub[selectedMainValue];
       return subSelection !== undefined && subSelection.length > 0;
     }
