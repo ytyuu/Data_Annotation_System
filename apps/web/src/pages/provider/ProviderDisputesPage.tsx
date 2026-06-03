@@ -282,44 +282,40 @@ export function ProviderDisputesPage() {
             暂无争议数据项
           </div>
         ) : (
-          <div className="overflow-hidden rounded border border-gray-200">
-            <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50 text-xs font-medium text-gray-500">
-                <tr>
-                  <th className="px-4 py-3">数据集名称</th>
-                  <th className="px-4 py-3">数据项总数</th>
-                  <th className="px-4 py-3">争议数量</th>
-                  <th className="px-4 py-3 text-right">操作</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-200 bg-white">
-                {datasets.map((dataset) => (
-                  <tr key={dataset.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3">
+          <div className="space-y-4">
+            {datasets.map((dataset) => (
+              <div key={dataset.id} className="rounded border border-gray-200 bg-white">
+                <div className="flex items-center justify-between gap-4 px-4 py-3">
+                  <div className="flex flex-1 items-center gap-4">
+                    <div>
                       <div className="font-medium text-gray-900">{dataset.name}</div>
                       {dataset.description && (
-                        <div className="mt-1 line-clamp-1 text-xs text-gray-500">{dataset.description}</div>
+                        <div className="mt-1 line-clamp-1 text-xs text-gray-500">
+                          {dataset.description}
+                        </div>
                       )}
-                    </td>
-                    <td className="px-4 py-3 text-gray-600">{dataset.itemCount}</td>
-                    <td className="px-4 py-3">
+                      <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
+                        <span>{dataset.itemCount} 条数据</span>
+                      </div>
+                    </div>
+                    <div className="ml-auto">
                       <span className="app-badge" data-kind="status" data-status="disputed">
                         {dataset.disputedItemCount} 条争议
                       </span>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        className="rounded border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
-                        onClick={() => openDataset(dataset)}
-                      >
-                        查看争议
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      className="rounded border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                      onClick={() => openDataset(dataset)}
+                    >
+                      查看争议
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
