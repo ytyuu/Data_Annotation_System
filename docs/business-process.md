@@ -36,19 +36,23 @@
 2. 系统创建 `datasets` 记录，并将导入的样本写入 `data_items`。
 3. 数据集准备完成后，提供者将数据集开放给标注员。
 4. 数据标注员选择数据集并领取任务，系统生成一张 `annotation_task_batches` 任务单，并为任务单下的数据项生成 `annotation_tasks` 任务项。
-   - 标注任务（`batch_type = 'annotation'`）：领取 `pending` 状态的数据项进行首次标注，领取后数据项进入 `assigned` 状态。
+   - 标注任务（`batch_type = 'annotation'`）：领取 `pending` 状态的数据项进行首次标注，领取后数据项进入 `assigned` 状态。**首次领取时系统自动将数据集从 `open` 过渡到 `annotating`**。
    - 互查任务（`batch_type = 'review'`）：领取 `annotated` 或 `disputed` 状态的数据项，由另一位标注员进行复核。
 5. 标注员根据任务单进入标注流程，并按照 `annotation_guide` 和 `annotation_schema` 对任务项中的数据项进行标注。
    - 单选无子选项：选中主选项后自动跳转到下一条（间隔 800ms）。
    - 单选带子选项：选中主选项后展开子选项列表，选择子选项后才自动跳转。
    - **多选模式：不自动跳转**，需手动点击"下一条"或"提交任务单"。
 6. 标注员提交结果后，系统写入 `annotations`，并更新任务和数据项状态。
-   - 标注任务提交：将 `data_items.status` 更新为 `annotated` 或 `disputed`。
-   - 互查任务提交：新增或更新 `annotation_type = 'review'` 的标注结果行，`result` 保存互查结果，`review_of_annotation_id` 指向原始标注结果。互查一致性比对同时考虑主选项和子选项值。
+   - 标注任务提交：写入原始标注记录，任务状态变为 `submitted`，数据项保持 `assigned`。
+   - 互查任务提交：写入互查记录（`annotation_type = 'review'`），比对原始标注与互查结果。一致时自动采纳（数据项 → `annotated`，标注 → `accepted`），不一致或标记争议时数据项 → `disputed`。
 7. 如果标注员无法确定结果，可以将标注结果标记为争议或不确定。
-8. 系统根据完成比例、争议情况和任务状态判断是否触发复查或数据集审核。
-9. 数据集提供者对已标注数据进行抽样审核。
-10. 审核通过后，数据集进入完成状态；审核不通过时，提供者退回修改或调整标注要求。
+8. 互查提交后自动刷新 `datasets.completed_item_count`，并检查是否达到 `target_completion_ratio`。若达到则将数据集从 `open`/`annotating` 自动过渡到 `reviewing`。
+9. 数据集提供者在审核页面进行**逐条审核**：
+   - 进入页面时系统动态计算每个数据集的完成比例，自动显示已达到阈值但尚未审核的数据集。
+   - 提供者对每条已有最终结果的数据项分别点击"通过"或"不通过"。
+   - 全部决定后点击"审核完成"，系统根据结果将数据集标记为 `completed`（全部通过）或 `revision_required`（存在不通过）。
+   - 有争议的数据项（`disputed`）不在此页面展示，需先在争议处理页面完成裁决。
+10. 审核通过后数据集进入完成状态；审核不通过时提供者需调整标注要求并重新发布。
 
 ## 流程图对应规则
 
@@ -82,18 +86,29 @@
 | --- | --- |
 | `draft` | 草稿，提供者已创建但未开放 |
 | `open` | 已开放，标注员可以选择或领取任务 |
-| `annotating` | 标注进行中 |
-| `reviewing` | 达到审核条件，等待提供者审核 |
+| `annotating` | 标注进行中（首次领取标注任务时自动从 `open` 转入） |
+| `reviewing` | 达到目标完成比例，等待提供者审核（自动从 `open`/`annotating` 转入） |
 | `revision_required` | 审核后需要调整需求或退回重标 |
 | `completed` | 数据集标注和审核完成 |
 | `closed` | 人工关闭，不再继续流转 |
 
-建议流转：
+自动流转触发条件：
+
+| 触发时机 | 源状态 | 目标状态 | 条件 |
+|---------|-------|---------|------|
+| 标注员首次领取标注任务 | `open` | `annotating` | 标注任务成功领取 |
+| 互查任务提交后 / 争议裁决后 | `open`/`annotating` | `reviewing` | `completed_item_count / item_count * 100 >= target_completion_ratio` |
+| 逐条审核全部完成（全部通过） | `reviewing` | `completed` | 所有数据项已逐条审核 |
+| 逐条审核全部完成（存在不通过） | `reviewing` | `revision_required` | 至少一条数据项被标记为不通过 |
+
+完整流转：
 
 ```text
 draft -> open -> annotating -> reviewing -> completed
-                           \-> revision_required -> annotating
-                           \-> closed
+                    ↑              ↓
+                    +--- revision_required
+                    ↓
+                 closed
 ```
 
 ### 数据项状态
@@ -104,10 +119,10 @@ draft -> open -> annotating -> reviewing -> completed
 | --- | --- |
 | `pending` | 待分配或待标注 |
 | `assigned` | 已分配给标注员 |
-| `annotated` | 已有标注结果 |
-| `disputed` | 标注结果存在争议或被标记为不确定 |
-| `accepted` | 审核通过 |
-| `rejected` | 审核不通过 |
+| `annotated` | 互查一致后自动采纳，已有最终标注结果，等待提供者逐条审核 |
+| `disputed` | 标注结果存在争议或被标记为不确定，需在争议处理页面裁决 |
+| `accepted` | 逐条审核通过（提供者或系统自动采纳后均可） |
+| `rejected` | 逐条审核不通过 |
 
 `data_items.content_type` 数据库允许值为 `text`、`image`、`audio`、`video`、`json`。
 
@@ -166,6 +181,47 @@ draft -> open -> annotating -> reviewing -> completed
 | `revision_required` | 需要调整需求或补充标注 |
 | `rejected` | 审核拒绝 |
 
+## 提供者审核流程
+
+### 审核页面入口
+
+`/provider/reviews` 页面包含两个 Tab：
+
+| Tab | 过滤条件 | 说明 |
+|-----|---------|------|
+| 待审核 | `hasBeenReviewed = false` 且 `completedItemCount / itemCount * 100 >= targetCompletionRatio` | 已达到审核阈值但尚未完成审核的数据集 |
+| 已完成审核 | `hasBeenReviewed = true` | 已进入 `completed` / `closed` / `revision_required` 状态的数据集 |
+
+审核页面**不依赖数据集状态**来筛选，而是在进入页面时**动态计算完成比例**与阈值对比。即使数据集因未触发状态机而停留在 `open`/`annotating`，只要实际完成比例达到阈值，就会自动出现在待审核列表中。
+
+### 逐条审核流程
+
+1. 点击"开始审核"进入数据集审核详情。
+   - 后端 `GET .../review-items` 接口返回已有最终结果的标注项（`annotated`/`accepted`），**不返回** `disputed` 争议项（需要先在争议处理页面裁决）。
+   - 若数据集当前仍在 `open`/`annotating`，接口会自动将其过渡到 `reviewing`。
+2. 对每条数据项点击"通过"或"不通过"：
+   - `POST .../review-item/{itemId}` `{ "accepted": true }` → 状态变为 `accepted`
+   - `POST .../review-item/{itemId}` `{ "accepted": false }` → 状态变为 `rejected`
+3. 全部决定后点击"审核完成"：
+   - `POST .../finish-review` → 统计通过/不通过数量
+   - 全部通过 → 数据集变为 `completed`，`dataset_reviews.status = 'approved'`
+   - 存在不通过 → 数据集变为 `revision_required`，`dataset_reviews.status = 'revision_required'`
+
+### 已完成审核标记
+
+`DatasetResponse` 新增 `hasBeenReviewed: Boolean` 字段，由后端根据数据集状态自动计算：
+- `completed` / `closed` / `revision_required` → `true`（已通过审核，不再出现在待审核列表）
+- 其他状态 → `false`
+
+### API 端点
+
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| `GET` | `/api/provider/datasets` | 列表包含 `hasBeenReviewed` 字段 |
+| `GET` | `/api/provider/datasets/{id}/review-items` | 获取待审核项（仅含 `annotated`/`accepted`，不含 `disputed`） |
+| `POST` | `/api/provider/datasets/{id}/review-item/{itemId}` | 逐条审核：通过或不通过 |
+| `POST` | `/api/provider/datasets/{id}/finish-review` | 完成审核，根据逐条结果更新数据集状态 |
+
 ## 权限边界
 
 ### 数据集提供者
@@ -200,11 +256,11 @@ draft -> open -> annotating -> reviewing -> completed
 - 一个标注任务最多对应一条标注结果，通过 `annotations.task_id` 唯一约束实现。
 - 互查任务要求标注员未参与过该数据项，业务上应基于 `annotation_tasks` 的历史记录排除已参与的数据项。
 - 每个任务单必须有唯一单号，通过 `annotation_task_batches.order_no` 唯一约束实现。
-- 当争议数量较多、存在不确定结果或完成比例达到阈值时，系统应触发提供者审核。
+- 当完成比例达到阈值时，系统自动将数据集从 `open`/`annotating` 过渡到 `reviewing`，触发时机包括互查任务提交后和争议裁决后。
 - 默认完成比例阈值来自 `datasets.target_completion_ratio`，当前 SQL 默认值为 `50.00`。
 - `datasets.target_completion_ratio` 数据库限制为大于 0 且不超过 100。
 - `datasets.item_count`、`datasets.completed_item_count`、`annotation_task_batches.total_count`、`dataset_reviews.sampled_item_count` 和 `dataset_reviews.disputed_item_count` 均为非负数。
-- 标注要求调整后，数据集可从 `revision_required` 回到 `annotating`。
+- 标注要求调整后，数据集可从 `revision_required` 回到 `open`（需重新发布）。
 - 同一数据集下，同一标注员不能同时持有同类型的活跃任务单（例如不能同时有两个 `annotation` 类型的 `assigned`/`in_progress` 任务单），但可以同时持有一个标注任务单和一个互查任务单。该规则属于业务层约束，当前 SQL 仅提供相关查询索引。
 - 删除数据集时，数据库会级联删除其数据项、任务单、任务项、标注结果和审核记录；删除任务单时会级联删除其任务项；删除任务项时会级联删除对应标注结果。
 
