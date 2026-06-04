@@ -318,8 +318,8 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
                   {tasks.map((task, index) => (
                     <tr key={task.taskId}>
                       <td className="px-4 py-3 text-gray-500">{index + 1}</td>
-                      <td className="max-w-xs px-4 py-3 text-gray-900">
-                        <div className="line-clamp-2">{task.item.content}</div>
+                      <td className="max-w-md px-4 py-3 text-gray-900">
+                        <DataItemViewer item={task.item} className="max-h-24" />
                       </td>
                       <td className="px-4 py-3">
                         <span className="app-badge" data-kind="status" data-status={task.status}>

@@ -1484,14 +1484,14 @@ export function ProviderDatasetsPage() {
             </button>
           </div>
         ) : (
-          <div className="overflow-hidden rounded border border-gray-200">
+          <div className="overflow-hidden rounded border border-gray-300">
             <table className="w-full text-left text-sm">
-              <thead className="bg-gray-50 text-xs font-medium text-gray-500">
+              <thead className="border-b border-gray-300 bg-gray-100 text-xs font-medium text-gray-600">
                 <tr>
-                  <th className="px-4 py-3">名称</th>
+                  <th className="w-[26%] px-4 py-3">名称</th>
                   <th className="px-4 py-3">状态</th>
                   <th className="px-4 py-3">标注方式</th>
-                  <th className="px-4 py-3">数据项</th>
+                  <th className="w-40 px-4 py-3">数据项</th>
                   <th className="px-4 py-3">审核阈值</th>
                   <th className="px-4 py-3">更新时间</th>
                   <th className="px-4 py-3 text-right">操作</th>
@@ -1499,8 +1499,8 @@ export function ProviderDatasetsPage() {
               </thead>
               <tbody className="divide-y divide-gray-200 bg-white">
                 {datasets.map((dataset) => (
-                  <tr key={dataset.id}>
-                    <td className="px-4 py-3">
+                  <tr key={dataset.id} className="align-top hover:bg-gray-50">
+                    <td className="px-4 py-4">
                       <div className="font-medium text-gray-900">{dataset.name}</div>
                       {dataset.description && (
                         <div className="mt-1 line-clamp-1 text-xs text-gray-500">
@@ -1508,24 +1508,38 @@ export function ProviderDatasetsPage() {
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-4">
                       <span className="app-badge" data-kind="status" data-status={dataset.status}>
                         {datasetStatusLabels[dataset.status] || dataset.status}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">
+                    <td className="px-4 py-4 text-gray-600">
                       {getDatasetSchemaSummary(dataset)}
                     </td>
-                    <td className="px-4 py-3 text-gray-600">
-                      {dataset.completedItemCount}/{dataset.itemCount}
+                    <td className="px-4 py-4">
+                      <div className="space-y-1.5">
+                        <div className="text-sm font-medium text-gray-900">
+                          {dataset.completedItemCount}
+                          <span className="mx-1 text-gray-400">/</span>
+                          {dataset.itemCount}
+                        </div>
+                        <div className="h-1.5 rounded-full bg-gray-200">
+                          <div
+                            className="h-1.5 rounded-full bg-gray-700"
+                            style={{
+                              width: `${dataset.itemCount > 0 ? Math.min(100, Math.round((dataset.completedItemCount / dataset.itemCount) * 100)) : 0}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-4 py-3 text-gray-600">
+                    <td className="px-4 py-4 text-gray-600">
                       {dataset.targetCompletionRatio}%
                     </td>
-                    <td className="px-4 py-3 text-gray-500">
+                    <td className="px-4 py-4 text-gray-500">
                       {new Date(dataset.updatedAt).toLocaleString()}
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-4">
                       <div className="flex justify-end gap-2">
                         <button
                           type="button"

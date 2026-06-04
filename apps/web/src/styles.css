@@ -8,7 +8,7 @@
 
   body {
     min-height: 100vh;
-    background: #fff;
+    background: #f8fafc;
     color: #111;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -16,8 +16,23 @@
 }
 
 @layer components {
+  button:not(:disabled) {
+    cursor: pointer;
+  }
+
+  button[class*='border-gray-300'] {
+    background-color: #fff;
+    box-shadow: 0 1px 1px rgb(15 23 42 / 0.04);
+  }
+
+  button[class*='border-gray-300']:hover:not(:disabled) {
+    border-color: #9ca3af;
+    background-color: #f9fafb;
+    box-shadow: 0 1px 3px rgb(15 23 42 / 0.10);
+  }
+
   .app-page {
-    @apply min-h-screen bg-gray-50 px-6 py-10 text-gray-900;
+    @apply min-h-screen bg-gray-100 px-6 py-10 text-gray-900;
   }
 
   .app-center {
@@ -49,7 +64,7 @@
   }
 
   .app-card {
-    @apply rounded border-2 border-gray-200 bg-white p-8;
+    @apply rounded border border-gray-300 bg-white p-8 shadow-sm;
   }
 
   .app-choice-grid {
@@ -57,11 +72,11 @@
   }
 
   .app-choice-card {
-    @apply relative rounded border-2 border-gray-200 bg-white p-8 text-left transition-all duration-200 hover:border-blue-500 hover:shadow-lg;
+    @apply relative rounded border border-gray-300 bg-white p-8 text-left shadow-sm transition-all duration-200 hover:border-gray-900 hover:shadow-lg;
   }
 
   .app-choice-title {
-    @apply text-xl font-semibold text-gray-900 transition-colors group-hover:text-blue-600;
+    @apply text-xl font-semibold text-gray-900 transition-colors group-hover:text-gray-950;
   }
 
   .app-choice-desc {
@@ -69,7 +84,7 @@
   }
 
   .app-choice-arrow {
-    @apply absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded bg-gray-100 transition-colors group-hover:bg-blue-500;
+    @apply absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded bg-gray-100 transition-colors group-hover:bg-gray-900;
   }
 
   .app-choice-arrow-icon {
@@ -104,8 +119,12 @@
     @apply mb-6 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-600;
   }
 
+  .app-alert-success {
+    @apply mb-6 rounded border border-gray-300 bg-gray-50 p-3 text-sm text-gray-700;
+  }
+
   .app-badge {
-    @apply inline-flex items-center rounded px-2.5 py-1 text-xs font-medium ring-1 ring-inset;
+    @apply inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset;
   }
 
   .app-badge[data-kind='dataset'] {
@@ -137,7 +156,7 @@
   }
 
   .app-badge[data-kind='status'][data-status='completed'] {
-    @apply bg-emerald-50 text-emerald-700 ring-emerald-200;
+    @apply bg-gray-100 text-gray-700 ring-gray-300;
   }
 
   .app-badge[data-kind='status'][data-status='closed'] {
@@ -153,7 +172,7 @@
   }
 
   .app-badge[data-kind='status'][data-status='annotated'] {
-    @apply bg-cyan-50 text-cyan-700 ring-cyan-200;
+    @apply bg-gray-100 text-gray-700 ring-gray-300;
   }
 
   .app-badge[data-kind='status'][data-status='disputed'] {
@@ -161,7 +180,7 @@
   }
 
   .app-badge[data-kind='status'][data-status='accepted'] {
-    @apply bg-emerald-50 text-emerald-700 ring-emerald-200;
+    @apply bg-gray-100 text-gray-700 ring-gray-300;
   }
 
   .app-badge[data-kind='status'][data-status='rejected'] {
@@ -170,5 +189,25 @@
 
   .app-result {
     @apply mt-3 rounded bg-gray-50 px-4 py-3 text-sm font-medium text-gray-900;
+  }
+
+  .app-metric {
+    @apply rounded border border-gray-200 bg-gray-50 px-3 py-2;
+  }
+
+  .app-metric-label {
+    @apply text-xs font-medium text-gray-500;
+  }
+
+  .app-metric-value {
+    @apply mt-1 text-sm font-semibold text-gray-900;
+  }
+
+  .app-progress {
+    @apply mt-2 h-1.5 rounded-full bg-gray-200;
+  }
+
+  .app-progress-bar {
+    @apply h-1.5 rounded-full bg-gray-700;
   }
 }

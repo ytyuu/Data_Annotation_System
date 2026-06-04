@@ -112,12 +112,15 @@ export function RoleLayout({ role, menus, workbenchPath, redirectOnRoleMismatch 
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">
-      <header className="flex h-14 items-center justify-between border-b border-gray-200 bg-white px-6">
+    <div className="min-h-screen bg-gray-100 text-gray-900">
+      <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-gray-300 bg-white px-6 shadow-sm">
         <div className="flex items-center gap-6">
-          <div className="text-base font-semibold text-gray-900">数据标注系统</div>
+          <div className="flex items-center gap-2 text-base font-semibold text-gray-900">
+            <span className="h-3 w-3 rounded-sm bg-gray-900" />
+            数据标注系统
+          </div>
           <nav className="flex items-center gap-4 text-sm text-gray-500">
-            <Link to={workbenchPath} className="font-medium text-blue-600">
+            <Link to={workbenchPath} className="font-medium text-gray-900">
               工作台
             </Link>
             <Link to="/api-test" className="hover:text-gray-700">
@@ -138,34 +141,52 @@ export function RoleLayout({ role, menus, workbenchPath, redirectOnRoleMismatch 
       </header>
 
       <div className="flex min-h-[calc(100vh-56px)]">
-        <aside className="w-56 border-r border-gray-200 bg-white px-4 py-5">
-          <div className="mb-4 px-2 text-xs font-medium text-gray-400">功能菜单</div>
-          <nav className="space-y-1">
+        <aside className="w-56 border-r border-gray-300 bg-gray-50 px-4 py-5 shadow-sm">
+          <div className="mb-5 flex items-center justify-between border-b border-gray-200 px-2 pb-3 text-xs font-medium text-gray-500">
+            <span>功能菜单</span>
+            <span className="rounded border border-gray-300 bg-white px-2 py-0.5 text-gray-700">
+              {roleLabels[role]}
+            </span>
+          </div>
+          <nav className="space-y-1.5">
             {menus.map((item) => (
               <Link
                 key={item.key}
                 to={item.path}
-                className={`block rounded px-3 py-2 text-left text-sm font-medium transition-colors ${
+                className={`relative block rounded border px-3 py-2 text-left text-sm font-medium transition-colors ${
                   activeMenu?.key === item.key
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                    ? 'border-gray-300 bg-white text-gray-950 shadow-sm'
+                    : 'border-transparent text-gray-600 hover:border-gray-300 hover:bg-white hover:text-gray-900'
                 }`}
               >
+                {activeMenu?.key === item.key && (
+                  <span className="absolute bottom-2 left-0 top-2 w-1 rounded-r bg-gray-900" />
+                )}
                 {item.label}
               </Link>
             ))}
           </nav>
         </aside>
 
-        <main className="flex-1 p-6">
-          <section className="min-h-full rounded border-2 border-gray-200 bg-white p-6">
-            <div className="mb-4 border-b border-gray-200 pb-4">
-              <h1 className="text-xl font-semibold text-gray-900">
-                {activeMenu?.label || '业务页面'}
-              </h1>
+        <main className="flex-1 p-4 lg:p-5">
+          <section className="min-h-full overflow-hidden rounded border border-gray-300 bg-white shadow-sm">
+            <div className="border-b border-gray-300 bg-gray-50 px-6 py-5">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <div className="text-xs font-medium text-gray-500">工作台</div>
+                  <h1 className="mt-1 text-xl font-semibold text-gray-900">
+                    {activeMenu?.label || '业务页面'}
+                  </h1>
+                </div>
+                <div className="hidden rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 sm:block">
+                  {roleLabels[role]}
+                </div>
+              </div>
             </div>
 
-            <Outlet />
+            <div className="p-5 lg:p-6">
+              <Outlet />
+            </div>
           </section>
         </main>
       </div>

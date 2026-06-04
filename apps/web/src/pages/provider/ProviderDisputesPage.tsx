@@ -363,8 +363,17 @@ export function ProviderDisputesPage() {
               <tbody className="divide-y divide-gray-200 bg-white">
                 {disputedItems.map((item) => (
                   <tr key={item.id} className="hover:bg-gray-50">
-                    <td className="max-w-md px-4 py-3 text-gray-900">
-                      <div className="line-clamp-2">{item.content}</div>
+                    <td className="max-w-xl px-4 py-3 text-gray-900">
+                      <DataItemViewer
+                        item={{
+                          id: item.id,
+                          datasetId: item.datasetId,
+                          content: item.content,
+                          contentType: item.contentType,
+                          metadata: '{}',
+                        }}
+                        className="max-h-24"
+                      />
                     </td>
                     <td className="px-4 py-3">
                       <span className="app-badge" data-kind="status" data-status="disputed">

@@ -38,10 +38,10 @@ const taskBatchStatusLabels: Record<string, string> = {
 };
 
 const statusBadgeColors: Record<string, string> = {
-  submitted: 'bg-blue-50 text-blue-600',
-  returned: 'bg-red-50 text-red-600',
-  accepted: 'bg-green-50 text-green-600',
-  cancelled: 'bg-gray-50 text-gray-600',
+  submitted: 'bg-gray-200 text-gray-700 ring-1 ring-inset ring-gray-300',
+  returned: 'bg-gray-200 text-gray-700 ring-1 ring-inset ring-gray-300',
+  accepted: 'bg-gray-200 text-gray-700 ring-1 ring-inset ring-gray-300',
+  cancelled: 'bg-gray-200 text-gray-700 ring-1 ring-inset ring-gray-300',
 };
 
 function computeDatasetSummaries(batches: TaskBatch[]): DatasetSummary[] {
@@ -191,41 +191,42 @@ export function AnnotatorSubmissionsPage() {
               暂无提交记录
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="grid gap-4">
               {summaries.map((summary) => (
                 <div
                   key={summary.datasetId}
-                  className="rounded border border-gray-200 bg-white"
+                  className="rounded border border-gray-300 bg-white shadow-sm transition-colors hover:bg-gray-50"
                 >
-                  <div className="flex items-center justify-between gap-4 px-4 py-3">
-                    <div className="flex flex-1 items-center gap-4">
-                      <div>
+                  <div className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(220px,1fr)_minmax(280px,auto)_auto] lg:items-center">
+                    <div>
                         <div className="font-medium text-gray-900">
                           {summary.datasetName}
                         </div>
-                        <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
-                          <span>{summary.batchCount} 个任务单</span>
-                          <span>·</span>
-                          <span>{summary.totalItemCount} 条数据</span>
+                        <div className="mt-1 text-xs text-gray-500">
+                          {summary.lastSubmittedAt
+                            ? `最近提交 ${new Date(summary.lastSubmittedAt).toLocaleDateString()}`
+                            : '暂无提交时间'}
                         </div>
-                      </div>
-                      <div className="ml-auto flex flex-wrap justify-end gap-1.5">
-                        {Object.entries(summary.statusCounts).map(
-                          ([status, count]) => (
-                            <span
-                              key={status}
-                              className={`rounded px-2 py-0.5 text-xs ${
-                                statusBadgeColors[status] ||
-                                'bg-gray-100 text-gray-600'
-                              }`}
-                            >
-                              {taskBatchStatusLabels[status] || status} {count}
-                            </span>
-                          ),
-                        )}
-                      </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-2">
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <SubmissionMetric label="任务单" value={`${summary.batchCount} 个`} />
+                      <SubmissionMetric label="数据项" value={`${summary.totalItemCount} 条`} />
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
+                      <div className="flex flex-wrap justify-end gap-1.5">
+                        {Object.entries(summary.statusCounts).map(([status, count]) => (
+                          <span
+                            key={status}
+                            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                              statusBadgeColors[status] || 'bg-gray-200 text-gray-700 ring-1 ring-inset ring-gray-300'
+                            }`}
+                          >
+                            {taskBatchStatusLabels[status] || status} {count}
+                          </span>
+                        ))}
+                      </div>
                       <button
                         type="button"
                         className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
@@ -278,38 +279,33 @@ export function AnnotatorSubmissionsPage() {
               该数据集下暂无提交记录
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="grid gap-4">
               {selectedDatasetBatches.map((batch) => (
                 <div
                   key={batch.batchId}
-                  className="rounded border border-gray-200 bg-white"
+                  className="rounded border border-gray-300 bg-white shadow-sm transition-colors hover:bg-gray-50"
                 >
-                  <div className="flex items-center justify-between gap-4 px-4 py-3">
-                    <div className="flex flex-1 items-center gap-4">
-                      <div>
+                  <div className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(220px,1fr)_minmax(360px,auto)_auto] lg:items-center">
+                    <div>
                         <div className="font-medium text-gray-900">
                           {batch.orderNo}
                         </div>
-                        <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
-                          <span>
+                        <div className="mt-1">
+                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadgeColors[batch.status] || 'bg-gray-200 text-gray-700 ring-1 ring-inset ring-gray-300'}`}>
                             {taskBatchStatusLabels[batch.status] || batch.status}
                           </span>
-                          <span>·</span>
-                          <span>{batch.totalCount} 条数据</span>
                         </div>
-                      </div>
                     </div>
-                    <div className="flex shrink-0 items-center gap-3 text-xs text-gray-400">
-                      <span>
-                        领取{' '}
-                        {new Date(batch.assignedAt).toLocaleDateString()}
-                      </span>
-                      {batch.submittedAt && (
-                        <span>
-                          提交{' '}
-                          {new Date(batch.submittedAt).toLocaleDateString()}
-                        </span>
-                      )}
+
+                    <div className="grid grid-cols-3 gap-2">
+                      <SubmissionMetric label="数据项" value={`${batch.totalCount} 条`} />
+                      <SubmissionMetric label="已提交" value={`${batch.submittedCount} 条`} />
+                      <SubmissionMetric label="待处理" value={`${batch.assignedCount + batch.inProgressCount} 条`} />
+                    </div>
+
+                    <div className="flex shrink-0 flex-wrap items-center justify-start gap-3 text-xs text-gray-500 lg:justify-end">
+                      <span>领取 {new Date(batch.assignedAt).toLocaleDateString()}</span>
+                      {batch.submittedAt && <span>提交 {new Date(batch.submittedAt).toLocaleDateString()}</span>}
                       <button
                         type="button"
                         className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
@@ -332,6 +328,15 @@ export function AnnotatorSubmissionsPage() {
           onClose={closeDetailModal}
         />
       )}
+    </div>
+  );
+}
+
+function SubmissionMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="app-metric min-w-28">
+      <div className="app-metric-label">{label}</div>
+      <div className="app-metric-value">{value}</div>
     </div>
   );
 }

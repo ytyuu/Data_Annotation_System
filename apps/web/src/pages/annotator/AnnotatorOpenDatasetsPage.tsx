@@ -162,47 +162,48 @@ export function AnnotatorOpenDatasetsPage() {
           暂无已发布数据集
         </div>
       ) : (
-        <div className="overflow-hidden rounded border border-gray-200">
+        <div className="overflow-hidden rounded border border-gray-300">
           <table className="w-full text-left text-sm">
-            <thead className="bg-gray-50 text-xs font-medium text-gray-500">
+            <thead className="border-b border-gray-300 bg-gray-100 text-xs font-medium text-gray-600">
               <tr>
-                <th className="px-4 py-3">名称</th>
+                <th className="w-[30%] px-4 py-3">名称</th>
                 <th className="px-4 py-3">状态</th>
                 <th className="px-4 py-3">标注方式</th>
-                <th className="px-4 py-3">数据项</th>
+                <th className="w-40 px-4 py-3">数据项</th>
                 <th className="px-4 py-3">余量</th>
                 <th className="px-4 py-3 text-right">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 bg-white">
               {datasets.map((dataset) => (
-                <tr key={dataset.id}>
-                  <td className="px-4 py-3">
-                    <div className="font-medium text-gray-900">{dataset.name}</div>
-                    {dataset.description && (
-                      <div className="mt-1 line-clamp-1 text-xs text-gray-500">
-                        {dataset.description}
-                      </div>
-                    )}
+                <tr key={dataset.id} className="align-top hover:bg-gray-50">
+                  <td className="px-4 py-4 align-middle">
+                    <div className="text-base font-semibold text-gray-900">{dataset.name}</div>
+                    <div className="mt-1 line-clamp-1 text-xs text-gray-500">
+                      {dataset.description || '暂无简介'}
+                    </div>
                   </td>
-                  <td className="px-4 py-3">
+                  <td className="px-4 py-4 align-middle">
                     <span className="app-badge" data-kind="status" data-status={dataset.status}>
                       {datasetStatusLabels[dataset.status] || dataset.status}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-600">
+                  <td className="px-4 py-4 align-middle text-gray-600">
                     {getDatasetSchemaSummary(dataset)}
                   </td>
-                  <td className="px-4 py-3 text-gray-600">
-                    {dataset.completedItemCount}/{dataset.itemCount}
+                  <td className="px-4 py-4">
+                    <DatasetItemMetric
+                      completed={dataset.completedItemCount}
+                      total={dataset.itemCount}
+                    />
                   </td>
-                  <td className="px-4 py-3">
-                    <div className="flex flex-col gap-1.5">
+                  <td className="px-4 py-4">
+                    <div className="grid min-w-32 grid-cols-2 gap-2">
                       <RemainingCount label="标注" value={dataset.pendingItemCount ?? 0} />
                       <RemainingCount label="互查" value={dataset.reviewableItemCount ?? 0} />
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-4 align-middle text-right">
                     {!dataset.canClaim ? (
                       <button
                         type="button"
@@ -347,12 +348,25 @@ export function AnnotatorOpenDatasetsPage() {
 
 function RemainingCount({ label, value }: { label: string; value: number }) {
   return (
-    <div className="inline-flex w-fit items-center gap-1.5 rounded border border-gray-200 bg-gray-50 px-2 py-1 text-xs text-gray-500">
-      <span>{label}</span>
-      <span className="min-w-5 text-center text-sm font-semibold leading-none text-gray-900">
-        {value}
-      </span>
-      <span>条</span>
+    <div className="app-metric px-2 py-1.5">
+      <div className="app-metric-label">{label}</div>
+      <div className="app-metric-value mt-0.5">{value} 条</div>
+    </div>
+  );
+}
+
+function DatasetItemMetric({ completed, total }: { completed: number; total: number }) {
+  const percent = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
+
+  return (
+    <div className="app-metric min-w-36 px-2 py-1.5">
+      <div className="app-metric-label">数据项</div>
+      <div className="app-metric-value mt-0.5">
+        {completed}
+        <span className="mx-1 text-gray-400">/</span>
+        {total}
+        <span className="ml-2 text-xs font-medium text-gray-500">{percent}%</span>
+      </div>
     </div>
   );
 }

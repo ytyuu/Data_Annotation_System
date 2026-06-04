@@ -31,15 +31,19 @@ export interface DataItemViewerProps {
  */
 export const DataItemViewer: React.FC<DataItemViewerProps> = ({ item, className = '' }) => {
   const { content, contentType } = item;
+  const contentFrame =
+    'max-h-40 overflow-auto rounded border border-gray-300 bg-gray-50 px-3 py-2 shadow-inner';
 
   switch (contentType) {
     case 'image':
       return (
-        <img
-          src={content}
-          alt="数据项"
-          className={`max-h-64 w-full rounded border border-gray-200 object-contain ${className}`}
-        />
+        <div className={`rounded border border-gray-300 bg-gray-50 p-2 ${className}`}>
+          <img
+            src={content}
+            alt="数据项"
+            className="max-h-64 w-full rounded object-contain"
+          />
+        </div>
       );
 
     case 'audio':
@@ -47,7 +51,7 @@ export const DataItemViewer: React.FC<DataItemViewerProps> = ({ item, className 
         <audio
           controls
           src={content}
-          className={`w-full rounded border border-gray-200 ${className}`}
+          className={`w-full rounded border border-gray-300 bg-gray-50 ${className}`}
         >
           您的浏览器不支持音频播放
         </audio>
@@ -55,19 +59,21 @@ export const DataItemViewer: React.FC<DataItemViewerProps> = ({ item, className 
 
     case 'video':
       return (
-        <video
-          controls
-          src={content}
-          className={`max-h-64 w-full rounded border border-gray-200 object-contain ${className}`}
-        >
-          您的浏览器不支持视频播放
-        </video>
+        <div className={`rounded border border-gray-300 bg-gray-50 p-2 ${className}`}>
+          <video
+            controls
+            src={content}
+            className="max-h-64 w-full rounded object-contain"
+          >
+            您的浏览器不支持视频播放
+          </video>
+        </div>
       );
 
     case 'json':
       return (
         <pre
-          className={`whitespace-pre-wrap rounded border border-gray-200 bg-gray-50 p-4 text-sm leading-6 text-gray-700 ${className}`}
+          className={`whitespace-pre-wrap break-words font-mono text-xs leading-5 text-gray-700 ${contentFrame} ${className}`}
         >
           {content}
         </pre>
@@ -76,7 +82,7 @@ export const DataItemViewer: React.FC<DataItemViewerProps> = ({ item, className 
     case 'text':
     default:
       return (
-        <div className={`whitespace-pre-wrap text-sm leading-6 text-gray-800 ${className}`}>
+        <div className={`whitespace-pre-wrap break-words text-sm leading-6 text-gray-800 ${contentFrame} ${className}`}>
           {content}
         </div>
       );
