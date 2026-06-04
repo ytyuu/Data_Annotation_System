@@ -166,13 +166,13 @@ export function AnnotatorOpenDatasetsPage() {
       ) : (
         <div className="overflow-hidden rounded border border-gray-300">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-300 bg-gray-100 text-xs font-medium text-gray-600">
+            <thead className="border-b border-gray-300 bg-gray-100 text-sm font-medium text-gray-600">
               <tr>
-                <th className="w-[30%] px-4 py-3">名称</th>
-                <th className="px-4 py-3">状态</th>
-                <th className="px-4 py-3">标注方式</th>
-                <th className="w-40 px-4 py-3">数据项</th>
-                <th className="px-4 py-3">余量</th>
+                <th className="w-[30%] px-4 py-3 text-left">名称</th>
+                <th className="px-4 py-3 text-left">状态</th>
+                <th className="px-4 py-3 text-left">标注方式</th>
+                <th className="px-4 py-3 text-left">数据项</th>
+                <th className="px-4 py-3 text-left">余量</th>
                 <th className="px-4 py-3 text-right">操作</th>
               </tr>
             </thead>
@@ -193,14 +193,14 @@ export function AnnotatorOpenDatasetsPage() {
                   <td className="px-4 py-4 align-middle text-gray-600">
                     {getDatasetSchemaSummary(dataset)}
                   </td>
-                  <td className="px-4 py-4">
+                  <td className="px-4 py-4 align-middle">
                     <DatasetItemMetric
                       completed={dataset.completedItemCount}
                       total={dataset.itemCount}
                     />
                   </td>
-                  <td className="px-4 py-4">
-                    <div className="grid min-w-32 grid-cols-2 gap-2">
+                  <td className="px-4 py-4 align-middle">
+                    <div className="flex gap-2">
                       <RemainingCount label="标注" value={dataset.pendingItemCount ?? 0} />
                       <RemainingCount label="互查" value={dataset.reviewableItemCount ?? 0} />
                     </div>
@@ -352,7 +352,7 @@ export function AnnotatorOpenDatasetsPage() {
 
 function RemainingCount({ label, value }: { label: string; value: number }) {
   return (
-    <div className="app-metric px-2 py-1.5">
+    <div className="app-metric inline-block px-2 py-1">
       <div className="app-metric-label">{label}</div>
       <div className="app-metric-value mt-0.5">{value} 条</div>
     </div>
@@ -363,7 +363,7 @@ function DatasetItemMetric({ completed, total }: { completed: number; total: num
   const percent = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
 
   return (
-    <div className="app-metric min-w-36 px-2 py-1.5">
+    <div className="app-metric inline-block px-2 py-1">
       <div className="app-metric-label">数据项</div>
       <div className="app-metric-value mt-0.5">
         {completed}
