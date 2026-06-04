@@ -59,9 +59,10 @@ mvnd exec:java -Dexec.args=8080
 
 - 新增接口时优先放在 `routes/` 注册路由，并将具体处理逻辑放到 `handlers/`。
 - 请求和响应模型优先放在 `models/`，避免在 handler 中散落匿名结构。
-- `models/` 下的 DTO 按业务域拆分文件，不要新增“所有响应/请求集中放一起”的聚合文件。命名建议为 `AuthModels.kt`、`DatasetModels.kt`、`SystemModels.kt`、`DemoModels.kt`，后续业务继续按路由/领域命名，例如 `TaskModels.kt`、`AnnotationModels.kt`。
+- `models/` 下的 DTO 按业务域拆分文件，不要新增"所有响应/请求集中放一起"的聚合文件。命名建议为 `AuthModels.kt`、`DatasetModels.kt`、`SystemModels.kt`、`DemoModels.kt`，后续业务继续按路由/领域命名，例如 `TaskModels.kt`、`AnnotationModels.kt`。
 - 保持 Javalin 配置集中在 `http/`，不要把跨域、序列化等全局 HTTP 配置分散到业务 handler。
 - 不要手动修改生成目录 `target/` 或 `build/`。
+- 后端新增接口时同步考虑测试脚本是否需要覆盖。
 
 ## 路由组与中间件链
 
@@ -88,3 +89,11 @@ routeGroup(requireAuth(authMiddleware), requireRole("provider")) {
     get("/provider/datasets", Handler { ctx -> datasetHandler.list(ctx) })
 }
 ```
+
+## 可扩展性设计原则（标注类型）
+
+本系统当前以文本分类标注为主，但数据库和业务架构已预留扩展空间。未来增加图片标注、目标检测、音频转写、文本实体识别（NER）等新标注类型时，后端应遵循以下原则：
+
+- **一致性比对**：`DatasetQueryHelper.areAnnotationResultsConsistent` 当前只比对 `value`/`values` 字段。新增标注类型时必须添加对应比对策略（如目标检测用 IoU、NER 用实体重叠率），不能简单回退到 JSON 字符串匹配。
+- **结果解析**：`extractSelectionValues` 只提取选择值。新增类型时需扩展结果提取逻辑，或按类型路由到独立解析器。
+- **状态机**：互查后的 `finalizeReviewedItem` 状态推进逻辑与标注类型无关，可直接复用。
