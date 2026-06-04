@@ -343,7 +343,7 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
           </div>
           <AppButton
             type="button"
-            className="rounded border border-gray-300 px-4 py-2 text-base text-gray-600 hover:bg-gray-50"
+            variant="secondary"
             onClick={onClose}
           >
             关闭
@@ -405,7 +405,7 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
                   <div className="flex gap-2">
                     <AppButton
                       type="button"
-                      className="rounded border border-gray-300 px-5 py-2.5 text-base text-gray-700 hover:bg-gray-50"
+                      variant="secondary"
                       onClick={() => goToIndex(currentIndex - 1)}
                       disabled={currentIndex === 0}
                     >
@@ -413,7 +413,7 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
                     </AppButton>
                     <AppButton
                       type="button"
-                      className="rounded border border-gray-300 px-5 py-2.5 text-base text-gray-700 hover:bg-gray-50"
+                      variant="secondary"
                       onClick={() => goToIndex(currentIndex + 1)}
                       disabled={currentIndex >= tasks.length - 1}
                     >
@@ -423,14 +423,14 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
                   <div className="flex gap-2">
                     <AppButton
                       type="button"
-                      className="rounded border border-gray-300 px-5 py-2.5 text-base text-gray-700 hover:bg-gray-50"
+                      variant="secondary"
                       onClick={() => setShowResults((prev) => !prev)}
                     >
                       {showResults ? '收起结果' : '查看已标注结果'}
                     </AppButton>
                     <AppButton
                       type="button"
-                      className="rounded border border-gray-400 px-5 py-2.5 text-base font-medium text-gray-900 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
+                      variant="primary"
                       onClick={handleSubmitBatch}
                       disabled={submitting || completedCount === 0}
                     >

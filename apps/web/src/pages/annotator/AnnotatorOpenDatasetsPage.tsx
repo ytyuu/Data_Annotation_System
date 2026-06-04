@@ -145,9 +145,10 @@ export function AnnotatorOpenDatasetsPage() {
         <AppButton
           type="button"
           variant="secondary"
+          disabled={loading}
           onClick={loadOpenDatasets}
         >
-          刷新
+          {loading ? '刷新中...' : '刷新'}
         </AppButton>
       </div>
 
@@ -267,7 +268,7 @@ export function AnnotatorOpenDatasetsPage() {
                     className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-all ${
                       claimTaskType === 'annotation'
                         ? 'border-gray-400 text-gray-900'
-                        : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-100'
                     }`}
                   >
                     <div className="text-center">标注任务</div>
@@ -286,7 +287,7 @@ export function AnnotatorOpenDatasetsPage() {
                     className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-all ${
                       claimTaskType === 'review'
                         ? 'border-gray-400 text-gray-900'
-                        : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
+                        : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-100'
                     }`}
                   >
                     <div className="text-center">互查任务</div>

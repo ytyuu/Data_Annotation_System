@@ -279,8 +279,9 @@ export function ProviderReviewsPage() {
           </div>
           <AppButton
             type="button"
+            variant="secondary"
+            size="sm"
             disabled={datasetsLoading}
-            className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={loadDatasets}
           >
             {datasetsLoading ? '刷新中...' : '刷新'}
@@ -326,7 +327,8 @@ export function ProviderReviewsPage() {
                     <div className="flex shrink-0 items-center gap-2">
                       <AppButton
                         type="button"
-                        className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                        variant="secondary"
+                        size="sm"
                         onClick={() => openDataset(dataset)}
                       >
                         开始审核
@@ -391,7 +393,8 @@ export function ProviderReviewsPage() {
         <div className="mb-4 flex items-center gap-3">
           <AppButton
             type="button"
-            className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            variant="secondary"
+            size="sm"
             onClick={backToDatasets}
           >
             返回
@@ -481,7 +484,7 @@ export function ProviderReviewsPage() {
                                   className={`rounded border px-3 py-1 text-xs font-medium transition-colors ${
                                     decided && !accepted
                                       ? 'border-red-200 bg-red-50 text-red-700'
-                                      : 'border-gray-200 text-gray-600 hover:bg-red-50'
+                                      : 'border-gray-200 text-gray-600 hover:bg-red-100'
                                   }`}
                                   onClick={() => handleReviewItem(ri.item.id, false)}
                                 >
@@ -502,8 +505,8 @@ export function ProviderReviewsPage() {
               <div className="flex items-center gap-3">
                 <AppButton
                   type="button"
+                  variant="primary"
                   disabled={finishSubmitting}
-                  className="rounded border border-gray-400 px-5 py-2.5 text-sm font-medium text-gray-900 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={handleFinishReview}
                 >
                   {finishSubmitting ? '提交中...' : '审核完成'}

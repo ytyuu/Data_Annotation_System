@@ -308,7 +308,8 @@ export function ProviderDisputesPage() {
                   <div className="flex shrink-0 items-center gap-2">
                     <AppButton
                       type="button"
-                      className="rounded border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                      variant="secondary"
+                      size="sm"
                       onClick={() => openDataset(dataset)}
                     >
                       查看争议
@@ -331,7 +332,8 @@ export function ProviderDisputesPage() {
         <div className="mb-4 flex items-center gap-3">
           <AppButton
             type="button"
-            className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+            variant="secondary"
+            size="sm"
             onClick={backToDatasets}
           >
             返回
@@ -387,7 +389,8 @@ export function ProviderDisputesPage() {
                     <td className="px-4 py-3 text-right">
                       <AppButton
                         type="button"
-                        className="rounded border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                        variant="secondary"
+                        size="sm"
                         onClick={() => openResolveModal(item)}
                       >
                         处理争议
@@ -418,7 +421,8 @@ export function ProviderDisputesPage() {
             </div>
             <AppButton
               type="button"
-              className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              variant="secondary"
+              size="sm"
               onClick={closeResolveModal}
             >
               关闭
@@ -475,8 +479,8 @@ export function ProviderDisputesPage() {
                     <div className="mt-4">
                       <AppButton
                         type="button"
+                        variant="primary"
                         disabled={resolveSubmitting}
-                        className="rounded border border-gray-400 px-5 py-2.5 text-sm font-medium text-gray-900 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                         onClick={handleResolveSubmit}
                       >
                         {resolveSubmitting ? '提交中...' : '确认裁决'}

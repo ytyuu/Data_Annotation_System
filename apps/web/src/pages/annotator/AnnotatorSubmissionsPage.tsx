@@ -172,8 +172,8 @@ export function AnnotatorSubmissionsPage() {
             <div className="text-sm text-gray-500">
               共 {summaries.length} 个数据集，{batches.length} 个任务单
             </div>
-            <AppButton type="button" variant="secondary" onClick={loadSubmissions}>
-              刷新
+            <AppButton type="button" variant="secondary" disabled={loading} onClick={loadSubmissions}>
+              {loading ? '刷新中...' : '刷新'}
             </AppButton>
           </div>
 
@@ -260,8 +260,8 @@ export function AnnotatorSubmissionsPage() {
                 共 {selectedDatasetBatches.length} 个任务单
               </div>
             </div>
-            <AppButton type="button" variant="secondary" onClick={loadSubmissions}>
-              刷新
+            <AppButton type="button" variant="secondary" disabled={loading} onClick={loadSubmissions}>
+              {loading ? '刷新中...' : '刷新'}
             </AppButton>
           </div>
 

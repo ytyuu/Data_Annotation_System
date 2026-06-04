@@ -169,8 +169,8 @@ export function AnnotatorMyTasksPage() {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <div className="text-sm text-gray-500">共 {groups.length} 个任务单</div>
-        <AppButton type="button" variant="secondary" onClick={loadGroups}>
-          刷新
+        <AppButton type="button" variant="secondary" disabled={loading} onClick={loadGroups}>
+          {loading ? '刷新中...' : '刷新'}
         </AppButton>
       </div>
 

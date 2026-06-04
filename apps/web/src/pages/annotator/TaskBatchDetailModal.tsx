@@ -197,7 +197,7 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
                 className={`rounded px-4 py-1.5 text-sm font-medium ${
                   viewMode === 'summary'
                     ? 'border border-gray-400 text-gray-900'
-                    : 'text-gray-600 hover:bg-gray-50'
+                    : 'text-gray-600 hover:bg-gray-100'
                 }`}
                 onClick={() => setViewMode('summary')}
               >
@@ -208,7 +208,7 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
                 className={`rounded px-4 py-1.5 text-sm font-medium ${
                   viewMode === 'list'
                     ? 'border border-gray-400 text-gray-900'
-                    : 'text-gray-600 hover:bg-gray-50'
+                    : 'text-gray-600 hover:bg-gray-100'
                 }`}
                 onClick={() => setViewMode('list')}
               >
@@ -217,7 +217,8 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
             </div>
             <AppButton
               type="button"
-              className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
+              variant="secondary"
+              size="sm"
               onClick={onClose}
             >
               关闭
