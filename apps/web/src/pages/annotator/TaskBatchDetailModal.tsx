@@ -4,6 +4,7 @@ import { DataItemViewer } from '../../components/shared/DataItemViewer';
 import { AnnotationResultViewer } from '../../components/shared/AnnotationResultViewer';
 import { DonutChart } from '../../components/shared/DonutChart';
 import type { AnnotationSchema } from '../../components/shared/AnnotationEditor';
+import { AppButton } from '../../components/shared/AppButton';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -191,36 +192,36 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
           </div>
           <div className="flex items-center gap-2">
             <div className="inline-flex rounded border border-gray-300 bg-white p-1">
-              <button
+              <AppButton
                 type="button"
                 className={`rounded px-4 py-1.5 text-sm font-medium ${
                   viewMode === 'summary'
-                    ? 'bg-blue-600 text-white'
+                    ? 'border border-gray-400 text-gray-900'
                     : 'text-gray-600 hover:bg-gray-50'
                 }`}
                 onClick={() => setViewMode('summary')}
               >
                 统计概览
-              </button>
-              <button
+              </AppButton>
+              <AppButton
                 type="button"
                 className={`rounded px-4 py-1.5 text-sm font-medium ${
                   viewMode === 'list'
-                    ? 'bg-blue-600 text-white'
+                    ? 'border border-gray-400 text-gray-900'
                     : 'text-gray-600 hover:bg-gray-50'
                 }`}
                 onClick={() => setViewMode('list')}
               >
                 逐条查看
-              </button>
+              </AppButton>
             </div>
-            <button
+            <AppButton
               type="button"
               className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
               onClick={onClose}
             >
               关闭
-            </button>
+            </AppButton>
           </div>
         </div>
 

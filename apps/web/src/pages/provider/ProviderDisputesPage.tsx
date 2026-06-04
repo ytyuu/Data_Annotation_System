@@ -6,6 +6,7 @@ import { AnnotationResultViewer, formatAnnotationResult } from '../../components
 import { buildAnnotationResult } from '../../components/shared/AnnotationResultBuilder';
 import { AnnotationCard } from '../../components/shared/AnnotationCard';
 import type { AnnotationSchema } from '../../components/shared/AnnotationEditor';
+import { AppButton } from '../../components/shared/AppButton';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -305,13 +306,13 @@ export function ProviderDisputesPage() {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
-                    <button
+                    <AppButton
                       type="button"
                       className="rounded border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
                       onClick={() => openDataset(dataset)}
                     >
                       查看争议
-                    </button>
+                    </AppButton>
                   </div>
                 </div>
               </div>
@@ -328,13 +329,13 @@ export function ProviderDisputesPage() {
     return (
       <div>
         <div className="mb-4 flex items-center gap-3">
-          <button
+          <AppButton
             type="button"
             className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
             onClick={backToDatasets}
           >
             返回
-          </button>
+          </AppButton>
           <div className="text-base font-semibold text-gray-900">{selectedDataset.name}</div>
           <div className="text-sm text-gray-500">争议数据项</div>
         </div>
@@ -384,13 +385,13 @@ export function ProviderDisputesPage() {
                       {new Date(item.updatedAt).toLocaleString()}
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <button
+                      <AppButton
                         type="button"
                         className="rounded border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
                         onClick={() => openResolveModal(item)}
                       >
                         处理争议
-                      </button>
+                      </AppButton>
                     </td>
                   </tr>
                 ))}
@@ -415,13 +416,13 @@ export function ProviderDisputesPage() {
                 <div className="mt-1 text-sm text-gray-500">{disputeDetail.datasetName}</div>
               )}
             </div>
-            <button
+            <AppButton
               type="button"
               className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
               onClick={closeResolveModal}
             >
               关闭
-            </button>
+            </AppButton>
           </div>
 
           {detailLoading ? (
@@ -472,14 +473,14 @@ export function ProviderDisputesPage() {
                     {detailError && <div className="app-alert-error mt-3">{detailError}</div>}
 
                     <div className="mt-4">
-                      <button
+                      <AppButton
                         type="button"
                         disabled={resolveSubmitting}
-                        className="rounded bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="rounded border border-gray-400 px-5 py-2.5 text-sm font-medium text-gray-900 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                         onClick={handleResolveSubmit}
                       >
                         {resolveSubmitting ? '提交中...' : '确认裁决'}
-                      </button>
+                      </AppButton>
                     </div>
                   </div>
                 </div>

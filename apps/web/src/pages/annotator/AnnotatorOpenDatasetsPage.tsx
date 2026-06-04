@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { AppButton } from '../../components/shared/AppButton';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -141,13 +142,13 @@ export function AnnotatorOpenDatasetsPage() {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <div className="text-sm text-gray-500">共 {datasets.length} 个数据集</div>
-        <button
+        <AppButton
           type="button"
-          className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+          variant="secondary"
           onClick={loadOpenDatasets}
         >
           刷新
-        </button>
+        </AppButton>
       </div>
 
       {error && <div className="app-alert-error">{error}</div>}
@@ -205,22 +206,24 @@ export function AnnotatorOpenDatasetsPage() {
                   </td>
                   <td className="px-4 py-4 align-middle text-right">
                     {!dataset.canClaim ? (
-                      <button
+                      <AppButton
                         type="button"
                         disabled
-                        className="rounded bg-gray-200 px-3 py-1.5 text-sm font-medium text-gray-400 cursor-not-allowed"
+                        variant="secondary"
+                        size="sm"
                         title="已持有该数据集任务或已达上限"
                       >
                         不可领取
-                      </button>
+                      </AppButton>
                     ) : (
-                      <button
+                      <AppButton
                         type="button"
-                        className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                        variant="primary"
+                        size="sm"
                         onClick={() => openClaimModal(dataset)}
                       >
                         领取任务
-                      </button>
+                      </AppButton>
                     )}
                   </td>
                 </tr>
@@ -253,7 +256,7 @@ export function AnnotatorOpenDatasetsPage() {
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">任务类别</label>
                 <div className="flex gap-3">
-                  <button
+                  <AppButton
                     type="button"
                     onClick={() => {
                       setClaimTaskType('annotation');
@@ -263,16 +266,16 @@ export function AnnotatorOpenDatasetsPage() {
                     style={{ outline: 'none' }}
                     className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-all ${
                       claimTaskType === 'annotation'
-                        ? 'border-blue-600 bg-blue-600 text-white'
+                        ? 'border-gray-400 text-gray-900'
                         : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
                     }`}
                   >
                     <div className="text-center">标注任务</div>
-                    <div className={`mt-1 text-xs ${claimTaskType === 'annotation' ? 'text-blue-100' : 'text-gray-400'}`}>
+                    <div className={`mt-1 text-xs ${claimTaskType === 'annotation' ? 'text-gray-500' : 'text-gray-400'}`}>
                       余量 {claimDataset.pendingItemCount ?? 0} 条
                     </div>
-                  </button>
-                  <button
+                  </AppButton>
+                  <AppButton
                     type="button"
                     onClick={() => {
                       setClaimTaskType('review');
@@ -282,15 +285,15 @@ export function AnnotatorOpenDatasetsPage() {
                     style={{ outline: 'none' }}
                     className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-all ${
                       claimTaskType === 'review'
-                        ? 'border-blue-600 bg-blue-600 text-white'
+                        ? 'border-gray-400 text-gray-900'
                         : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50'
                     }`}
                   >
                     <div className="text-center">互查任务</div>
-                    <div className={`mt-1 text-xs ${claimTaskType === 'review' ? 'text-blue-100' : 'text-gray-400'}`}>
+                    <div className={`mt-1 text-xs ${claimTaskType === 'review' ? 'text-gray-500' : 'text-gray-400'}`}>
                       余量 {claimDataset.reviewableItemCount ?? 0} 条
                     </div>
-                  </button>
+                  </AppButton>
                 </div>
               </div>
 
@@ -322,22 +325,22 @@ export function AnnotatorOpenDatasetsPage() {
             </div>
 
             <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
-              <button
+              <AppButton
                 type="button"
-                className="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                variant="secondary"
                 onClick={closeClaimModal}
                 disabled={claimLoading}
               >
                 取消
-              </button>
-              <button
+              </AppButton>
+              <AppButton
                 type="button"
-                className="rounded-lg bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                variant="primary"
                 onClick={handleClaim}
                 disabled={claimLoading || claimCount <= 0 || claimCount > getMaxCount(claimDataset, claimTaskType)}
               >
                 {claimLoading ? '领取中...' : '确认领取'}
-              </button>
+              </AppButton>
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnnotatorTaskWorkspaceModal } from './AnnotatorTaskWorkspaceModal';
 import { TaskBatchDetailModal } from './TaskBatchDetailModal';
+import { AppButton } from '../../components/shared/AppButton';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -28,6 +29,8 @@ const taskBatchStatusLabels: Record<string, string> = {
   accepted: '已通过',
   cancelled: '已退回',
 };
+
+const statusBadgeClass = 'rounded-full bg-gray-200 px-2.5 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-300';
 
 export function AnnotatorMyTasksPage() {
   const navigate = useNavigate();
@@ -166,13 +169,9 @@ export function AnnotatorMyTasksPage() {
     <div>
       <div className="mb-4 flex items-center justify-between">
         <div className="text-sm text-gray-500">共 {groups.length} 个任务单</div>
-        <button
-          type="button"
-          className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          onClick={loadGroups}
-        >
+        <AppButton type="button" variant="secondary" onClick={loadGroups}>
           刷新
-        </button>
+        </AppButton>
       </div>
 
       {error && <div className="app-alert-error">{error}</div>}
@@ -186,78 +185,65 @@ export function AnnotatorMyTasksPage() {
           暂无已领取的任务，去「可标注数据集」页面领取吧
         </div>
       ) : (
-        <div className="space-y-4">
+        <div className="grid gap-4">
           {groups.map((group) => (
-            <div key={group.batchId} className="rounded border border-gray-200 bg-white">
-              <div className="flex items-center justify-between gap-4 px-4 py-3">
-                <div className="flex flex-1 items-center gap-4">
-                  <div>
-                    <div className="font-medium text-gray-900">{group.datasetName}</div>
-                    <div className="mt-1 text-xs text-gray-500">{group.orderNo}</div>
-                  </div>
-                  <div className="ml-auto flex justify-end gap-2 text-xs">
-                    <span className="rounded bg-gray-100 px-2 py-0.5 text-gray-600">
+            <div
+              key={group.batchId}
+              className="rounded border border-gray-300 bg-white shadow-sm transition-colors hover:bg-gray-50"
+            >
+              <div className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(220px,1fr)_minmax(360px,auto)_auto] lg:items-center">
+                <div>
+                  <div className="font-medium text-gray-900">{group.datasetName}</div>
+                  <div className="mt-1 text-xs text-gray-500">{group.orderNo}</div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <span className={statusBadgeClass}>
                       {taskBatchStatusLabels[group.status] || group.status}
                     </span>
-                    {group.assignedCount > 0 && (
-                      <span className="rounded bg-gray-100 px-2 py-0.5 text-gray-600">
-                        待开始 {group.assignedCount}
-                      </span>
-                    )}
-                    {group.submittedCount > 0 && (
-                      <span className="rounded bg-blue-50 px-2 py-0.5 text-blue-600">
-                        已完成 {group.submittedCount}/{group.totalCount}
-                      </span>
-                    )}
                   </div>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <span className="text-xs text-gray-400">
-                    领取时间 {new Date(group.assignedAt).toLocaleString()}
-                  </span>
-                  <button
+
+                <div className="grid grid-cols-3 gap-2">
+                  <TaskMetric label="数据项" value={`${group.totalCount} 条`} />
+                  <TaskMetric label="待开始" value={`${group.assignedCount} 条`} />
+                  <TaskMetric label="已完成" value={`${group.submittedCount} 条`} />
+                </div>
+
+                <div className="flex shrink-0 flex-wrap items-center justify-start gap-2 text-xs text-gray-500 lg:justify-end">
+                  <span>领取 {new Date(group.assignedAt).toLocaleDateString()}</span>
+                  <AppButton
                     type="button"
-                    className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                    variant="primary"
+                    size="sm"
+                    className="h-8"
                     onClick={() => openDetail(group.batchId)}
                   >
                     查看详情
-                  </button>
+                  </AppButton>
                   {['assigned', 'in_progress'].includes(group.status) && (
                     <>
-                      <button
+                      <AppButton
                         type="button"
-                        className="rounded bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+                        variant="primary"
+                        size="sm"
+                        className="h-8"
                         onClick={() => openWorkspace(group)}
                         disabled={startingBatchId === group.batchId}
                       >
                         {startingBatchId === group.batchId ? '启动中...' : '开始标注'}
-                      </button>
-                      <button
+                      </AppButton>
+                      <AppButton
                         type="button"
-                        className="rounded bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                        variant="danger"
+                        size="sm"
+                        className="h-8"
                         onClick={() => openReturnDialog(group.batchId)}
                       >
                         退回
-                      </button>
+                      </AppButton>
                     </>
                   )}
                 </div>
               </div>
-              {group.totalCount > 0 && group.inProgressCount > 0 && (
-                <div className="px-4 pb-3">
-                  <div className="flex items-center gap-3 text-xs text-gray-500">
-                    <span>
-                      进度 {Math.min(100, Math.round((group.submittedCount / group.totalCount) * 100))}%
-                    </span>
-                    <div className="h-1 flex-1 rounded-full bg-gray-100">
-                      <div
-                        className="h-1 rounded-full bg-blue-500"
-                        style={{ width: `${Math.min(100, Math.round((group.submittedCount / group.totalCount) * 100))}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           ))}
         </div>
@@ -271,22 +257,17 @@ export function AnnotatorMyTasksPage() {
               确定要退回任务单「{groups.find((g) => g.batchId === returningBatchId)?.orderNo}」下的所有任务吗？
             </p>
             <div className="mt-6 flex justify-end gap-3">
-              <button
-                type="button"
-                className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-                onClick={closeReturnDialog}
-                disabled={returnLoading}
-              >
+              <AppButton type="button" variant="secondary" onClick={closeReturnDialog} disabled={returnLoading}>
                 取消
-              </button>
-              <button
+              </AppButton>
+              <AppButton
                 type="button"
-                className="rounded bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                variant="danger"
                 onClick={() => handleReturn(returningBatchId)}
                 disabled={returnLoading}
               >
                 {returnLoading ? '退回中...' : '确认退回'}
-              </button>
+              </AppButton>
             </div>
           </div>
         </div>
@@ -307,6 +288,15 @@ export function AnnotatorMyTasksPage() {
           onClose={closeDetail}
         />
       )}
+    </div>
+  );
+}
+
+function TaskMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="app-metric min-w-28">
+      <div className="app-metric-label">{label}</div>
+      <div className="app-metric-value">{value}</div>
     </div>
   );
 }

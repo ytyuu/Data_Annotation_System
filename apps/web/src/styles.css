@@ -20,17 +20,6 @@
     cursor: pointer;
   }
 
-  button[class*='border-gray-300'] {
-    background-color: #fff;
-    box-shadow: 0 1px 1px rgb(15 23 42 / 0.04);
-  }
-
-  button[class*='border-gray-300']:hover:not(:disabled) {
-    border-color: #9ca3af;
-    background-color: #f9fafb;
-    box-shadow: 0 1px 3px rgb(15 23 42 / 0.10);
-  }
-
   .app-page {
     @apply min-h-screen bg-gray-100 px-6 py-10 text-gray-900;
   }
@@ -104,7 +93,44 @@
   }
 
   .app-button-primary {
-    @apply w-full rounded bg-blue-600 px-4 py-2.5 font-medium text-white transition-colors hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50;
+    @apply w-full rounded border border-gray-300 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-all hover:border-gray-400 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .app-button {
+    @apply inline-flex items-center justify-center rounded border font-medium shadow-sm transition-all disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .app-button-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  .app-button-md {
+    @apply px-4 py-2 text-sm;
+  }
+
+  .app-button-variant-primary {
+    @apply border-gray-400 bg-white text-gray-900 hover:border-gray-500 hover:bg-gray-50;
+  }
+
+  .app-button-variant-secondary {
+    @apply border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50;
+  }
+
+  .app-button-variant-danger {
+    @apply border-red-300 bg-white text-red-600 hover:border-red-400 hover:bg-red-50;
+  }
+
+  .app-button-variant-ghost {
+    @apply border-transparent bg-transparent text-gray-600 shadow-none hover:bg-gray-100 hover:text-gray-900;
+  }
+
+  .app-button.border-blue-200,
+  .app-button.border-green-200 {
+    @apply border-gray-300 bg-white text-gray-700 hover:border-gray-400 hover:bg-gray-50;
+  }
+
+  .app-button.border-red-200 {
+    @apply border-red-200 bg-white text-red-600 hover:bg-red-50;
   }
 
   .app-link {

@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TaskBatchDetailModal } from './TaskBatchDetailModal';
+import { AppButton } from '../../components/shared/AppButton';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -171,13 +172,9 @@ export function AnnotatorSubmissionsPage() {
             <div className="text-sm text-gray-500">
               共 {summaries.length} 个数据集，{batches.length} 个任务单
             </div>
-            <button
-              type="button"
-              className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              onClick={loadSubmissions}
-            >
+            <AppButton type="button" variant="secondary" onClick={loadSubmissions}>
               刷新
-            </button>
+            </AppButton>
           </div>
 
           {error && <div className="app-alert-error">{error}</div>}
@@ -227,13 +224,15 @@ export function AnnotatorSubmissionsPage() {
                           </span>
                         ))}
                       </div>
-                      <button
+                      <AppButton
                         type="button"
-                        className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                        variant="primary"
+                        size="sm"
+                        className="h-8"
                         onClick={() => handleViewDetail(summary.datasetId)}
                       >
                         查看记录
-                      </button>
+                      </AppButton>
                     </div>
                   </div>
                 </div>
@@ -245,13 +244,15 @@ export function AnnotatorSubmissionsPage() {
         <>
           <div className="mb-4 flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <button
+              <AppButton
                 type="button"
-                className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                variant="secondary"
+                size="sm"
+                className="h-8"
                 onClick={handleBackToSummary}
               >
                 ← 返回
-              </button>
+              </AppButton>
               <div className="text-base font-medium text-gray-900">
                 {selectedDatasetName}
               </div>
@@ -259,13 +260,9 @@ export function AnnotatorSubmissionsPage() {
                 共 {selectedDatasetBatches.length} 个任务单
               </div>
             </div>
-            <button
-              type="button"
-              className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-              onClick={loadSubmissions}
-            >
+            <AppButton type="button" variant="secondary" onClick={loadSubmissions}>
               刷新
-            </button>
+            </AppButton>
           </div>
 
           {error && <div className="app-alert-error">{error}</div>}
@@ -306,13 +303,15 @@ export function AnnotatorSubmissionsPage() {
                     <div className="flex shrink-0 flex-wrap items-center justify-start gap-3 text-xs text-gray-500 lg:justify-end">
                       <span>领取 {new Date(batch.assignedAt).toLocaleDateString()}</span>
                       {batch.submittedAt && <span>提交 {new Date(batch.submittedAt).toLocaleDateString()}</span>}
-                      <button
+                      <AppButton
                         type="button"
-                        className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                        variant="primary"
+                        size="sm"
+                        className="h-8"
                         onClick={() => openDetailModal(batch.batchId)}
                       >
                         查看详情
-                      </button>
+                      </AppButton>
                     </div>
                   </div>
                 </div>

@@ -4,6 +4,7 @@ import { AnnotationEditor } from '../../components/shared/AnnotationEditor';
 import { parseAnnotationSelection } from '../../components/shared/AnnotationResultViewer';
 import type { AnnotationSchema, AnnotationSelection } from '../../components/shared/AnnotationEditor';
 import { buildAnnotationResult } from '../../components/shared/AnnotationResultBuilder';
+import { AppButton } from '../../components/shared/AppButton';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -340,13 +341,13 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
             <div className="text-xl font-semibold text-gray-900">{workspace?.datasetName || '标注工作台'}</div>
             {workspace && <div className="mt-1 text-sm text-gray-500">任务单 {workspace.orderNo}</div>}
           </div>
-          <button
+          <AppButton
             type="button"
             className="rounded border border-gray-300 px-4 py-2 text-base text-gray-600 hover:bg-gray-50"
             onClick={onClose}
           >
             关闭
-          </button>
+          </AppButton>
         </div>
 
         {loading ? (
@@ -402,39 +403,39 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
 
                 <div className="flex items-center justify-between">
                   <div className="flex gap-2">
-                    <button
+                    <AppButton
                       type="button"
                       className="rounded border border-gray-300 px-5 py-2.5 text-base text-gray-700 hover:bg-gray-50"
                       onClick={() => goToIndex(currentIndex - 1)}
                       disabled={currentIndex === 0}
                     >
                       上一条
-                    </button>
-                    <button
+                    </AppButton>
+                    <AppButton
                       type="button"
                       className="rounded border border-gray-300 px-5 py-2.5 text-base text-gray-700 hover:bg-gray-50"
                       onClick={() => goToIndex(currentIndex + 1)}
                       disabled={currentIndex >= tasks.length - 1}
                     >
                       下一条
-                    </button>
+                    </AppButton>
                   </div>
                   <div className="flex gap-2">
-                    <button
+                    <AppButton
                       type="button"
                       className="rounded border border-gray-300 px-5 py-2.5 text-base text-gray-700 hover:bg-gray-50"
                       onClick={() => setShowResults((prev) => !prev)}
                     >
                       {showResults ? '收起结果' : '查看已标注结果'}
-                    </button>
-                    <button
+                    </AppButton>
+                    <AppButton
                       type="button"
-                      className="rounded bg-green-600 px-5 py-2.5 text-base font-medium text-white hover:bg-green-700 disabled:opacity-50"
+                      className="rounded border border-gray-400 px-5 py-2.5 text-base font-medium text-gray-900 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                       onClick={handleSubmitBatch}
                       disabled={submitting || completedCount === 0}
                     >
                       {submitting ? '提交中...' : '提交任务单'}
-                    </button>
+                    </AppButton>
                   </div>
                 </div>
               </div>
@@ -473,7 +474,7 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
                         const isCompleted = draftSel.main.length > 0;
                         const isJustCompleted = task.taskId === lastCompletedTaskId;
                         return (
-                          <button
+                          <AppButton
                             key={task.taskId}
                             type="button"
                             className={`w-full rounded border px-4 py-3 text-left transition-colors duration-300 ${
@@ -486,7 +487,7 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
                               {isCompleted && <span className="text-green-600">已完成</span>}
                             </div>
                             <div className="mt-1 text-gray-500">{label || '未标注'}</div>
-                          </button>
+                          </AppButton>
                         );
                       })}
                     </div>

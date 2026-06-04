@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DonutChart } from '../../components/shared/DonutChart';
+import { AppButton } from '../../components/shared/AppButton';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -809,13 +810,13 @@ export function ProviderDatasetsPage() {
                 </div>
                 <div className="mt-1 text-sm text-gray-500">填写数据集基本信息和打标签选项配置。</div>
               </div>
-              <button
+              <AppButton
                 type="button"
                 className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
                 onClick={closeCreateDatasetView}
               >
                 关闭
-              </button>
+              </AppButton>
             </div>
 
             <div className="max-h-[calc(100vh-220px)] overflow-y-auto px-6 py-5">
@@ -872,41 +873,41 @@ export function ProviderDatasetsPage() {
               <div className="app-field">
                 <div className="app-label">选项规则</div>
                 <div className="inline-flex rounded border border-gray-300 bg-white p-1">
-                  <button
+                  <AppButton
                     type="button"
                     className={`rounded px-4 py-2 text-sm font-medium ${
                       datasetForm.selectionMode === 'single'
-                        ? 'bg-blue-600 text-white'
+                        ? 'border border-gray-400 text-gray-900'
                         : 'text-gray-600 hover:bg-gray-50'
                     }`}
                     onClick={() => updateSelectionMode('single')}
                   >
                     单选
-                  </button>
-                  <button
+                  </AppButton>
+                  <AppButton
                     type="button"
                     className={`rounded px-4 py-2 text-sm font-medium ${
                       datasetForm.selectionMode === 'multiple'
-                        ? 'bg-blue-600 text-white'
+                        ? 'border border-gray-400 text-gray-900'
                         : 'text-gray-600 hover:bg-gray-50'
                     }`}
                     onClick={() => updateSelectionMode('multiple')}
                   >
                     多选
-                  </button>
+                  </AppButton>
                 </div>
               </div>
 
               <div className="app-field">
                 <div className="mb-2 flex items-center justify-between">
                   <label className="app-label mb-0">标注选项</label>
-                  <button
+                  <AppButton
                     type="button"
                     className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
                     onClick={addAnnotationOption}
                   >
                     新增选项
-                  </button>
+                  </AppButton>
                 </div>
                 <div className="space-y-3">
                   {datasetForm.options.map((option, index) => (
@@ -922,7 +923,7 @@ export function ProviderDatasetsPage() {
                           className="app-input"
                           placeholder="请输入选项名称"
                         />
-                        <button
+                        <AppButton
                           type="button"
                           className={`h-10 shrink-0 rounded border px-3 text-xs font-medium ${
                             option.hasSubOptions
@@ -932,32 +933,32 @@ export function ProviderDatasetsPage() {
                           onClick={() => toggleSubOptions(option.id)}
                         >
                           {option.hasSubOptions ? '子选项已开启' : '子选项'}
-                        </button>
-                        <button
+                        </AppButton>
+                        <AppButton
                           type="button"
                           disabled={datasetForm.options.length <= 2}
                           className="h-10 shrink-0 rounded border border-gray-300 px-3 text-sm font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                           onClick={() => removeAnnotationOption(option.id)}
                         >
                           删除
-                        </button>
+                        </AppButton>
                       </div>
 
                       {option.hasSubOptions && (
                         <div className="mt-3 ml-12 rounded border-l-2 border-blue-200 bg-blue-50/50 py-3 pl-4 pr-3">
                           <div className="mb-2 flex items-center justify-between">
                             <span className="text-xs font-medium text-blue-700">子选项配置</span>
-                            <button
+                            <AppButton
                               type="button"
                               className={`rounded border px-2 py-1 text-xs font-medium ${
                                 option.subSelectionMode === 'single'
-                                  ? 'border-blue-200 bg-blue-100 text-blue-700'
+                                  ? 'border-gray-400 text-gray-900'
                                   : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50'
                               }`}
                               onClick={() => toggleSubSelectionMode(option.id)}
                             >
                               {option.subSelectionMode === 'single' ? '单选' : '多选'}
-                            </button>
+                            </AppButton>
                           </div>
                           <div className="space-y-2">
                             {option.subOptions.map((subOption: AnnotationSubOptionForm, subIndex: number) => (
@@ -972,24 +973,24 @@ export function ProviderDatasetsPage() {
                                   className="app-input py-1.5 text-sm"
                                   placeholder="子选项名称"
                                 />
-                                <button
+                                <AppButton
                                   type="button"
                                   disabled={option.subOptions.length <= 2}
                                   className="h-8 shrink-0 rounded border border-gray-300 px-2 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
                                   onClick={() => removeSubOption(option.id, subOption.id)}
                                 >
                                   删除
-                                </button>
+                                </AppButton>
                               </div>
                             ))}
                           </div>
-                          <button
+                          <AppButton
                             type="button"
-                            className="mt-2 rounded border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-100"
+                            className="mt-2 rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
                             onClick={() => addSubOption(option.id)}
                           >
                             新增子选项
-                          </button>
+                          </AppButton>
                         </div>
                       )}
                     </div>
@@ -1018,22 +1019,22 @@ export function ProviderDatasetsPage() {
             </div>
 
             <div className="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
-              <button
+              <AppButton
                 type="button"
                 className="rounded border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-white"
                 onClick={closeCreateDatasetView}
               >
                 取消
-              </button>
-              <button
+              </AppButton>
+              <AppButton
                 type="submit"
                 disabled={createLoading}
-                className="rounded bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded border border-gray-400 px-5 py-2.5 text-sm font-medium text-gray-900 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {createLoading
                   ? (datasetFormMode === 'edit' ? '保存中...' : '创建中...')
                   : (datasetFormMode === 'edit' ? '保存修改' : '创建数据集')}
-              </button>
+              </AppButton>
             </div>
           </form>
         </div>
@@ -1055,13 +1056,13 @@ export function ProviderDatasetsPage() {
                 <div className="text-base font-semibold text-gray-900">导入数据项</div>
                 <div className="mt-1 text-sm text-gray-500">{importDialog.dataset.name}</div>
               </div>
-              <button
+              <AppButton
                 type="button"
                 className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
                 onClick={closeImportDialog}
               >
                 关闭
-              </button>
+              </AppButton>
             </div>
 
             <div className="px-6 py-5">
@@ -1083,20 +1084,20 @@ export function ProviderDatasetsPage() {
             </div>
 
             <div className="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
-              <button
+              <AppButton
                 type="button"
                 className="rounded border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-white"
                 onClick={closeImportDialog}
               >
                 取消
-              </button>
-              <button
+              </AppButton>
+              <AppButton
                 type="submit"
                 disabled={importLoading}
-                className="rounded bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="rounded border border-gray-400 px-5 py-2.5 text-sm font-medium text-gray-900 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 {importLoading ? '导入中...' : '导入数据项'}
-              </button>
+              </AppButton>
             </div>
           </form>
         </div>
@@ -1120,21 +1121,21 @@ export function ProviderDatasetsPage() {
           </div>
 
           <div className="flex justify-end gap-3 bg-gray-50 px-6 py-4">
-            <button
+            <AppButton
               type="button"
               className="rounded border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-white"
               onClick={closeDeleteDialog}
             >
               取消
-            </button>
-            <button
+            </AppButton>
+            <AppButton
               type="button"
               disabled={deleteLoadingId === deleteDialog.dataset.id}
-              className="rounded bg-red-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded border border-red-300 px-5 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={handleConfirmDeleteDataset}
             >
               {deleteLoadingId === deleteDialog.dataset.id ? '删除中...' : '确认删除'}
-            </button>
+            </AppButton>
           </div>
         </div>
       </div>
@@ -1165,21 +1166,21 @@ export function ProviderDatasetsPage() {
           </div>
 
           <div className="flex justify-end gap-3 bg-gray-50 px-6 py-4">
-            <button
+            <AppButton
               type="button"
               className="rounded border border-gray-300 px-5 py-2.5 text-sm font-medium text-gray-700 hover:bg-white"
               onClick={closePublishDialog}
             >
               取消
-            </button>
-            <button
+            </AppButton>
+            <AppButton
               type="button"
               disabled={!canPublish || publishLoadingId === dataset.id}
-              className="rounded bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded border border-gray-400 px-5 py-2.5 text-sm font-medium text-gray-900 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
               onClick={handleConfirmPublishDataset}
             >
               {publishLoadingId === dataset.id ? '发布中...' : '确认发布'}
-            </button>
+            </AppButton>
           </div>
         </div>
       </div>
@@ -1214,7 +1215,7 @@ export function ProviderDatasetsPage() {
             </div>
             <div className="flex items-center gap-2">
               {dataset.status === 'draft' && (
-                <button
+                <AppButton
                   type="button"
                   className="rounded border border-blue-200 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50"
                   onClick={() => {
@@ -1223,15 +1224,15 @@ export function ProviderDatasetsPage() {
                   }}
                 >
                   编辑
-                </button>
+                </AppButton>
               )}
-              <button
+              <AppButton
                 type="button"
                 className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
                 onClick={closeViewDialog}
               >
                 关闭
-              </button>
+              </AppButton>
             </div>
           </div>
 
@@ -1341,7 +1342,7 @@ export function ProviderDatasetsPage() {
             </div>
             <div className="flex items-center gap-2">
               {dataset.status === 'draft' && (
-                <button
+                <AppButton
                   type="button"
                   className="rounded border border-blue-200 px-3 py-1.5 text-sm font-medium text-blue-700 hover:bg-blue-50"
                   onClick={() => {
@@ -1350,15 +1351,15 @@ export function ProviderDatasetsPage() {
                   }}
                 >
                   导入数据
-                </button>
+                </AppButton>
               )}
-              <button
+              <AppButton
                 type="button"
                 className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-50"
                 onClick={closeDataItemsDialog}
               >
                 关闭
-              </button>
+              </AppButton>
             </div>
           </div>
 
@@ -1449,20 +1450,20 @@ export function ProviderDatasetsPage() {
             共 {datasets.length} 个数据集
           </div>
           <div className="flex items-center gap-2">
-            <button
+            <AppButton
               type="button"
               className="rounded border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               onClick={loadProviderDatasets}
             >
               刷新
-            </button>
-            <button
+            </AppButton>
+            <AppButton
               type="button"
-              className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="rounded border border-gray-400 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
               onClick={openCreateDatasetView}
             >
               创建数据集
-            </button>
+            </AppButton>
           </div>
         </div>
 
@@ -1475,13 +1476,13 @@ export function ProviderDatasetsPage() {
         ) : datasets.length === 0 ? (
           <div className="rounded border border-gray-200 bg-gray-50 p-8 text-center">
             <div className="text-sm text-gray-500">还没有数据集</div>
-            <button
+            <AppButton
               type="button"
-              className="mt-4 rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+              className="mt-4 rounded border border-gray-400 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-50"
               onClick={openCreateDatasetView}
             >
               创建第一个数据集
-            </button>
+            </AppButton>
           </div>
         ) : (
           <div className="overflow-hidden rounded border border-gray-300">
@@ -1541,20 +1542,20 @@ export function ProviderDatasetsPage() {
                     </td>
                     <td className="px-4 py-4">
                       <div className="flex justify-end gap-2">
-                        <button
+                        <AppButton
                           type="button"
                           className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
                           onClick={() => openViewDialog(dataset)}
                         >
                           基本信息
-                        </button>
-                        <button
+                        </AppButton>
+                        <AppButton
                           type="button"
                           className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
                           onClick={() => openDataItemsDialog(dataset)}
                         >
                           概览
-                        </button>
+                        </AppButton>
                         {(() => {
                           const completionRatio = dataset.itemCount > 0
                             ? Math.round((dataset.completedItemCount / dataset.itemCount) * 100)
@@ -1568,42 +1569,42 @@ export function ProviderDatasetsPage() {
                               : `当前完成率 ${completionRatio}%，需达到 ${targetRatio}% 才能导出`;
                           return (
                             <span title={exportTooltip} className="inline-block">
-                              <button
+                              <AppButton
                                 type="button"
                                 disabled={!canExport || exportLoadingId === dataset.id}
                                 className="rounded border border-green-200 px-3 py-1.5 text-xs font-medium text-green-700 hover:bg-green-50 disabled:cursor-not-allowed disabled:opacity-50"
                                 onClick={() => handleExportDataset(dataset)}
                               >
                                 {exportLoadingId === dataset.id ? '导出中' : '导出'}
-                              </button>
+                              </AppButton>
                             </span>
                           );
                         })()}
                         {dataset.status === 'draft' && (
                           <>
-                            <button
+                            <AppButton
                               type="button"
                               className="rounded border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
                               onClick={() => openImportDialog(dataset)}
                             >
                               导入数据
-                            </button>
-                            <button
+                            </AppButton>
+                            <AppButton
                               type="button"
                               disabled={publishLoadingId === dataset.id}
                               className="rounded border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
                               onClick={() => openPublishDialog(dataset)}
                             >
                               {publishLoadingId === dataset.id ? '发布中' : '发布'}
-                            </button>
-                            <button
+                            </AppButton>
+                            <AppButton
                               type="button"
                               disabled={deleteLoadingId === dataset.id}
                               className="rounded border border-red-200 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
                               onClick={() => openDeleteDialog(dataset)}
                             >
                               {deleteLoadingId === dataset.id ? '删除中' : '删除'}
-                            </button>
+                            </AppButton>
                           </>
                         )}
                       </div>

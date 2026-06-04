@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { DataItemViewer } from '../../components/shared/DataItemViewer';
 import { AnnotationResultViewer } from '../../components/shared/AnnotationResultViewer';
 import type { AnnotationSchema } from '../../components/shared/AnnotationEditor';
+import { AppButton } from '../../components/shared/AppButton';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -261,29 +262,29 @@ export function ProviderReviewsPage() {
       <div>
         <div className="mb-4 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button
+            <AppButton
               type="button"
               className={`text-sm font-medium ${reviewTab === 'pending' ? 'text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}
               onClick={() => setReviewTab('pending')}
             >
               待审核{!!pendingDatasets.length && ` (${pendingDatasets.length})`}
-            </button>
-            <button
+            </AppButton>
+            <AppButton
               type="button"
               className={`text-sm font-medium ${reviewTab === 'completed' ? 'text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}
               onClick={() => setReviewTab('completed')}
             >
               已完成审核{!!reviewedDatasets.length && ` (${reviewedDatasets.length})`}
-            </button>
+            </AppButton>
           </div>
-          <button
+          <AppButton
             type="button"
             disabled={datasetsLoading}
             className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={loadDatasets}
           >
             {datasetsLoading ? '刷新中...' : '刷新'}
-          </button>
+          </AppButton>
         </div>
 
         {datasetsError && <div className="app-alert-error">{datasetsError}</div>}
@@ -323,13 +324,13 @@ export function ProviderReviewsPage() {
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <button
+                      <AppButton
                         type="button"
-                        className="rounded border border-blue-200 px-3 py-1.5 text-xs font-medium text-blue-700 hover:bg-blue-50"
+                        className="rounded border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
                         onClick={() => openDataset(dataset)}
                       >
                         开始审核
-                      </button>
+                      </AppButton>
                     </div>
                   </div>
                 </div>
@@ -388,13 +389,13 @@ export function ProviderReviewsPage() {
     return (
       <div>
         <div className="mb-4 flex items-center gap-3">
-          <button
+          <AppButton
             type="button"
             className="rounded border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50"
             onClick={backToDatasets}
           >
             返回
-          </button>
+          </AppButton>
           <div className="text-base font-semibold text-gray-900">{selectedDataset.name}</div>
           <div className="text-sm text-gray-500">逐条审核</div>
         </div>
@@ -462,7 +463,7 @@ export function ProviderReviewsPage() {
                               </span>
                             ) : (
                               <div className="flex items-center gap-2">
-                                <button
+                                <AppButton
                                   type="button"
                                   disabled={finishSubmitting}
                                   className={`rounded border px-3 py-1 text-xs font-medium transition-colors ${
@@ -473,8 +474,8 @@ export function ProviderReviewsPage() {
                                   onClick={() => handleReviewItem(ri.item.id, true)}
                                 >
                                   通过
-                                </button>
-                                <button
+                                </AppButton>
+                                <AppButton
                                   type="button"
                                   disabled={finishSubmitting}
                                   className={`rounded border px-3 py-1 text-xs font-medium transition-colors ${
@@ -485,7 +486,7 @@ export function ProviderReviewsPage() {
                                   onClick={() => handleReviewItem(ri.item.id, false)}
                                 >
                                   不通过
-                                </button>
+                                </AppButton>
                               </div>
                             )}
                           </td>
@@ -499,14 +500,14 @@ export function ProviderReviewsPage() {
 
             {!finishDone && allItemsDecided && (
               <div className="flex items-center gap-3">
-                <button
+                <AppButton
                   type="button"
                   disabled={finishSubmitting}
-                  className="rounded bg-blue-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="rounded border border-gray-400 px-5 py-2.5 text-sm font-medium text-gray-900 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50"
                   onClick={handleFinishReview}
                 >
                   {finishSubmitting ? '提交中...' : '审核完成'}
-                </button>
+                </AppButton>
                 {finishError && <span className="text-sm text-red-600">{finishError}</span>}
               </div>
             )}
