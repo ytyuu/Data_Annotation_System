@@ -19,7 +19,7 @@ scripts/                  - 工具脚本（生成测试数据等）
 
 - [mvnd](https://github.com/apache/maven-mvnd)（Maven Daemon，用于后端编译）
 - JDK 25
-- pnpm 10.29.2
+- pnpm 11.5.2
 - Node.js
 
 ## 快速启动
