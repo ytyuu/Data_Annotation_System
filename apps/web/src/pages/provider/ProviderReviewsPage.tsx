@@ -417,6 +417,16 @@ export function ProviderReviewsPage() {
               </div>
             )}
 
+            <div className="rounded border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+              <div className="font-medium">审核说明</div>
+              <div className="mt-2 whitespace-pre-wrap text-blue-800">
+                {reviewDetail.annotationGuide || '暂无标注说明'}
+              </div>
+              <div className="mt-2 text-xs text-blue-700">
+                标记为通过后仍可改为不通过；标记为不通过后将无法修改。
+              </div>
+            </div>
+
             {reviewDetail.items.length === 0 ? (
               <div className="rounded border border-gray-200 bg-gray-50 p-8 text-center text-sm text-gray-500">
                 该数据集暂无已标注的数据项
@@ -435,6 +445,7 @@ export function ProviderReviewsPage() {
                     {reviewDetail.items.map((ri) => {
                       const decided = ri.item.id in reviewDecisions;
                       const accepted = reviewDecisions[ri.item.id];
+                      const rejected = decided && !accepted;
                       return (
                         <tr key={ri.item.id} className="hover:bg-gray-50">
                           <td className="max-w-md px-4 py-3 text-gray-900">
@@ -468,7 +479,7 @@ export function ProviderReviewsPage() {
                               <div className="flex items-center gap-2">
                                 <AppButton
                                   type="button"
-                                  disabled={finishSubmitting}
+                                  disabled={finishSubmitting || decided}
                                   className={`rounded border px-3 py-1 text-xs font-medium transition-colors ${
                                     decided && accepted
                                       ? 'border-green-200 bg-green-50 text-green-700'
@@ -480,7 +491,7 @@ export function ProviderReviewsPage() {
                                 </AppButton>
                                 <AppButton
                                   type="button"
-                                  disabled={finishSubmitting}
+                                  disabled={finishSubmitting || rejected}
                                   className={`rounded border px-3 py-1 text-xs font-medium transition-colors ${
                                     decided && !accepted
                                       ? 'border-red-200 bg-red-50 text-red-700'
