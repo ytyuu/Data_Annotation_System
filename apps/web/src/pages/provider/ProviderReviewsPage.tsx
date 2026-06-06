@@ -4,6 +4,7 @@ import { DataItemViewer } from '../../components/shared/DataItemViewer';
 import { AnnotationResultViewer } from '../../components/shared/AnnotationResultViewer';
 import type { AnnotationSchema } from '../../components/shared/AnnotationEditor';
 import { AppButton } from '../../components/shared/AppButton';
+import { SegmentedControl } from '../../components/shared/SegmentedControl';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -261,22 +262,15 @@ export function ProviderReviewsPage() {
     return (
       <div>
         <div className="mb-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <AppButton
-              type="button"
-              className={`text-sm font-medium ${reviewTab === 'pending' ? 'text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}
-              onClick={() => setReviewTab('pending')}
-            >
-              待审核{!!pendingDatasets.length && ` (${pendingDatasets.length})`}
-            </AppButton>
-            <AppButton
-              type="button"
-              className={`text-sm font-medium ${reviewTab === 'completed' ? 'text-blue-700' : 'text-gray-500 hover:text-gray-700'}`}
-              onClick={() => setReviewTab('completed')}
-            >
-              已完成审核{!!reviewedDatasets.length && ` (${reviewedDatasets.length})`}
-            </AppButton>
-          </div>
+          <SegmentedControl
+            value={reviewTab}
+            options={[
+              { value: 'pending', label: `待审核 ${pendingDatasets.length}` },
+              { value: 'completed', label: `已完成审核 ${reviewedDatasets.length}` },
+            ]}
+            onChange={setReviewTab}
+            size="sm"
+          />
           <AppButton
             type="button"
             variant="secondary"

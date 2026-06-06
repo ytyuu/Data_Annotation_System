@@ -5,6 +5,7 @@ import { AnnotationResultViewer } from '../../components/shared/AnnotationResult
 import { DonutChart } from '../../components/shared/DonutChart';
 import type { AnnotationSchema } from '../../components/shared/AnnotationEditor';
 import { AppButton } from '../../components/shared/AppButton';
+import { SegmentedControl } from '../../components/shared/SegmentedControl';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -191,30 +192,15 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <div className="inline-flex rounded border border-gray-300 bg-white p-1">
-              <AppButton
-                type="button"
-                className={`rounded px-4 py-1.5 text-sm font-medium ${
-                  viewMode === 'summary'
-                    ? 'border border-gray-400 text-gray-900'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-                onClick={() => setViewMode('summary')}
-              >
-                统计概览
-              </AppButton>
-              <AppButton
-                type="button"
-                className={`rounded px-4 py-1.5 text-sm font-medium ${
-                  viewMode === 'list'
-                    ? 'border border-gray-400 text-gray-900'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-                onClick={() => setViewMode('list')}
-              >
-                逐条查看
-              </AppButton>
-            </div>
+            <SegmentedControl
+              value={viewMode}
+              options={[
+                { value: 'summary', label: '统计概览' },
+                { value: 'list', label: '逐条查看' },
+              ]}
+              onChange={setViewMode}
+              size="sm"
+            />
             <AppButton
               type="button"
               variant="secondary"

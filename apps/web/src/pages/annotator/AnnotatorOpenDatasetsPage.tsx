@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppButton } from '../../components/shared/AppButton';
+import { SegmentedControl } from '../../components/shared/SegmentedControl';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -256,46 +257,27 @@ export function AnnotatorOpenDatasetsPage() {
               {/* 任务类别 */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">任务类别</label>
-                <div className="flex gap-3">
-                  <AppButton
-                    type="button"
-                    onClick={() => {
-                      setClaimTaskType('annotation');
-                      const max = getMaxCount(claimDataset, 'annotation');
-                      setClaimCount((c) => Math.min(c, max));
-                    }}
-                    style={{ outline: 'none' }}
-                    className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-all ${
-                      claimTaskType === 'annotation'
-                        ? 'border-gray-400 text-gray-900'
-                        : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-100'
-                    }`}
-                  >
-                    <div className="text-center">标注任务</div>
-                    <div className={`mt-1 text-xs ${claimTaskType === 'annotation' ? 'text-gray-500' : 'text-gray-400'}`}>
-                      余量 {claimDataset.pendingItemCount ?? 0} 条
-                    </div>
-                  </AppButton>
-                  <AppButton
-                    type="button"
-                    onClick={() => {
-                      setClaimTaskType('review');
-                      const max = getMaxCount(claimDataset, 'review');
-                      setClaimCount((c) => Math.min(c, max));
-                    }}
-                    style={{ outline: 'none' }}
-                    className={`flex-1 rounded-lg border px-4 py-3 text-sm font-medium transition-all ${
-                      claimTaskType === 'review'
-                        ? 'border-gray-400 text-gray-900'
-                        : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-100'
-                    }`}
-                  >
-                    <div className="text-center">互查任务</div>
-                    <div className={`mt-1 text-xs ${claimTaskType === 'review' ? 'text-gray-500' : 'text-gray-400'}`}>
-                      余量 {claimDataset.reviewableItemCount ?? 0} 条
-                    </div>
-                  </AppButton>
-                </div>
+                <SegmentedControl
+                  value={claimTaskType}
+                  options={[
+                    {
+                      value: 'annotation',
+                      label: '标注任务',
+                      description: `余量 ${claimDataset.pendingItemCount ?? 0} 条`,
+                    },
+                    {
+                      value: 'review',
+                      label: '互查任务',
+                      description: `余量 ${claimDataset.reviewableItemCount ?? 0} 条`,
+                    },
+                  ]}
+                  onChange={(taskType) => {
+                    setClaimTaskType(taskType);
+                    const max = getMaxCount(claimDataset, taskType);
+                    setClaimCount((c) => Math.min(c, max));
+                  }}
+                  fullWidth
+                />
               </div>
 
               {/* 领取数量 */}

@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { DonutChart } from '../../components/shared/DonutChart';
 import { AppButton } from '../../components/shared/AppButton';
+import { SegmentedControl } from '../../components/shared/SegmentedControl';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -873,30 +874,15 @@ export function ProviderDatasetsPage() {
 
               <div className="app-field">
                 <div className="app-label">选项规则</div>
-                <div className="inline-flex rounded border border-gray-300 bg-white p-1">
-                  <AppButton
-                    type="button"
-                    className={`rounded px-4 py-2 text-sm font-medium ${
-                      datasetForm.selectionMode === 'single'
-                        ? 'border border-gray-400 text-gray-900'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                    onClick={() => updateSelectionMode('single')}
-                  >
-                    单选
-                  </AppButton>
-                  <AppButton
-                    type="button"
-                    className={`rounded px-4 py-2 text-sm font-medium ${
-                      datasetForm.selectionMode === 'multiple'
-                        ? 'border border-gray-400 text-gray-900'
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                    onClick={() => updateSelectionMode('multiple')}
-                  >
-                    多选
-                  </AppButton>
-                </div>
+                <SegmentedControl
+                  value={datasetForm.selectionMode}
+                  options={[
+                    { value: 'single', label: '单选' },
+                    { value: 'multiple', label: '多选' },
+                  ]}
+                  onChange={updateSelectionMode}
+                  size="lg"
+                />
               </div>
 
               <div className="app-field">
