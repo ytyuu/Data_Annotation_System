@@ -142,11 +142,8 @@ export function RoleLayout({ role, menus, workbenchPath, redirectOnRoleMismatch 
 
       <div className="flex min-h-[calc(100vh-56px)]">
         <aside className="w-56 border-r border-gray-300 bg-gray-50 px-4 py-5 shadow-sm">
-          <div className="mb-5 flex items-center justify-between border-b border-gray-200 px-2 pb-3 text-xs font-medium text-gray-500">
+          <div className="mb-5 border-b border-gray-200 px-2 pb-3 text-xs font-medium text-gray-500">
             <span>功能菜单</span>
-            <span className="rounded border border-gray-300 bg-white px-2 py-0.5 text-gray-700">
-              {roleLabels[role]}
-            </span>
           </div>
           <nav className="space-y-1.5">
             {menus.map((item) => (
@@ -171,16 +168,11 @@ export function RoleLayout({ role, menus, workbenchPath, redirectOnRoleMismatch 
         <main className="flex-1 p-4 lg:p-5">
           <section className="min-h-full overflow-hidden rounded border border-gray-300 bg-white shadow-sm">
             <div className="border-b border-gray-300 bg-gray-50 px-6 py-5">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <div className="text-xs font-medium text-gray-500">工作台</div>
-                  <h1 className="mt-1 text-xl font-semibold text-gray-900">
-                    {activeMenu?.label || '业务页面'}
-                  </h1>
-                </div>
-                <div className="hidden rounded border border-gray-300 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 sm:block">
-                  {roleLabels[role]}
-                </div>
+              <div>
+                <div className="text-xs font-medium text-gray-500">工作台</div>
+                <h1 className="mt-1 text-xl font-semibold text-gray-900">
+                  {activeMenu?.label || '业务页面'}
+                </h1>
               </div>
             </div>
 
@@ -193,4 +185,3 @@ export function RoleLayout({ role, menus, workbenchPath, redirectOnRoleMismatch 
     </div>
   );
 }
-
