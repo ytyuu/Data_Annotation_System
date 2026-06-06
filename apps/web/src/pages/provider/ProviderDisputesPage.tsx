@@ -7,6 +7,7 @@ import { buildAnnotationResult } from '../../components/shared/AnnotationResultB
 import { AnnotationCard } from '../../components/shared/AnnotationCard';
 import type { AnnotationSchema } from '../../components/shared/AnnotationEditor';
 import { AppButton } from '../../components/shared/AppButton';
+import { AppModal } from '../../components/shared/AppModal';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -410,25 +411,23 @@ export function ProviderDisputesPage() {
     if (!resolveModalOpen || !resolveItem) return null;
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/45 px-6 py-8">
-        <div className="flex h-full w-full max-w-5xl flex-col overflow-hidden rounded bg-white shadow-2xl">
-          <div className="flex items-start justify-between border-b border-gray-200 px-6 py-4">
-            <div>
-              <div className="text-base font-semibold text-gray-900">处理争议</div>
-              {disputeDetail && (
-                <div className="mt-1 text-sm text-gray-500">{disputeDetail.datasetName}</div>
-              )}
-            </div>
-            <AppButton
-              type="button"
-              variant="secondary"
-              size="sm"
-              onClick={closeResolveModal}
-            >
-              关闭
-            </AppButton>
-          </div>
-
+      <AppModal
+        title="处理争议"
+        subtitle={disputeDetail?.datasetName}
+        width="2xl"
+        fullHeight
+        contentClassName="flex-1 overflow-hidden"
+        actions={
+          <AppButton
+            type="button"
+            variant="secondary"
+            size="sm"
+            onClick={closeResolveModal}
+          >
+            关闭
+          </AppButton>
+        }
+      >
           {detailLoading ? (
             <div className="flex flex-1 items-center justify-center p-6 text-sm text-gray-500">
               正在加载争议详情...
@@ -518,8 +517,7 @@ export function ProviderDisputesPage() {
               </div>
             </div>
           ) : null}
-        </div>
-      </div>
+      </AppModal>
     );
   }
 

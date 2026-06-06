@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { DonutChart } from '../../components/shared/DonutChart';
 import { AppButton } from '../../components/shared/AppButton';
 import { SegmentedControl } from '../../components/shared/SegmentedControl';
+import { AppModal } from '../../components/shared/AppModal';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -801,27 +802,43 @@ export function ProviderDatasetsPage() {
     }
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/45 px-6 py-8">
-        <div className="w-full max-w-3xl overflow-hidden rounded border border-gray-200 bg-white shadow-2xl">
-          <form onSubmit={handleSaveDataset}>
-            <div className="flex items-start justify-between border-b border-gray-200 px-6 py-5">
-              <div>
-                <div className="text-base font-semibold text-gray-900">
-                  {datasetFormMode === 'edit' ? '编辑数据集' : '创建数据集'}
-                </div>
-                <div className="mt-1 text-sm text-gray-500">填写数据集基本信息和打标签选项配置。</div>
-              </div>
+      <form onSubmit={handleSaveDataset}>
+        <AppModal
+          title={datasetFormMode === 'edit' ? '编辑数据集' : '创建数据集'}
+          subtitle="填写数据集基本信息和打标签选项配置。"
+          width="xl"
+          contentClassName="max-h-[calc(100vh-220px)] overflow-y-auto px-6 py-5"
+          actions={
+            <AppButton
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={closeCreateDatasetView}
+            >
+              关闭
+            </AppButton>
+          }
+          footer={
+            <>
               <AppButton
                 type="button"
                 variant="secondary"
-                size="sm"
                 onClick={closeCreateDatasetView}
               >
-                关闭
+                取消
               </AppButton>
-            </div>
-
-            <div className="max-h-[calc(100vh-220px)] overflow-y-auto px-6 py-5">
+              <AppButton
+                type="submit"
+                variant="primary"
+                disabled={createLoading}
+              >
+                {createLoading
+                  ? (datasetFormMode === 'edit' ? '保存中...' : '创建中...')
+                  : (datasetFormMode === 'edit' ? '保存修改' : '创建数据集')}
+              </AppButton>
+            </>
+          }
+        >
               {createError && <div className="app-alert-error">{createError}</div>}
 
               <div className="app-field">
@@ -1008,29 +1025,8 @@ export function ProviderDatasetsPage() {
                   <span className="text-sm text-gray-500">%</span>
                 </div>
               </div>
-            </div>
-
-            <div className="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
-              <AppButton
-                type="button"
-                variant="secondary"
-                onClick={closeCreateDatasetView}
-              >
-                取消
-              </AppButton>
-              <AppButton
-                type="submit"
-                variant="primary"
-                disabled={createLoading}
-              >
-                {createLoading
-                  ? (datasetFormMode === 'edit' ? '保存中...' : '创建中...')
-                  : (datasetFormMode === 'edit' ? '保存修改' : '创建数据集')}
-              </AppButton>
-            </div>
-          </form>
-        </div>
-      </div>
+        </AppModal>
+      </form>
     );
   }
 
@@ -1040,25 +1036,40 @@ export function ProviderDatasetsPage() {
     }
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/45 px-6 py-8">
-        <div className="w-full max-w-2xl overflow-hidden rounded border border-gray-200 bg-white shadow-2xl">
-          <form onSubmit={handleImportItems}>
-            <div className="flex items-start justify-between border-b border-gray-200 px-6 py-5">
-              <div>
-                <div className="text-base font-semibold text-gray-900">导入数据项</div>
-                <div className="mt-1 text-sm text-gray-500">{importDialog.dataset.name}</div>
-              </div>
+      <form onSubmit={handleImportItems}>
+        <AppModal
+          title="导入数据项"
+          subtitle={importDialog.dataset.name}
+          width="lg"
+          actions={
+            <AppButton
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={closeImportDialog}
+            >
+              关闭
+            </AppButton>
+          }
+          footer={
+            <>
               <AppButton
                 type="button"
                 variant="secondary"
-                size="sm"
                 onClick={closeImportDialog}
               >
-                关闭
+                取消
               </AppButton>
-            </div>
-
-            <div className="px-6 py-5">
+              <AppButton
+                type="submit"
+                variant="primary"
+                disabled={importLoading}
+              >
+                {importLoading ? '导入中...' : '导入数据项'}
+              </AppButton>
+            </>
+          }
+        >
               {importError && <div className="app-alert-error">{importError}</div>}
 
               <label htmlFor="import-items" className="app-label">
@@ -1074,27 +1085,8 @@ export function ProviderDatasetsPage() {
               <div className="mt-2 text-xs text-gray-500">
                 当前支持按行导入文本数据，空行会自动忽略。
               </div>
-            </div>
-
-            <div className="flex justify-end gap-3 border-t border-gray-200 bg-gray-50 px-6 py-4">
-              <AppButton
-                type="button"
-                variant="secondary"
-                onClick={closeImportDialog}
-              >
-                取消
-              </AppButton>
-              <AppButton
-                type="submit"
-                variant="primary"
-                disabled={importLoading}
-              >
-                {importLoading ? '导入中...' : '导入数据项'}
-              </AppButton>
-            </div>
-          </form>
-        </div>
-      </div>
+        </AppModal>
+      </form>
     );
   }
 
@@ -1104,16 +1096,13 @@ export function ProviderDatasetsPage() {
     }
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/45 px-6 py-8">
-        <div className="w-full max-w-md overflow-hidden rounded border border-gray-200 bg-white shadow-2xl">
-          <div className="border-b border-gray-200 px-6 py-5">
-            <div className="text-base font-semibold text-gray-900">删除数据集</div>
-            <div className="mt-2 text-sm leading-6 text-gray-600">
-              确定删除“{deleteDialog.dataset.name}”吗？删除后该数据集下的数据项也会一并删除。
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-3 bg-gray-50 px-6 py-4">
+      <AppModal
+        title="删除数据集"
+        subtitle={`确定删除“${deleteDialog.dataset.name}”吗？删除后该数据集下的数据项也会一并删除。`}
+        width="md"
+        contentClassName="hidden"
+        footer={
+          <>
             <AppButton
               type="button"
               variant="secondary"
@@ -1129,9 +1118,10 @@ export function ProviderDatasetsPage() {
             >
               {deleteLoadingId === deleteDialog.dataset.id ? '删除中...' : '确认删除'}
             </AppButton>
-          </div>
-        </div>
-      </div>
+          </>
+        }
+      >
+      </AppModal>
     );
   }
 
@@ -1144,21 +1134,12 @@ export function ProviderDatasetsPage() {
     const canPublish = dataset.itemCount > 0;
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/45 px-6 py-8">
-        <div className="w-full max-w-md overflow-hidden rounded border border-gray-200 bg-white shadow-2xl">
-          <div className="border-b border-gray-200 px-6 py-5">
-            <div className="text-base font-semibold text-gray-900">发布数据集</div>
-            <div className="mt-2 text-sm leading-6 text-gray-600">
-              发布“{dataset.name}”后，标注员将可以在可标注数据集中看到它。
-            </div>
-            {!canPublish && (
-              <div className="mt-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-600">
-                发布前请先导入至少 1 条数据项。
-              </div>
-            )}
-          </div>
-
-          <div className="flex justify-end gap-3 bg-gray-50 px-6 py-4">
+      <AppModal
+        title="发布数据集"
+        subtitle={`发布“${dataset.name}”后，标注员将可以在可标注数据集中看到它。`}
+        width="md"
+        footer={
+          <>
             <AppButton
               type="button"
               variant="secondary"
@@ -1174,9 +1155,15 @@ export function ProviderDatasetsPage() {
             >
               {publishLoadingId === dataset.id ? '发布中...' : '确认发布'}
             </AppButton>
+          </>
+        }
+      >
+        {!canPublish ? (
+          <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+            发布前请先导入至少 1 条数据项。
           </div>
-        </div>
-      </div>
+        ) : null}
+      </AppModal>
     );
   }
 
@@ -1199,14 +1186,13 @@ export function ProviderDatasetsPage() {
     })();
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/45 px-6 py-8">
-        <div className="w-full max-w-2xl overflow-hidden rounded border border-gray-200 bg-white shadow-2xl">
-          <div className="flex items-start justify-between border-b border-gray-200 px-6 py-5">
-            <div>
-              <div className="text-base font-semibold text-gray-900">数据集信息</div>
-              <div className="mt-1 text-sm text-gray-500">查看数据集的基本配置和状态</div>
-            </div>
-            <div className="flex items-center gap-2">
+      <AppModal
+        title="数据集信息"
+        subtitle="查看数据集的基本配置和状态"
+        width="lg"
+        contentClassName="max-h-[calc(100vh-220px)] overflow-y-auto px-6 py-5"
+        actions={
+          <>
               {dataset.status === 'draft' && (
                 <AppButton
                   type="button"
@@ -1228,10 +1214,9 @@ export function ProviderDatasetsPage() {
               >
                 关闭
               </AppButton>
-            </div>
-          </div>
-
-          <div className="max-h-[calc(100vh-220px)] overflow-y-auto px-6 py-5">
+          </>
+        }
+      >
             <div className="grid grid-cols-2 gap-4">
               <div className="app-field">
                 <div className="app-label">数据集名称</div>
@@ -1306,9 +1291,7 @@ export function ProviderDatasetsPage() {
                 </div>
               </div>
             )}
-          </div>
-        </div>
-      </div>
+      </AppModal>
     );
   }
 
@@ -1328,14 +1311,13 @@ export function ProviderDatasetsPage() {
     const hasStats = totalItems > 0 && Object.keys(statusCounts).length > 0;
 
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/45 px-6 py-8">
-        <div className="w-full max-w-2xl overflow-hidden rounded border border-gray-200 bg-white shadow-2xl">
-          <div className="flex items-start justify-between border-b border-gray-200 px-6 py-5">
-            <div>
-              <div className="text-base font-semibold text-gray-900">数据集概览</div>
-              <div className="mt-1 text-sm text-gray-500">{dataset.name}</div>
-            </div>
-            <div className="flex items-center gap-2">
+      <AppModal
+        title="数据集概览"
+        subtitle={dataset.name}
+        width="lg"
+        contentClassName="max-h-[calc(100vh-220px)] overflow-y-auto px-6 py-5"
+        actions={
+          <>
               {dataset.status === 'draft' && (
                 <AppButton
                   type="button"
@@ -1357,10 +1339,9 @@ export function ProviderDatasetsPage() {
               >
                 关闭
               </AppButton>
-            </div>
-          </div>
-
-          <div className="max-h-[calc(100vh-220px)] overflow-y-auto px-6 py-5">
+          </>
+        }
+      >
             {dataItemsError && <div className="app-alert-error">{dataItemsError}</div>}
 
             {dataItemsLoading ? (
@@ -1433,9 +1414,7 @@ export function ProviderDatasetsPage() {
                 </div>
               </div>
             )}
-          </div>
-        </div>
-      </div>
+      </AppModal>
     );
   }
 

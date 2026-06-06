@@ -6,6 +6,7 @@ import { DonutChart } from '../../components/shared/DonutChart';
 import type { AnnotationSchema } from '../../components/shared/AnnotationEditor';
 import { AppButton } from '../../components/shared/AppButton';
 import { SegmentedControl } from '../../components/shared/SegmentedControl';
+import { AppModal } from '../../components/shared/AppModal';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -182,16 +183,14 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
   const stats = computeStats();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/45 px-6 py-8">
-      <div className="flex h-full w-full max-w-5xl flex-col overflow-hidden rounded border border-gray-200 bg-white shadow-2xl">
-        <div className="flex items-start justify-between border-b border-gray-200 px-6 py-5">
-          <div>
-            <div className="text-base font-semibold text-gray-900">任务单详情</div>
-            <div className="mt-1 text-sm text-gray-500">
-              {tasks[0]?.orderNo || batchId} · 共 {tasks.length} 条任务
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
+    <AppModal
+      title="任务单详情"
+      subtitle={`${tasks[0]?.orderNo || batchId} · 共 ${tasks.length} 条任务`}
+      width="2xl"
+      fullHeight
+      contentClassName="flex-1 overflow-y-auto px-6 py-5"
+      actions={
+        <>
             <SegmentedControl
               value={viewMode}
               options={[
@@ -209,10 +208,9 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
             >
               关闭
             </AppButton>
-          </div>
-        </div>
-
-        <div className="flex-1 overflow-y-auto px-6 py-5">
+        </>
+      }
+    >
           {error && <div className="app-alert-error">{error}</div>}
 
           {loading ? (
@@ -363,8 +361,6 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
               </table>
             </div>
           )}
-        </div>
-      </div>
-    </div>
+    </AppModal>
   );
 }

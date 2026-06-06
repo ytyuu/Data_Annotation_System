@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AnnotatorTaskWorkspaceModal } from './AnnotatorTaskWorkspaceModal';
 import { TaskBatchDetailModal } from './TaskBatchDetailModal';
 import { AppButton } from '../../components/shared/AppButton';
+import { AppModal } from '../../components/shared/AppModal';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -250,13 +251,13 @@ export function AnnotatorMyTasksPage() {
       )}
 
       {returningBatchId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-sm rounded-lg bg-white p-6 shadow-lg">
-            <h3 className="text-lg font-medium text-gray-900">确认退回</h3>
-            <p className="mt-2 text-sm text-gray-600">
-              确定要退回任务单「{groups.find((g) => g.batchId === returningBatchId)?.orderNo}」下的所有任务吗？
-            </p>
-            <div className="mt-6 flex justify-end gap-3">
+        <AppModal
+          title="确认退回"
+          subtitle={`确定要退回任务单「${groups.find((g) => g.batchId === returningBatchId)?.orderNo}」下的所有任务吗？`}
+          width="sm"
+          footerClassName="border-transparent bg-white"
+          footer={
+            <>
               <AppButton type="button" variant="secondary" onClick={closeReturnDialog} disabled={returnLoading}>
                 取消
               </AppButton>
@@ -268,9 +269,9 @@ export function AnnotatorMyTasksPage() {
               >
                 {returnLoading ? '退回中...' : '确认退回'}
               </AppButton>
-            </div>
-          </div>
-        </div>
+            </>
+          }
+        />
       )}
       {activeBatchId && (
         <AnnotatorTaskWorkspaceModal

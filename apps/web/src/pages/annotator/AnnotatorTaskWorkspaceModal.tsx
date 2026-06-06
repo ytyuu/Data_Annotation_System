@@ -5,6 +5,7 @@ import { parseAnnotationSelection } from '../../components/shared/AnnotationResu
 import type { AnnotationSchema, AnnotationSelection } from '../../components/shared/AnnotationEditor';
 import { buildAnnotationResult } from '../../components/shared/AnnotationResultBuilder';
 import { AppButton } from '../../components/shared/AppButton';
+import { AppModal } from '../../components/shared/AppModal';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -334,22 +335,24 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-      <div className="flex h-full w-full max-w-5xl flex-col overflow-hidden rounded-lg bg-white shadow-lg">
-        <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-          <div>
-            <div className="text-xl font-semibold text-gray-900">{workspace?.datasetName || '标注工作台'}</div>
-            {workspace && <div className="mt-1 text-sm text-gray-500">任务单 {workspace.orderNo}</div>}
-          </div>
-          <AppButton
-            type="button"
-            variant="secondary"
-            onClick={onClose}
-          >
-            关闭
-          </AppButton>
-        </div>
-
+    <AppModal
+      title={workspace?.datasetName || '标注工作台'}
+      subtitle={workspace ? `任务单 ${workspace.orderNo}` : undefined}
+      width="2xl"
+      fullHeight
+      overlayClassName="p-4"
+      titleClassName="text-xl"
+      contentClassName="flex-1 overflow-hidden"
+      actions={
+        <AppButton
+          type="button"
+          variant="secondary"
+          onClick={onClose}
+        >
+          关闭
+        </AppButton>
+      }
+    >
         {loading ? (
           <div className="p-6 text-base text-gray-500">正在加载任务...</div>
         ) : error ? (
@@ -497,7 +500,6 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
             </div>
           </div>
         ) : null}
-      </div>
-    </div>
+    </AppModal>
   );
 }

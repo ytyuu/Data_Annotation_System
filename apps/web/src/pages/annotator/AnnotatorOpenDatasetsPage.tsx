@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AppButton } from '../../components/shared/AppButton';
 import { SegmentedControl } from '../../components/shared/SegmentedControl';
+import { AppModal } from '../../components/shared/AppModal';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -241,19 +242,35 @@ export function AnnotatorOpenDatasetsPage() {
 
       {/* 领取任务弹窗 */}
       {claimOpen && claimDataset && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40"
-          onClick={(e) => {
-            if (e.target === e.currentTarget) closeClaimModal();
-          }}
+        <AppModal
+          title="领取任务"
+          subtitle={claimDataset.name}
+          width="md"
+          closeOnOverlayClick
+          onClose={closeClaimModal}
+          contentClassName="space-y-5 px-6 py-5"
+          footerClassName="border-gray-100 bg-white"
+          footer={
+            <>
+              <AppButton
+                type="button"
+                variant="secondary"
+                onClick={closeClaimModal}
+                disabled={claimLoading}
+              >
+                取消
+              </AppButton>
+              <AppButton
+                type="button"
+                variant="primary"
+                onClick={handleClaim}
+                disabled={claimLoading || claimCount <= 0 || claimCount > getMaxCount(claimDataset, claimTaskType)}
+              >
+                {claimLoading ? '领取中...' : '确认领取'}
+              </AppButton>
+            </>
+          }
         >
-          <div className="w-full max-w-md rounded-lg border border-gray-200 bg-white shadow-lg">
-            <div className="border-b border-gray-100 px-6 py-4">
-              <h3 className="text-base font-semibold text-gray-900">领取任务</h3>
-              <p className="mt-1 text-sm text-gray-500">{claimDataset.name}</p>
-            </div>
-
-            <div className="px-6 py-5 space-y-5">
               {/* 任务类别 */}
               <div>
                 <label className="mb-2 block text-sm font-medium text-gray-700">任务类别</label>
@@ -305,28 +322,7 @@ export function AnnotatorOpenDatasetsPage() {
               {claimError && (
                 <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{claimError}</div>
               )}
-            </div>
-
-            <div className="flex items-center justify-end gap-3 border-t border-gray-100 px-6 py-4">
-              <AppButton
-                type="button"
-                variant="secondary"
-                onClick={closeClaimModal}
-                disabled={claimLoading}
-              >
-                取消
-              </AppButton>
-              <AppButton
-                type="button"
-                variant="primary"
-                onClick={handleClaim}
-                disabled={claimLoading || claimCount <= 0 || claimCount > getMaxCount(claimDataset, claimTaskType)}
-              >
-                {claimLoading ? '领取中...' : '确认领取'}
-              </AppButton>
-            </div>
-          </div>
-        </div>
+        </AppModal>
       )}
     </div>
   );
