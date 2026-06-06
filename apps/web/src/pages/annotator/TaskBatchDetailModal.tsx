@@ -11,6 +11,8 @@ import { StatusBadge } from '../../components/shared/StatusBadge';
 import { AppAlert } from '../../components/shared/AppAlert';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { AppTable, AppTableBody, AppTableHead, AppTableRow } from '../../components/shared/AppTable';
+import { StatsPanel } from '../../components/shared/StatsPanel';
+import { DistributionBars } from '../../components/shared/DistributionBars';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -235,67 +237,43 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
             <EmptyState align="center">暂无任务数据</EmptyState>
           ) : viewMode === 'summary' ? (
             <div className="space-y-6">
-              <div className="grid grid-cols-2 gap-6">
-                <div className="rounded border border-gray-200">
-                  <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
-                    标注审核状态分布
-                  </div>
-                  <div className="p-6">
-                    {stats && (
-                      <DonutChart
-                        data={stats.annotationStatusCounts}
-                        total={stats.total}
-                        colors={annotationStatusColors}
-                        labels={annotationStatusLabels}
-                      />
-                    )}
-                  </div>
-                </div>
+              <div className="grid gap-4 xl:grid-cols-2">
+                <StatsPanel title="标注审核状态分布" contentClassName="flex justify-center p-6">
+                  {stats && (
+                    <DonutChart
+                      data={stats.annotationStatusCounts}
+                      total={stats.total}
+                      colors={annotationStatusColors}
+                      labels={annotationStatusLabels}
+                    />
+                  )}
+                </StatsPanel>
 
-                <div className="rounded border border-gray-200">
-                  <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
-                    采纳状态分布
-                  </div>
-                  <div className="p-6">
-                    {stats && (
-                      <DonutChart
-                        data={stats.adoptionStatusCounts}
-                        total={stats.total}
-                        colors={adoptionStatusColors}
-                        labels={adoptionStatusLabels}
-                      />
-                    )}
-                  </div>
-                </div>
+                <StatsPanel title="采纳状态分布" contentClassName="flex justify-center p-6">
+                  {stats && (
+                    <DonutChart
+                      data={stats.adoptionStatusCounts}
+                      total={stats.total}
+                      colors={adoptionStatusColors}
+                      labels={adoptionStatusLabels}
+                    />
+                  )}
+                </StatsPanel>
               </div>
 
               {stats?.hasComments && (
-                <div className="rounded border border-gray-200">
-                  <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
-                    审核意见分布
-                  </div>
-                  <div className="p-6">
-                    <div className="space-y-4">
-                      {Object.entries(stats.commentCounts).map(([comment, count]) => {
-                        const percentage = Math.round((count / stats.total) * 100);
-                        return (
-                          <div key={comment}>
-                            <div className="mb-1 flex items-center justify-between text-sm">
-                              <span className="max-w-md truncate text-gray-700" title={comment}>{comment}</span>
-                              <span className="shrink-0 text-gray-500">{count} 条 ({percentage}%)</span>
-                            </div>
-                            <div className="h-4 rounded-full bg-gray-100">
-                              <div
-                                className="h-4 rounded-full bg-yellow-500 transition-all"
-                                style={{ width: `${percentage}%` }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
+                <StatsPanel title="审核意见分布">
+                  <DistributionBars
+                    entries={Object.entries(stats.commentCounts).map(([comment, count]) => ({
+                      key: comment,
+                      label: comment,
+                      count,
+                      color: '#eab308',
+                    }))}
+                    total={stats.total}
+                    barClassName="h-3"
+                  />
+                </StatsPanel>
               )}
             </div>
           ) : (

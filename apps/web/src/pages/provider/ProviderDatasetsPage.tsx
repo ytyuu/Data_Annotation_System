@@ -11,6 +11,8 @@ import { EmptyState } from '../../components/shared/EmptyState';
 import { AppTable, AppTableBody, AppTableHead, AppTableRow } from '../../components/shared/AppTable';
 import { PageToolbar } from '../../components/shared/PageToolbar';
 import { OptionRuleEditor } from '../../components/shared/OptionRuleEditor';
+import { StatsPanel } from '../../components/shared/StatsPanel';
+import { DistributionBars } from '../../components/shared/DistributionBars';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -1264,64 +1266,28 @@ export function ProviderDatasetsPage() {
               <EmptyState align="center">还没有数据项</EmptyState>
             ) : (
               <div className="space-y-6">
-                <div className="rounded border border-gray-200">
-                  <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
-                    数据项状态分布
-                  </div>
-                  <div className="flex items-center justify-center p-6">
-                    {hasStats && (
-                      <DonutChart
-                        data={statusCounts}
-                        total={totalItems}
-                        colors={dataItemStatusColors}
-                        labels={dataItemStatusLabels}
-                      />
-                    )}
-                  </div>
-                </div>
+                <StatsPanel title="数据项状态分布" contentClassName="flex justify-center p-6">
+                  {hasStats && (
+                    <DonutChart
+                      data={statusCounts}
+                      total={totalItems}
+                      colors={dataItemStatusColors}
+                      labels={dataItemStatusLabels}
+                    />
+                  )}
+                </StatsPanel>
 
-                <div className="rounded border border-gray-200">
-                  <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm font-medium text-gray-700">
-                    状态明细
-                  </div>
-                  <div className="p-4">
-                    <div className="space-y-3">
-                      {Object.entries(statusCounts).map(([status, count]) => {
-                        const percentage = Math.round((count / totalItems) * 100);
-                        const color = dataItemStatusColors[status] || '#9ca3af';
-                        const label = dataItemStatusLabels[status] || status;
-                        return (
-                          <div key={status}>
-                            <div className="mb-1 flex items-center justify-between text-sm">
-                              <div className="flex items-center gap-2">
-                                <span
-                                  className="inline-block h-3 w-3 rounded-full"
-                                  style={{ backgroundColor: color }}
-                                />
-                                <span className="text-gray-700">{label}</span>
-                              </div>
-                              <span className="text-gray-500">
-                                {count} 条 ({percentage}%)
-                              </span>
-                            </div>
-                            <div className="h-2 rounded-full bg-gray-100">
-                              <div
-                                className="h-2 rounded-full transition-all"
-                                style={{
-                                  width: `${percentage}%`,
-                                  backgroundColor: color,
-                                }}
-                              />
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-4 border-t border-gray-100 pt-3 text-right text-sm text-gray-500">
-                      总计 {totalItems} 条数据项
-                    </div>
-                  </div>
-                </div>
+                <StatsPanel title="状态明细" footer={<div className="text-right">总计 {totalItems} 条数据项</div>}>
+                  <DistributionBars
+                    entries={Object.entries(statusCounts).map(([status, count]) => ({
+                      key: status,
+                      label: dataItemStatusLabels[status] || status,
+                      count,
+                      color: dataItemStatusColors[status] || '#9ca3af',
+                    }))}
+                    total={totalItems}
+                  />
+                </StatsPanel>
               </div>
             )}
       </AppModal>
