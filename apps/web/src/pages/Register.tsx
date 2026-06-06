@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { AppAlert } from '../components/shared/AppAlert';
+import { AppButton } from '../components/shared/AppButton';
 
 const roleLabels: Record<string, string> = {
   provider: '数据集提供者',
@@ -160,9 +161,9 @@ export function Register() {
             />
           </div>
 
-          <button type="submit" disabled={loading} className="app-button-primary">
+          <AppButton type="submit" disabled={loading} variant="primary" fullWidth>
             {loading ? '注册中...' : '注册'}
-          </button>
+          </AppButton>
 
           <div className="mt-6 text-center">
             <Link to={`/login?role=${role}`} className="app-link-primary text-sm">

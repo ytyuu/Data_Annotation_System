@@ -1,4 +1,5 @@
 import { useNavigate, Link } from 'react-router-dom';
+import { AppButton } from '../components/shared/AppButton';
 
 type Role = 'provider' | 'annotator';
 
@@ -32,8 +33,10 @@ export function RoleSelect() {
 
         <div className="app-choice-grid">
           {roles.map((role) => (
-            <button
+            <AppButton
               key={role.key}
+              type="button"
+              variant="custom"
               onClick={() => handleSelect(role.key)}
               className="app-choice-card group cursor-pointer"
             >
@@ -49,7 +52,7 @@ export function RoleSelect() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                 </svg>
               </div>
-            </button>
+            </AppButton>
           ))}
         </div>
 

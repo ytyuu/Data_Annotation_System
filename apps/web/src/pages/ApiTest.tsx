@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AppButton } from '../components/shared/AppButton';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -117,9 +118,9 @@ export function ApiTest() {
               />
             </div>
 
-            <button type="submit" className="app-button-primary">
+            <AppButton type="submit" variant="primary" fullWidth>
               问候一下
-            </button>
+            </AppButton>
           </form>
 
           <div className="app-status" data-kind={statusKind}>
@@ -129,14 +130,15 @@ export function ApiTest() {
 
           <div className="my-8 border-t border-gray-200" />
 
-          <button
+          <AppButton
             type="button"
-            className="app-button-primary"
+            variant="primary"
+            fullWidth
             disabled={databaseLoading}
             onClick={fetchDatabaseHealth}
           >
             {databaseLoading ? '测试中...' : '测试数据库'}
-          </button>
+          </AppButton>
 
           <div className="app-status" data-kind={databaseStatusKind}>
             {databaseStatus}

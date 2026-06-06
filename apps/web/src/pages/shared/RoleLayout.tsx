@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { AppAlert } from '../../components/shared/AppAlert';
+import { AppButton } from '../../components/shared/AppButton';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -135,9 +136,9 @@ export function RoleLayout({ role, menus, workbenchPath, redirectOnRoleMismatch 
             <div className="text-sm font-medium text-gray-900">{user?.displayName}</div>
             <div className="text-xs text-gray-500">{roleLabels[user?.role || ''] || user?.role}</div>
           </div>
-          <button type="button" className="app-link" onClick={handleLogout}>
+          <AppButton type="button" variant="custom" className="app-link" onClick={handleLogout}>
             退出
-          </button>
+          </AppButton>
         </div>
       </header>
 
