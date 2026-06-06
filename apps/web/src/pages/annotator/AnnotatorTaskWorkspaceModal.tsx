@@ -7,6 +7,9 @@ import { buildAnnotationResult } from '../../components/shared/AnnotationResultB
 import { AppButton } from '../../components/shared/AppButton';
 import { AppModal } from '../../components/shared/AppModal';
 import { AppAlert } from '../../components/shared/AppAlert';
+import { EmptyState } from '../../components/shared/EmptyState';
+import { StatusBadge } from '../../components/shared/StatusBadge';
+import { WorkspacePanel } from '../../components/shared/WorkspacePanel';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -155,6 +158,7 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
   const currentTask = tasks[currentIndex];
   const completedCount = Object.keys(drafts).length;
   const totalCount = workspace?.totalCount ?? tasks.length;
+  const completionPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   const annotationSelection: AnnotationSelection = useMemo(() => {
     if (!currentTask) return { main: [], sub: {} };
@@ -355,109 +359,91 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
       }
     >
         {loading ? (
-          <div className="p-6 text-base text-gray-500">正在加载任务...</div>
+          <div className="p-6">
+            <EmptyState>正在加载任务...</EmptyState>
+          </div>
         ) : error ? (
           <div className="p-6">
             <AppAlert kind="error">{error}</AppAlert>
           </div>
         ) : workspace ? (
-          <div className="flex h-full flex-1 flex-col gap-4 overflow-hidden p-6">
-            <div className="flex flex-1 gap-6 overflow-hidden">
-              <div className="flex flex-1 flex-col gap-4 overflow-hidden">
-                <div className="flex items-center justify-between text-base text-gray-600">
-                  <div>
-                    当前任务 {currentIndex + 1}/{tasks.length}
-                  </div>
-                  <div>
-                    已完成 {completedCount}/{totalCount}
-                  </div>
+          <div className="flex h-full flex-1 flex-col overflow-hidden bg-gray-50">
+            <div className="border-b border-gray-200 bg-white px-6 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                <div className="font-medium text-gray-900">
+                  当前任务 {currentIndex + 1}/{tasks.length}
                 </div>
+                <div className="text-gray-500">
+                  已完成 <span className="font-semibold text-gray-900">{completedCount}</span>/{totalCount}
+                </div>
+              </div>
+              <div className="app-progress">
+                <div className="app-progress-bar" style={{ width: `${completionPercent}%` }} />
+              </div>
+            </div>
 
+            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden p-5 xl:flex-row">
+              <div className="flex min-w-0 flex-1 flex-col gap-4 overflow-hidden">
                 {currentTask ? (
                   <div
-                    className={`flex flex-1 flex-col gap-4 overflow-hidden rounded border border-gray-200 p-4 transition-opacity duration-300 ${
+                    className={`flex min-h-0 flex-1 flex-col gap-4 overflow-hidden transition-opacity duration-300 ${
                       isAdvancing ? 'opacity-50' : 'opacity-100'
                     }`}
                   >
-                    <div className="text-base font-medium text-gray-700">数据内容</div>
-                    <div className="flex-1 overflow-auto">
-                      <DataItemViewer
-                        item={{
-                          id: currentTask.item.id,
-                          datasetId: currentTask.item.datasetId,
-                          content: currentTask.item.content,
-                          contentType: currentTask.item.contentType,
-                          metadata: currentTask.item.metadata,
-                        }}
-                      />
-                    </div>
+                    <WorkspacePanel
+                      title="数据内容"
+                      eyebrow={`数据项 ${currentIndex + 1}`}
+                      className="flex min-h-0 flex-[1.15] flex-col"
+                      contentClassName="flex min-h-0 flex-1 flex-col"
+                    >
+                      <div className="min-h-0 flex-1 overflow-auto">
+                        <DataItemViewer
+                          item={{
+                            id: currentTask.item.id,
+                            datasetId: currentTask.item.datasetId,
+                            content: currentTask.item.content,
+                            contentType: currentTask.item.contentType,
+                            metadata: currentTask.item.metadata,
+                          }}
+                          className="max-h-none"
+                        />
+                      </div>
+                    </WorkspacePanel>
 
-                    <div className="border-t border-gray-200 pt-4">
-                      <div className="text-base font-medium text-gray-700">标注结果</div>
-                      <div className="mt-4">
+                    <WorkspacePanel
+                      title="标注结果"
+                      eyebrow={schema?.selectionMode === 'multiple' ? '可多选' : '单选'}
+                      className="shrink-0"
+                    >
+                      <div>
                         <AnnotationEditor
                           schema={schema}
                           selection={annotationSelection}
                           onChange={handleSelectionChange}
                         />
                       </div>
-                    </div>
+                    </WorkspacePanel>
                   </div>
                 ) : (
-                  <div className="rounded border border-gray-200 p-6 text-base text-gray-500">暂无任务</div>
+                  <EmptyState align="center" spacious>暂无任务</EmptyState>
                 )}
-
-                <div className="flex items-center justify-between">
-                  <div className="flex gap-2">
-                    <AppButton
-                      type="button"
-                      variant="secondary"
-                      onClick={() => goToIndex(currentIndex - 1)}
-                      disabled={currentIndex === 0}
-                    >
-                      上一条
-                    </AppButton>
-                    <AppButton
-                      type="button"
-                      variant="secondary"
-                      onClick={() => goToIndex(currentIndex + 1)}
-                      disabled={currentIndex >= tasks.length - 1}
-                    >
-                      下一条
-                    </AppButton>
-                  </div>
-                  <div className="flex gap-2">
-                    <AppButton
-                      type="button"
-                      variant="secondary"
-                      onClick={() => setShowResults((prev) => !prev)}
-                    >
-                      {showResults ? '收起结果' : '查看已标注结果'}
-                    </AppButton>
-                    <AppButton
-                      type="button"
-                      variant="primary"
-                      onClick={handleSubmitBatch}
-                      disabled={submitting || completedCount === 0}
-                    >
-                      {submitting ? '提交中...' : '提交任务单'}
-                    </AppButton>
-                  </div>
-                </div>
               </div>
 
-              <div className="flex w-72 shrink-0 flex-col gap-4 overflow-hidden">
-                <div className="shrink-0 rounded border border-gray-200 bg-gray-50 p-4 text-base text-gray-700">
-                  <div className="font-medium text-gray-900">标注说明</div>
-                  <div className="mt-2 whitespace-pre-wrap">
+              <div className="flex min-h-0 shrink-0 flex-col gap-4 overflow-hidden xl:w-80">
+                <WorkspacePanel title="标注说明" className="shrink-0" contentClassName="p-4">
+                  <div className="max-h-52 overflow-auto whitespace-pre-wrap text-sm leading-6 text-gray-700">
                     {workspace.annotationGuide || '暂无标注说明'}
                   </div>
-                </div>
+                </WorkspacePanel>
 
                 {showResults && (
-                  <div className="flex min-h-0 flex-1 flex-col rounded border border-gray-200 bg-gray-50 p-4">
-                    <div className="text-base font-medium text-gray-700">已标注结果</div>
-                    <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-auto pr-1 text-sm text-gray-600">
+                  <WorkspacePanel
+                    title="已标注结果"
+                    eyebrow={`${completedCount} 条已完成`}
+                    className="flex min-h-0 flex-1 flex-col"
+                    contentClassName="flex min-h-0 flex-1 flex-col overflow-hidden p-3"
+                  >
+                    <div className="min-h-0 flex-1 space-y-2 overflow-auto pr-1 text-sm text-gray-600">
                       {tasks.map((task, index) => {
                         const draft = drafts[task.taskId];
                         const draftSel = draft ? migrateDraft(draft) : { main: [], sub: {} };
@@ -483,22 +469,61 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
                           <AppButton
                             key={task.taskId}
                             type="button"
-                            className={`w-full rounded border px-4 py-3 text-left transition-colors duration-300 ${
-                              index === currentIndex ? 'border-blue-500 bg-white text-blue-700' : 'border-gray-200 bg-white'
-                            } ${isJustCompleted ? 'bg-green-50 border-green-200' : ''}`}
+                            variant="custom"
+                            className={`w-full rounded border px-3 py-2.5 text-left transition-colors duration-300 ${
+                              index === currentIndex ? 'border-gray-900 bg-white text-gray-900 shadow-sm' : 'border-gray-200 bg-white hover:bg-gray-50'
+                            } ${isJustCompleted ? 'border-green-200 bg-green-50' : ''}`}
                             onClick={() => goToIndex(index)}
                           >
-                            <div className="flex items-center justify-between">
-                              <span>任务 {index + 1}</span>
-                              {isCompleted && <span className="text-green-600">已完成</span>}
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="font-medium">任务 {index + 1}</span>
+                              {isCompleted && <StatusBadge tone="success">已完成</StatusBadge>}
                             </div>
-                            <div className="mt-1 text-gray-500">{label || '未标注'}</div>
+                            <div className="mt-1 line-clamp-2 text-xs text-gray-500">{label || '未标注'}</div>
                           </AppButton>
                         );
                       })}
                     </div>
-                  </div>
+                  </WorkspacePanel>
                 )}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-gray-200 bg-white px-6 py-4">
+              <div className="flex gap-2">
+                <AppButton
+                  type="button"
+                  variant="secondary"
+                  onClick={() => goToIndex(currentIndex - 1)}
+                  disabled={currentIndex === 0}
+                >
+                  上一条
+                </AppButton>
+                <AppButton
+                  type="button"
+                  variant="secondary"
+                  onClick={() => goToIndex(currentIndex + 1)}
+                  disabled={currentIndex >= tasks.length - 1}
+                >
+                  下一条
+                </AppButton>
+              </div>
+              <div className="flex gap-2">
+                <AppButton
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setShowResults((prev) => !prev)}
+                >
+                  {showResults ? '收起结果' : '查看已标注结果'}
+                </AppButton>
+                <AppButton
+                  type="button"
+                  variant="primary"
+                  onClick={handleSubmitBatch}
+                  disabled={submitting || completedCount === 0}
+                >
+                  {submitting ? '提交中...' : '提交任务单'}
+                </AppButton>
               </div>
             </div>
           </div>

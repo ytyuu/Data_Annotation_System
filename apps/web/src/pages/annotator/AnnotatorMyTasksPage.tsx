@@ -201,9 +201,8 @@ export function AnnotatorMyTasksPage() {
                 </StatusBadge>
               }
               metrics={
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   <MetricBox label="数据项" value={`${group.totalCount} 条`} />
-                  <MetricBox label="待开始" value={`${group.assignedCount} 条`} />
                   <MetricBox label="已完成" value={`${group.submittedCount} 条`} />
                 </div>
               }
