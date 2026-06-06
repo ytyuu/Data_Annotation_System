@@ -5,6 +5,7 @@ import { SegmentedControl } from '../../components/shared/SegmentedControl';
 import { AppModal } from '../../components/shared/AppModal';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { AppAlert } from '../../components/shared/AppAlert';
+import { MetricBox } from '../../components/shared/MetricBox';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -198,15 +199,12 @@ export function AnnotatorOpenDatasetsPage() {
                     {getDatasetSchemaSummary(dataset)}
                   </td>
                   <td className="px-4 py-4 align-middle">
-                    <DatasetItemMetric
-                      completed={dataset.completedItemCount}
-                      total={dataset.itemCount}
-                    />
+                    <DatasetItemMetric completed={dataset.completedItemCount} total={dataset.itemCount} />
                   </td>
                   <td className="px-4 py-4 align-middle">
                     <div className="flex gap-2">
-                      <RemainingCount label="标注" value={dataset.pendingItemCount ?? 0} />
-                      <RemainingCount label="互查" value={dataset.reviewableItemCount ?? 0} />
+                      <MetricBox label="标注" value={`${dataset.pendingItemCount ?? 0} 条`} compact />
+                      <MetricBox label="互查" value={`${dataset.reviewableItemCount ?? 0} 条`} compact />
                     </div>
                   </td>
                   <td className="px-4 py-4 align-middle text-right">
@@ -330,28 +328,16 @@ export function AnnotatorOpenDatasetsPage() {
   );
 }
 
-function RemainingCount({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="app-metric inline-block px-2 py-1">
-      <div className="app-metric-label">{label}</div>
-      <div className="app-metric-value mt-0.5">{value} 条</div>
-    </div>
-  );
-}
-
 function DatasetItemMetric({ completed, total }: { completed: number; total: number }) {
   const percent = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
 
   return (
-    <div className="app-metric inline-block px-2 py-1">
-      <div className="app-metric-label">数据项</div>
-      <div className="app-metric-value mt-0.5">
+    <MetricBox label="数据项" compact>
         {completed}
         <span className="mx-1 text-gray-400">/</span>
         {total}
         <span className="ml-2 text-xs font-medium text-gray-500">{percent}%</span>
-      </div>
-    </div>
+    </MetricBox>
   );
 }
 

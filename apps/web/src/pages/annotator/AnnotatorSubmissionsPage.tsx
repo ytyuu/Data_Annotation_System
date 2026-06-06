@@ -4,6 +4,7 @@ import { TaskBatchDetailModal } from './TaskBatchDetailModal';
 import { AppButton } from '../../components/shared/AppButton';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { AppAlert } from '../../components/shared/AppAlert';
+import { MetricBox } from '../../components/shared/MetricBox';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -202,8 +203,8 @@ export function AnnotatorSubmissionsPage() {
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
-                      <SubmissionMetric label="任务单" value={`${summary.batchCount} 个`} />
-                      <SubmissionMetric label="数据项" value={`${summary.totalItemCount} 条`} />
+                      <MetricBox label="任务单" value={`${summary.batchCount} 个`} />
+                      <MetricBox label="数据项" value={`${summary.totalItemCount} 条`} />
                     </div>
 
                     <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
@@ -285,9 +286,9 @@ export function AnnotatorSubmissionsPage() {
                     </div>
 
                     <div className="grid grid-cols-3 gap-2">
-                      <SubmissionMetric label="数据项" value={`${batch.totalCount} 条`} />
-                      <SubmissionMetric label="已提交" value={`${batch.submittedCount} 条`} />
-                      <SubmissionMetric label="待处理" value={`${batch.assignedCount + batch.inProgressCount} 条`} />
+                      <MetricBox label="数据项" value={`${batch.totalCount} 条`} />
+                      <MetricBox label="已提交" value={`${batch.submittedCount} 条`} />
+                      <MetricBox label="待处理" value={`${batch.assignedCount + batch.inProgressCount} 条`} />
                     </div>
 
                     <div className="flex shrink-0 flex-wrap items-center justify-start gap-3 text-xs text-gray-500 lg:justify-end">
@@ -317,15 +318,6 @@ export function AnnotatorSubmissionsPage() {
           onClose={closeDetailModal}
         />
       )}
-    </div>
-  );
-}
-
-function SubmissionMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="app-metric min-w-28">
-      <div className="app-metric-label">{label}</div>
-      <div className="app-metric-value">{value}</div>
     </div>
   );
 }

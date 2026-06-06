@@ -6,6 +6,7 @@ import { SegmentedControl } from '../../components/shared/SegmentedControl';
 import { AppModal } from '../../components/shared/AppModal';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { AppAlert } from '../../components/shared/AppAlert';
+import { MetricBox } from '../../components/shared/MetricBox';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -1592,15 +1593,12 @@ export function ProviderDatasetsPage() {
     const percent = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
 
     return (
-      <div className="app-metric inline-block px-2 py-1">
-        <div className="app-metric-label">数据项</div>
-        <div className="app-metric-value mt-0.5">
+      <MetricBox label="数据项" compact>
           {completed}
           <span className="mx-1 text-gray-400">/</span>
           {total}
           <span className="ml-2 text-xs font-medium text-gray-500">{percent}%</span>
-        </div>
-      </div>
+      </MetricBox>
     );
   }
 

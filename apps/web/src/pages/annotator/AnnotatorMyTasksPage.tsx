@@ -6,6 +6,7 @@ import { AppButton } from '../../components/shared/AppButton';
 import { AppModal } from '../../components/shared/AppModal';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { AppAlert } from '../../components/shared/AppAlert';
+import { MetricBox } from '../../components/shared/MetricBox';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -204,9 +205,9 @@ export function AnnotatorMyTasksPage() {
                 </div>
 
                 <div className="grid grid-cols-3 gap-2">
-                  <TaskMetric label="数据项" value={`${group.totalCount} 条`} />
-                  <TaskMetric label="待开始" value={`${group.assignedCount} 条`} />
-                  <TaskMetric label="已完成" value={`${group.submittedCount} 条`} />
+                  <MetricBox label="数据项" value={`${group.totalCount} 条`} />
+                  <MetricBox label="待开始" value={`${group.assignedCount} 条`} />
+                  <MetricBox label="已完成" value={`${group.submittedCount} 条`} />
                 </div>
 
                 <div className="flex shrink-0 flex-wrap items-center justify-start gap-2 text-xs text-gray-500 lg:justify-end">
@@ -289,15 +290,6 @@ export function AnnotatorMyTasksPage() {
           onClose={closeDetail}
         />
       )}
-    </div>
-  );
-}
-
-function TaskMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="app-metric min-w-28">
-      <div className="app-metric-label">{label}</div>
-      <div className="app-metric-value">{value}</div>
     </div>
   );
 }
