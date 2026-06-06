@@ -6,6 +6,7 @@ import type { AnnotationSchema } from '../../components/shared/AnnotationEditor'
 import { AppButton } from '../../components/shared/AppButton';
 import { SegmentedControl } from '../../components/shared/SegmentedControl';
 import { StatusBadge } from '../../components/shared/StatusBadge';
+import { AppAlert } from '../../components/shared/AppAlert';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -283,7 +284,7 @@ export function ProviderReviewsPage() {
           </AppButton>
         </div>
 
-        {datasetsError && <div className="app-alert-error">{datasetsError}</div>}
+        {datasetsError && <AppAlert kind="error" className="mb-6">{datasetsError}</AppAlert>}
 
         {datasetsLoading ? (
           <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
@@ -398,7 +399,7 @@ export function ProviderReviewsPage() {
           <div className="text-sm text-gray-500">逐条审核</div>
         </div>
 
-        {detailError && <div className="app-alert-error">{detailError}</div>}
+        {detailError && <AppAlert kind="error" className="mb-6">{detailError}</AppAlert>}
 
         {detailLoading ? (
           <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
@@ -407,20 +408,17 @@ export function ProviderReviewsPage() {
         ) : reviewDetail ? (
           <div className="space-y-6">
             {finishDone && (
-              <div className="rounded border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-                审核已完成
-              </div>
+              <AppAlert kind="success">审核已完成</AppAlert>
             )}
 
-            <div className="rounded border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-              <div className="font-medium">审核说明</div>
-              <div className="mt-2 whitespace-pre-wrap text-blue-800">
+            <AppAlert kind="info" title="审核说明">
+              <div>
                 {reviewDetail.annotationGuide || '暂无标注说明'}
               </div>
               <div className="mt-2 text-xs text-blue-700">
                 标记为通过后仍可改为不通过；标记为不通过后将无法修改。
               </div>
-            </div>
+            </AppAlert>
 
             {reviewDetail.items.length === 0 ? (
               <div className="rounded border border-gray-200 bg-gray-50 p-8 text-center text-sm text-gray-500">
@@ -517,7 +515,11 @@ export function ProviderReviewsPage() {
                 >
                   {finishSubmitting ? '提交中...' : '审核完成'}
                 </AppButton>
-                {finishError && <span className="text-sm text-red-600">{finishError}</span>}
+                {finishError && (
+                  <AppAlert kind="error" className="px-3 py-1.5">
+                    {finishError}
+                  </AppAlert>
+                )}
               </div>
             )}
           </div>

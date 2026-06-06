@@ -9,6 +9,7 @@ import type { AnnotationSchema } from '../../components/shared/AnnotationEditor'
 import { AppButton } from '../../components/shared/AppButton';
 import { AppModal } from '../../components/shared/AppModal';
 import { StatusBadge } from '../../components/shared/StatusBadge';
+import { AppAlert } from '../../components/shared/AppAlert';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -274,7 +275,7 @@ export function ProviderDisputesPage() {
           共 {datasets.length} 个数据集存在争议数据项
         </div>
 
-        {datasetsError && <div className="app-alert-error">{datasetsError}</div>}
+        {datasetsError && <AppAlert kind="error" className="mb-6">{datasetsError}</AppAlert>}
 
         {datasetsLoading ? (
           <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
@@ -344,7 +345,7 @@ export function ProviderDisputesPage() {
           <div className="text-sm text-gray-500">争议数据项</div>
         </div>
 
-        {itemsError && <div className="app-alert-error">{itemsError}</div>}
+        {itemsError && <AppAlert kind="error" className="mb-6">{itemsError}</AppAlert>}
 
         {itemsLoading ? (
           <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
@@ -434,8 +435,8 @@ export function ProviderDisputesPage() {
               正在加载争议详情...
             </div>
           ) : detailError && !disputeDetail ? (
-            <div className="flex flex-1 items-center justify-center p-6 text-sm text-red-600">
-              {detailError}
+            <div className="flex flex-1 items-center justify-center p-6">
+              <AppAlert kind="error">{detailError}</AppAlert>
             </div>
           ) : disputeDetail ? (
             <div className="flex flex-1 gap-6 overflow-hidden p-6">
@@ -474,7 +475,7 @@ export function ProviderDisputesPage() {
                       />
                     </div>
 
-                    {detailError && <div className="app-alert-error mt-3">{detailError}</div>}
+                    {detailError && <AppAlert kind="error" className="mt-3">{detailError}</AppAlert>}
 
                     <div className="mt-4">
                       <AppButton

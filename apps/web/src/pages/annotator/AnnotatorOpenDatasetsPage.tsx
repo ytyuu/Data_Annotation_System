@@ -4,6 +4,7 @@ import { AppButton } from '../../components/shared/AppButton';
 import { SegmentedControl } from '../../components/shared/SegmentedControl';
 import { AppModal } from '../../components/shared/AppModal';
 import { StatusBadge } from '../../components/shared/StatusBadge';
+import { AppAlert } from '../../components/shared/AppAlert';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -155,8 +156,8 @@ export function AnnotatorOpenDatasetsPage() {
         </AppButton>
       </div>
 
-      {error && <div className="app-alert-error">{error}</div>}
-      {claimSuccess && <div className="app-alert-success">{claimSuccess}</div>}
+      {error && <AppAlert kind="error" className="mb-6">{error}</AppAlert>}
+      {claimSuccess && <AppAlert kind="success" className="mb-6">{claimSuccess}</AppAlert>}
 
       {loading ? (
         <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
@@ -238,7 +239,7 @@ export function AnnotatorOpenDatasetsPage() {
       )}
 
       {claimError && (
-        <div className="mt-3 app-alert-error">{claimError}</div>
+        <AppAlert kind="error" className="mt-3">{claimError}</AppAlert>
       )}
 
       {/* 领取任务弹窗 */}
@@ -321,7 +322,7 @@ export function AnnotatorOpenDatasetsPage() {
               </div>
 
               {claimError && (
-                <div className="rounded-md bg-red-50 px-3 py-2 text-sm text-red-600">{claimError}</div>
+                <AppAlert kind="error" className="border-0 px-3 py-2">{claimError}</AppAlert>
               )}
         </AppModal>
       )}

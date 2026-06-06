@@ -8,6 +8,7 @@ import { AppButton } from '../../components/shared/AppButton';
 import { SegmentedControl } from '../../components/shared/SegmentedControl';
 import { AppModal } from '../../components/shared/AppModal';
 import { StatusBadge } from '../../components/shared/StatusBadge';
+import { AppAlert } from '../../components/shared/AppAlert';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -224,7 +225,7 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
         </>
       }
     >
-          {error && <div className="app-alert-error">{error}</div>}
+          {error && <AppAlert kind="error" className="mb-6">{error}</AppAlert>}
 
           {loading ? (
             <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { AppAlert } from '../../components/shared/AppAlert';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -102,7 +103,7 @@ export function RoleLayout({ role, menus, workbenchPath, redirectOnRoleMismatch 
     return (
       <div className="app-page app-center">
         <div className="app-card max-w-md text-center">
-          <div className="app-alert-error">{error}</div>
+          <AppAlert kind="error" className="mb-6 text-left">{error}</AppAlert>
           <Link to="/" className="app-link-primary text-sm">
             返回选择身份
           </Link>

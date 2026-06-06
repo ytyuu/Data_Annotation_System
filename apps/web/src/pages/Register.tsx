@@ -1,5 +1,6 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { AppAlert } from '../components/shared/AppAlert';
 
 const roleLabels: Record<string, string> = {
   provider: '数据集提供者',
@@ -96,12 +97,8 @@ export function Register() {
         </div>
 
         <form onSubmit={handleSubmit} className="app-card max-w-md mx-auto">
-          {error && <div className="app-alert-error">{error}</div>}
-          {message && (
-            <div className="mb-6 rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">
-              {message}
-            </div>
-          )}
+          {error && <AppAlert kind="error" className="mb-6">{error}</AppAlert>}
+          {message && <AppAlert kind="success" className="mb-6">{message}</AppAlert>}
 
           <div className="app-field">
             <label htmlFor="username" className="app-label">

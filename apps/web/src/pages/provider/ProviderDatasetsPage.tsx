@@ -5,6 +5,7 @@ import { AppButton } from '../../components/shared/AppButton';
 import { SegmentedControl } from '../../components/shared/SegmentedControl';
 import { AppModal } from '../../components/shared/AppModal';
 import { StatusBadge } from '../../components/shared/StatusBadge';
+import { AppAlert } from '../../components/shared/AppAlert';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -840,7 +841,7 @@ export function ProviderDatasetsPage() {
             </>
           }
         >
-              {createError && <div className="app-alert-error">{createError}</div>}
+              {createError && <AppAlert kind="error" className="mb-6">{createError}</AppAlert>}
 
               <div className="app-field">
                 <label htmlFor="dataset-name" className="app-label">
@@ -1071,7 +1072,7 @@ export function ProviderDatasetsPage() {
             </>
           }
         >
-              {importError && <div className="app-alert-error">{importError}</div>}
+              {importError && <AppAlert kind="error" className="mb-6">{importError}</AppAlert>}
 
               <label htmlFor="import-items" className="app-label">
                 文本数据
@@ -1160,9 +1161,9 @@ export function ProviderDatasetsPage() {
         }
       >
         {!canPublish ? (
-          <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+          <AppAlert kind="error">
             发布前请先导入至少 1 条数据项。
-          </div>
+          </AppAlert>
         ) : null}
       </AppModal>
     );
@@ -1343,7 +1344,7 @@ export function ProviderDatasetsPage() {
           </>
         }
       >
-            {dataItemsError && <div className="app-alert-error">{dataItemsError}</div>}
+            {dataItemsError && <AppAlert kind="error" className="mb-6">{dataItemsError}</AppAlert>}
 
             {dataItemsLoading ? (
               <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
@@ -1445,7 +1446,7 @@ export function ProviderDatasetsPage() {
           </div>
         </div>
 
-        {datasetsError && <div className="app-alert-error">{datasetsError}</div>}
+        {datasetsError && <AppAlert kind="error" className="mb-6">{datasetsError}</AppAlert>}
 
         {datasetsLoading ? (
           <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">

@@ -6,6 +6,7 @@ import type { AnnotationSchema, AnnotationSelection } from '../../components/sha
 import { buildAnnotationResult } from '../../components/shared/AnnotationResultBuilder';
 import { AppButton } from '../../components/shared/AppButton';
 import { AppModal } from '../../components/shared/AppModal';
+import { AppAlert } from '../../components/shared/AppAlert';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -356,7 +357,9 @@ export function AnnotatorTaskWorkspaceModal({ batchId, onClose, onSubmitted }: A
         {loading ? (
           <div className="p-6 text-base text-gray-500">正在加载任务...</div>
         ) : error ? (
-          <div className="p-6 text-base text-red-600">{error}</div>
+          <div className="p-6">
+            <AppAlert kind="error">{error}</AppAlert>
+          </div>
         ) : workspace ? (
           <div className="flex h-full flex-1 flex-col gap-4 overflow-hidden p-6">
             <div className="flex flex-1 gap-6 overflow-hidden">
