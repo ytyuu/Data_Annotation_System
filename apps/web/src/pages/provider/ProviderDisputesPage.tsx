@@ -12,6 +12,7 @@ import { StatusBadge } from '../../components/shared/StatusBadge';
 import { AppAlert } from '../../components/shared/AppAlert';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { AppTable, AppTableBody, AppTableHead, AppTableRow } from '../../components/shared/AppTable';
+import { ListCard } from '../../components/shared/ListCard';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -284,40 +285,29 @@ export function ProviderDisputesPage() {
         ) : datasets.length === 0 ? (
           <EmptyState align="center" spacious>暂无争议数据项</EmptyState>
         ) : (
-          <div className="space-y-4">
+          <div className="grid gap-3">
             {datasets.map((dataset) => (
-              <div key={dataset.id} className="rounded border border-gray-200 bg-white">
-                <div className="flex items-center justify-between gap-4 px-4 py-3">
-                  <div className="flex flex-1 items-center gap-4">
-                    <div>
-                      <div className="font-medium text-gray-900">{dataset.name}</div>
-                      {dataset.description && (
-                        <div className="mt-1 line-clamp-1 text-xs text-gray-500">
-                          {dataset.description}
-                        </div>
-                      )}
-                      <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
-                        <span>{dataset.itemCount} 条数据</span>
-                      </div>
-                    </div>
-                    <div className="ml-auto">
-                      <StatusBadge status="disputed">
-                        {dataset.disputedItemCount} 条争议
-                      </StatusBadge>
-                    </div>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    <AppButton
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => openDataset(dataset)}
-                    >
-                      查看争议
-                    </AppButton>
-                  </div>
-                </div>
-              </div>
+              <ListCard
+                key={dataset.id}
+                title={dataset.name}
+                subtitle={dataset.description || '暂无简介'}
+                meta={<span>{dataset.itemCount} 条数据</span>}
+                badges={
+                  <StatusBadge status="disputed">
+                    {dataset.disputedItemCount} 条争议
+                  </StatusBadge>
+                }
+                actions={
+                  <AppButton
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => openDataset(dataset)}
+                  >
+                    查看争议
+                  </AppButton>
+                }
+              />
             ))}
           </div>
         )}

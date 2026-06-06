@@ -9,6 +9,7 @@ import { AppAlert } from '../../components/shared/AppAlert';
 import { MetricBox } from '../../components/shared/MetricBox';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { PageToolbar } from '../../components/shared/PageToolbar';
+import { ListCard } from '../../components/shared/ListCard';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -188,30 +189,26 @@ export function AnnotatorMyTasksPage() {
       ) : groups.length === 0 ? (
         <EmptyState align="center">暂无已领取的任务，去「可标注数据集」页面领取吧</EmptyState>
       ) : (
-        <div className="grid gap-4">
+        <div className="grid gap-3">
           {groups.map((group) => (
-            <div
+            <ListCard
               key={group.batchId}
-              className="rounded border border-gray-300 bg-white shadow-sm transition-colors hover:bg-gray-50"
-            >
-              <div className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(220px,1fr)_minmax(360px,auto)_auto] lg:items-center">
-                <div>
-                  <div className="font-medium text-gray-900">{group.datasetName}</div>
-                  <div className="mt-1 text-xs text-gray-500">{group.orderNo}</div>
-                  <div className="mt-2 flex flex-wrap gap-1.5">
-                    <StatusBadge status={group.status}>
-                      {taskBatchStatusLabels[group.status] || group.status}
-                    </StatusBadge>
-                  </div>
-                </div>
-
+              title={group.datasetName}
+              subtitle={group.orderNo}
+              badges={
+                <StatusBadge status={group.status}>
+                  {taskBatchStatusLabels[group.status] || group.status}
+                </StatusBadge>
+              }
+              metrics={
                 <div className="grid grid-cols-3 gap-2">
                   <MetricBox label="数据项" value={`${group.totalCount} 条`} />
                   <MetricBox label="待开始" value={`${group.assignedCount} 条`} />
                   <MetricBox label="已完成" value={`${group.submittedCount} 条`} />
                 </div>
-
-                <div className="flex shrink-0 flex-wrap items-center justify-start gap-2 text-xs text-gray-500 lg:justify-end">
+              }
+              actions={
+                <>
                   <span>领取 {new Date(group.assignedAt).toLocaleDateString()}</span>
                   <AppButton
                     type="button"
@@ -245,9 +242,9 @@ export function AnnotatorMyTasksPage() {
                       </AppButton>
                     </>
                   )}
-                </div>
-              </div>
-            </div>
+                </>
+              }
+            />
           ))}
         </div>
       )}
