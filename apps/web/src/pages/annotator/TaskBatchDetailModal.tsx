@@ -9,6 +9,8 @@ import { SegmentedControl } from '../../components/shared/SegmentedControl';
 import { AppModal } from '../../components/shared/AppModal';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { AppAlert } from '../../components/shared/AppAlert';
+import { EmptyState } from '../../components/shared/EmptyState';
+import { AppTable, AppTableBody, AppTableHead, AppTableRow } from '../../components/shared/AppTable';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -228,13 +230,9 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
           {error && <AppAlert kind="error" className="mb-6">{error}</AppAlert>}
 
           {loading ? (
-            <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
-              正在加载任务详情...
-            </div>
+            <EmptyState>正在加载任务详情...</EmptyState>
           ) : tasks.length === 0 ? (
-            <div className="rounded border border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-500">
-              暂无任务数据
-            </div>
+            <EmptyState align="center">暂无任务数据</EmptyState>
           ) : viewMode === 'summary' ? (
             <div className="space-y-6">
               <div className="grid grid-cols-2 gap-6">
@@ -301,9 +299,8 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
               )}
             </div>
           ) : (
-            <div className="overflow-hidden rounded border border-gray-200">
-              <table className="w-full text-left text-sm">
-                <thead className="bg-gray-50 text-xs font-medium text-gray-500">
+            <AppTable>
+                <AppTableHead>
                   <tr>
                     <th className="px-4 py-3">#序号</th>
                     <th className="px-4 py-3">数据内容</th>
@@ -313,10 +310,10 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
                     <th className="px-4 py-3">采纳状态</th>
                     <th className="px-4 py-3">审核意见</th>
                   </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 bg-white">
+                </AppTableHead>
+                <AppTableBody>
                   {tasks.map((task, index) => (
-                    <tr key={task.taskId}>
+                    <AppTableRow key={task.taskId}>
                       <td className="px-4 py-3 text-gray-500">{index + 1}</td>
                       <td className="max-w-md px-4 py-3 text-gray-900">
                         <DataItemViewer item={task.item} className="max-h-24" />
@@ -353,11 +350,10 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
                       <td className="max-w-xs px-4 py-3 text-gray-600">
                         <div className="line-clamp-2">{task.adoptionComment || '-'}</div>
                       </td>
-                    </tr>
+                    </AppTableRow>
                   ))}
-                </tbody>
-              </table>
-            </div>
+                </AppTableBody>
+            </AppTable>
           )}
     </AppModal>
   );

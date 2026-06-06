@@ -5,6 +5,8 @@ import { AppButton } from '../../components/shared/AppButton';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { AppAlert } from '../../components/shared/AppAlert';
 import { MetricBox } from '../../components/shared/MetricBox';
+import { EmptyState } from '../../components/shared/EmptyState';
+import { PageToolbar } from '../../components/shared/PageToolbar';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -164,25 +166,22 @@ export function AnnotatorSubmissionsPage() {
     <div>
       {view === 'summary' ? (
         <>
-          <div className="mb-4 flex items-center justify-between">
-            <div className="text-sm text-gray-500">
-              共 {summaries.length} 个数据集，{batches.length} 个任务单
-            </div>
-            <AppButton type="button" variant="secondary" disabled={loading} onClick={loadSubmissions}>
-              {loading ? '刷新中...' : '刷新'}
-            </AppButton>
-          </div>
+          <PageToolbar
+            actions={
+              <AppButton type="button" variant="secondary" disabled={loading} onClick={loadSubmissions}>
+                {loading ? '刷新中...' : '刷新'}
+              </AppButton>
+            }
+          >
+            共 {summaries.length} 个数据集，{batches.length} 个任务单
+          </PageToolbar>
 
           {error && <AppAlert kind="error" className="mb-6">{error}</AppAlert>}
 
           {loading ? (
-            <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
-              正在加载提交记录...
-            </div>
+            <EmptyState>正在加载提交记录...</EmptyState>
           ) : batches.length === 0 ? (
-            <div className="rounded border border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-500">
-              暂无提交记录
-            </div>
+            <EmptyState align="center">暂无提交记录</EmptyState>
           ) : (
             <div className="grid gap-4">
               {summaries.map((summary) => (
@@ -233,7 +232,13 @@ export function AnnotatorSubmissionsPage() {
         </>
       ) : (
         <>
-          <div className="mb-4 flex items-center justify-between">
+          <PageToolbar
+            actions={
+              <AppButton type="button" variant="secondary" disabled={loading} onClick={loadSubmissions}>
+                {loading ? '刷新中...' : '刷新'}
+              </AppButton>
+            }
+          >
             <div className="flex items-center gap-3">
               <AppButton
                 type="button"
@@ -251,21 +256,14 @@ export function AnnotatorSubmissionsPage() {
                 共 {selectedDatasetBatches.length} 个任务单
               </div>
             </div>
-            <AppButton type="button" variant="secondary" disabled={loading} onClick={loadSubmissions}>
-              {loading ? '刷新中...' : '刷新'}
-            </AppButton>
-          </div>
+          </PageToolbar>
 
           {error && <AppAlert kind="error" className="mb-6">{error}</AppAlert>}
 
           {loading ? (
-            <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
-              正在加载...
-            </div>
+            <EmptyState>正在加载...</EmptyState>
           ) : selectedDatasetBatches.length === 0 ? (
-            <div className="rounded border border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-500">
-              该数据集下暂无提交记录
-            </div>
+            <EmptyState align="center">该数据集下暂无提交记录</EmptyState>
           ) : (
             <div className="grid gap-4">
               {selectedDatasetBatches.map((batch) => (

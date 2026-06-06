@@ -7,6 +7,8 @@ import { AppModal } from '../../components/shared/AppModal';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { AppAlert } from '../../components/shared/AppAlert';
 import { MetricBox } from '../../components/shared/MetricBox';
+import { EmptyState } from '../../components/shared/EmptyState';
+import { PageToolbar } from '../../components/shared/PageToolbar';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -169,23 +171,22 @@ export function AnnotatorMyTasksPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <div className="text-sm text-gray-500">共 {groups.length} 个任务单</div>
-        <AppButton type="button" variant="secondary" disabled={loading} onClick={loadGroups}>
-          {loading ? '刷新中...' : '刷新'}
-        </AppButton>
-      </div>
+      <PageToolbar
+        actions={
+          <AppButton type="button" variant="secondary" disabled={loading} onClick={loadGroups}>
+            {loading ? '刷新中...' : '刷新'}
+          </AppButton>
+        }
+      >
+        共 {groups.length} 个任务单
+      </PageToolbar>
 
       {error && <AppAlert kind="error" className="mb-6">{error}</AppAlert>}
 
       {loading ? (
-        <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
-          正在加载任务...
-        </div>
+        <EmptyState>正在加载任务...</EmptyState>
       ) : groups.length === 0 ? (
-        <div className="rounded border border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-500">
-          暂无已领取的任务，去「可标注数据集」页面领取吧
-        </div>
+        <EmptyState align="center">暂无已领取的任务，去「可标注数据集」页面领取吧</EmptyState>
       ) : (
         <div className="grid gap-4">
           {groups.map((group) => (

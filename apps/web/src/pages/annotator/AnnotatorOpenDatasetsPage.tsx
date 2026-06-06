@@ -6,6 +6,9 @@ import { AppModal } from '../../components/shared/AppModal';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { AppAlert } from '../../components/shared/AppAlert';
 import { MetricBox } from '../../components/shared/MetricBox';
+import { EmptyState } from '../../components/shared/EmptyState';
+import { AppTable, AppTableBody, AppTableHead, AppTableRow } from '../../components/shared/AppTable';
+import { PageToolbar } from '../../components/shared/PageToolbar';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -145,33 +148,26 @@ export function AnnotatorOpenDatasetsPage() {
 
   return (
     <div>
-      <div className="mb-4 flex items-center justify-between">
-        <div className="text-sm text-gray-500">共 {datasets.length} 个数据集</div>
-        <AppButton
-          type="button"
-          variant="secondary"
-          disabled={loading}
-          onClick={loadOpenDatasets}
-        >
-          {loading ? '刷新中...' : '刷新'}
-        </AppButton>
-      </div>
+      <PageToolbar
+        actions={
+          <AppButton type="button" variant="secondary" disabled={loading} onClick={loadOpenDatasets}>
+            {loading ? '刷新中...' : '刷新'}
+          </AppButton>
+        }
+      >
+        共 {datasets.length} 个数据集
+      </PageToolbar>
 
       {error && <AppAlert kind="error" className="mb-6">{error}</AppAlert>}
       {claimSuccess && <AppAlert kind="success" className="mb-6">{claimSuccess}</AppAlert>}
 
       {loading ? (
-        <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
-          正在加载数据集...
-        </div>
+        <EmptyState>正在加载数据集...</EmptyState>
       ) : datasets.length === 0 ? (
-        <div className="rounded border border-gray-200 bg-gray-50 p-6 text-center text-sm text-gray-500">
-          暂无已发布数据集
-        </div>
+        <EmptyState align="center">暂无已发布数据集</EmptyState>
       ) : (
-        <div className="overflow-hidden rounded border border-gray-300">
-          <table className="w-full text-left text-sm">
-            <thead className="border-b border-gray-300 bg-gray-100 text-sm font-medium text-gray-600">
+        <AppTable>
+            <AppTableHead>
               <tr>
                 <th className="w-[30%] px-4 py-3 text-left">名称</th>
                 <th className="px-4 py-3 text-left">状态</th>
@@ -180,10 +176,10 @@ export function AnnotatorOpenDatasetsPage() {
                 <th className="px-4 py-3 text-left">余量</th>
                 <th className="px-4 py-3 text-right">操作</th>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 bg-white">
+            </AppTableHead>
+            <AppTableBody>
               {datasets.map((dataset) => (
-                <tr key={dataset.id} className="align-top hover:bg-gray-50">
+                <AppTableRow key={dataset.id} className="align-top">
                   <td className="px-4 py-4 align-middle">
                     <div className="text-base font-semibold text-gray-900">{dataset.name}</div>
                     <div className="mt-1 line-clamp-1 text-xs text-gray-500">
@@ -229,11 +225,10 @@ export function AnnotatorOpenDatasetsPage() {
                       </AppButton>
                     )}
                   </td>
-                </tr>
+                </AppTableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </AppTableBody>
+        </AppTable>
       )}
 
       {claimError && (

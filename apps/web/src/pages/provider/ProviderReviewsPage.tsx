@@ -7,6 +7,9 @@ import { AppButton } from '../../components/shared/AppButton';
 import { SegmentedControl } from '../../components/shared/SegmentedControl';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { AppAlert } from '../../components/shared/AppAlert';
+import { EmptyState } from '../../components/shared/EmptyState';
+import { AppTable, AppTableBody, AppTableHead, AppTableRow } from '../../components/shared/AppTable';
+import { PageToolbar } from '../../components/shared/PageToolbar';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -263,7 +266,19 @@ export function ProviderReviewsPage() {
 
     return (
       <div>
-        <div className="mb-4 flex items-center justify-between">
+        <PageToolbar
+          actions={
+            <AppButton
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={datasetsLoading}
+              onClick={loadDatasets}
+            >
+              {datasetsLoading ? '刷新中...' : '刷新'}
+            </AppButton>
+          }
+        >
           <SegmentedControl
             value={reviewTab}
             options={[
@@ -273,28 +288,15 @@ export function ProviderReviewsPage() {
             onChange={setReviewTab}
             size="sm"
           />
-          <AppButton
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={datasetsLoading}
-            onClick={loadDatasets}
-          >
-            {datasetsLoading ? '刷新中...' : '刷新'}
-          </AppButton>
-        </div>
+        </PageToolbar>
 
         {datasetsError && <AppAlert kind="error" className="mb-6">{datasetsError}</AppAlert>}
 
         {datasetsLoading ? (
-          <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
-            正在加载...
-          </div>
+          <EmptyState>正在加载...</EmptyState>
         ) : reviewTab === 'pending' ? (
           pendingDatasets.length === 0 ? (
-            <div className="rounded border border-gray-200 bg-gray-50 p-8 text-center text-sm text-gray-500">
-              暂无待审核的数据集
-            </div>
+            <EmptyState align="center" spacious>暂无待审核的数据集</EmptyState>
           ) : (
             <div className="space-y-4">
               {pendingDatasets.map((dataset) => (
@@ -338,9 +340,7 @@ export function ProviderReviewsPage() {
         ) : (
           <div>
             {reviewedDatasets.length === 0 ? (
-              <div className="rounded border border-gray-200 bg-gray-50 p-8 text-center text-sm text-gray-500">
-                暂无已完成审核的数据集
-              </div>
+              <EmptyState align="center" spacious>暂无已完成审核的数据集</EmptyState>
             ) : (
               <div className="space-y-4">
                 {reviewedDatasets.map((dataset) => (
@@ -402,9 +402,7 @@ export function ProviderReviewsPage() {
         {detailError && <AppAlert kind="error" className="mb-6">{detailError}</AppAlert>}
 
         {detailLoading ? (
-          <div className="rounded border border-gray-200 bg-gray-50 p-6 text-sm text-gray-500">
-            正在加载审核数据...
-          </div>
+          <EmptyState>正在加载审核数据...</EmptyState>
         ) : reviewDetail ? (
           <div className="space-y-6">
             {finishDone && (
@@ -421,26 +419,23 @@ export function ProviderReviewsPage() {
             </AppAlert>
 
             {reviewDetail.items.length === 0 ? (
-              <div className="rounded border border-gray-200 bg-gray-50 p-8 text-center text-sm text-gray-500">
-                该数据集暂无已标注的数据项
-              </div>
+              <EmptyState align="center" spacious>该数据集暂无已标注的数据项</EmptyState>
             ) : (
-              <div className="overflow-hidden rounded border border-gray-200">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-gray-50 text-xs font-medium text-gray-500">
+              <AppTable>
+                  <AppTableHead>
                     <tr>
                       <th className="px-4 py-3">内容</th>
                       <th className="px-4 py-3">标注结果</th>
                       <th className="px-4 py-3">审核</th>
                     </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-200 bg-white">
+                  </AppTableHead>
+                  <AppTableBody>
                     {reviewDetail.items.map((ri) => {
                       const decided = ri.item.id in reviewDecisions;
                       const accepted = reviewDecisions[ri.item.id];
                       const rejected = decided && !accepted;
                       return (
-                        <tr key={ri.item.id} className="hover:bg-gray-50">
+                        <AppTableRow key={ri.item.id}>
                           <td className="max-w-md px-4 py-3 text-gray-900">
                             <DataItemViewer
                               item={{
@@ -497,12 +492,11 @@ export function ProviderReviewsPage() {
                               </div>
                             )}
                           </td>
-                        </tr>
+                        </AppTableRow>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
+                  </AppTableBody>
+              </AppTable>
             )}
 
             {!finishDone && allItemsDecided && (
