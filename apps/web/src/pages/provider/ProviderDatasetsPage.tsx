@@ -10,6 +10,7 @@ import { MetricBox } from '../../components/shared/MetricBox';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { AppTable, AppTableBody, AppTableHead, AppTableRow } from '../../components/shared/AppTable';
 import { PageToolbar } from '../../components/shared/PageToolbar';
+import { OptionRuleEditor } from '../../components/shared/OptionRuleEditor';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -353,12 +354,12 @@ export function ProviderDatasetsPage() {
     }));
   }
 
-  function toggleSubSelectionMode(id: string) {
+  function updateSubSelectionMode(id: string, subSelectionMode: AnnotationOptionForm['subSelectionMode']) {
     setDatasetForm((current) => ({
       ...current,
       options: current.options.map((option) =>
         option.id === id
-          ? { ...option, subSelectionMode: option.subSelectionMode === 'single' ? 'multiple' : 'single' }
+          ? { ...option, subSelectionMode }
           : option
       ),
     }));
@@ -908,110 +909,17 @@ export function ProviderDatasetsPage() {
                 />
               </div>
 
-              <div className="app-field">
-                <div className="mb-2 flex items-center justify-between">
-                  <label className="app-label mb-0">标注选项</label>
-                  <AppButton
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={addAnnotationOption}
-                  >
-                    新增选项
-                  </AppButton>
-                </div>
-                <div className="space-y-3">
-                  {datasetForm.options.map((option, index) => (
-                    <div key={option.id} className="rounded border border-gray-200 p-3">
-                      <div className="flex items-center gap-2">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-gray-200 bg-gray-50 text-sm text-gray-500">
-                          {index + 1}
-                        </div>
-                        <input
-                          type="text"
-                          value={option.label}
-                          onChange={(event) => updateAnnotationOption(option.id, event.target.value)}
-                          className="app-input"
-                          placeholder="请输入选项名称"
-                        />
-                        <AppButton
-                          type="button"
-                          className={`h-10 shrink-0 rounded border px-3 text-xs font-medium ${
-                            option.hasSubOptions
-                              ? 'border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100'
-                              : 'border-gray-300 text-gray-600 hover:bg-gray-100'
-                          }`}
-                          onClick={() => toggleSubOptions(option.id)}
-                        >
-                          {option.hasSubOptions ? '子选项已开启' : '子选项'}
-                        </AppButton>
-                        <AppButton
-                          type="button"
-                          variant="secondary"
-                          size="sm"
-                          disabled={datasetForm.options.length <= 2}
-                          onClick={() => removeAnnotationOption(option.id)}
-                        >
-                          删除
-                        </AppButton>
-                      </div>
-
-                      {option.hasSubOptions && (
-                        <div className="mt-3 ml-12 rounded border-l-2 border-blue-200 bg-blue-50/50 py-3 pl-4 pr-3">
-                          <div className="mb-2 flex items-center justify-between">
-                            <span className="text-xs font-medium text-blue-700">子选项配置</span>
-                            <AppButton
-                              type="button"
-                              className={`rounded border px-2 py-1 text-xs font-medium ${
-                                option.subSelectionMode === 'single'
-                                  ? 'border-gray-400 text-gray-900'
-                                  : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-100'
-                              }`}
-                              onClick={() => toggleSubSelectionMode(option.id)}
-                            >
-                              {option.subSelectionMode === 'single' ? '单选' : '多选'}
-                            </AppButton>
-                          </div>
-                          <div className="space-y-2">
-                            {option.subOptions.map((subOption: AnnotationSubOptionForm, subIndex: number) => (
-                              <div key={subOption.id} className="flex items-center gap-2">
-                                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded border border-gray-200 bg-white text-xs text-gray-500">
-                                  {subIndex + 1}
-                                </div>
-                                <input
-                                  type="text"
-                                  value={subOption.label}
-                                  onChange={(event) => updateSubOption(option.id, subOption.id, event.target.value)}
-                                  className="app-input py-1.5 text-sm"
-                                  placeholder="子选项名称"
-                                />
-                                <AppButton
-                                  type="button"
-                                  variant="secondary"
-                                  size="sm"
-                                  disabled={option.subOptions.length <= 2}
-                                  onClick={() => removeSubOption(option.id, subOption.id)}
-                                >
-                                  删除
-                                </AppButton>
-                              </div>
-                            ))}
-                          </div>
-                          <AppButton
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            className="mt-2"
-                            onClick={() => addSubOption(option.id)}
-                          >
-                            新增子选项
-                          </AppButton>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <OptionRuleEditor
+                options={datasetForm.options}
+                onAddOption={addAnnotationOption}
+                onRemoveOption={removeAnnotationOption}
+                onChangeOptionLabel={updateAnnotationOption}
+                onToggleSubOptions={toggleSubOptions}
+                onChangeSubSelectionMode={updateSubSelectionMode}
+                onAddSubOption={addSubOption}
+                onRemoveSubOption={removeSubOption}
+                onChangeSubOptionLabel={updateSubOption}
+              />
 
               <div className="app-field max-w-xs">
                 <label htmlFor="completion-ratio" className="app-label">
