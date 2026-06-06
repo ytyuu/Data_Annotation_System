@@ -4,6 +4,7 @@ import { AnnotatorTaskWorkspaceModal } from './AnnotatorTaskWorkspaceModal';
 import { TaskBatchDetailModal } from './TaskBatchDetailModal';
 import { AppButton } from '../../components/shared/AppButton';
 import { AppModal } from '../../components/shared/AppModal';
+import { StatusBadge } from '../../components/shared/StatusBadge';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -30,8 +31,6 @@ const taskBatchStatusLabels: Record<string, string> = {
   accepted: '已通过',
   cancelled: '已退回',
 };
-
-const statusBadgeClass = 'rounded-full bg-gray-200 px-2.5 py-0.5 text-xs font-medium text-gray-700 ring-1 ring-inset ring-gray-300';
 
 export function AnnotatorMyTasksPage() {
   const navigate = useNavigate();
@@ -197,9 +196,9 @@ export function AnnotatorMyTasksPage() {
                   <div className="font-medium text-gray-900">{group.datasetName}</div>
                   <div className="mt-1 text-xs text-gray-500">{group.orderNo}</div>
                   <div className="mt-2 flex flex-wrap gap-1.5">
-                    <span className={statusBadgeClass}>
+                    <StatusBadge status={group.status}>
                       {taskBatchStatusLabels[group.status] || group.status}
-                    </span>
+                    </StatusBadge>
                   </div>
                 </div>
 

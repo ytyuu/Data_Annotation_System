@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { AppButton } from '../../components/shared/AppButton';
 import { SegmentedControl } from '../../components/shared/SegmentedControl';
 import { AppModal } from '../../components/shared/AppModal';
+import { StatusBadge } from '../../components/shared/StatusBadge';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -188,9 +189,9 @@ export function AnnotatorOpenDatasetsPage() {
                     </div>
                   </td>
                   <td className="px-4 py-4 align-middle">
-                    <span className="app-badge" data-kind="status" data-status={dataset.status}>
+                    <StatusBadge status={dataset.status}>
                       {datasetStatusLabels[dataset.status] || dataset.status}
-                    </span>
+                    </StatusBadge>
                   </td>
                   <td className="px-4 py-4 align-middle text-gray-600">
                     {getDatasetSchemaSummary(dataset)}

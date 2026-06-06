@@ -4,6 +4,7 @@ import { DonutChart } from '../../components/shared/DonutChart';
 import { AppButton } from '../../components/shared/AppButton';
 import { SegmentedControl } from '../../components/shared/SegmentedControl';
 import { AppModal } from '../../components/shared/AppModal';
+import { StatusBadge } from '../../components/shared/StatusBadge';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -1224,9 +1225,9 @@ export function ProviderDatasetsPage() {
               </div>
               <div className="app-field">
                 <div className="app-label">状态</div>
-                <span className="app-badge" data-kind="status" data-status={dataset.status}>
+                <StatusBadge status={dataset.status}>
                   {datasetStatusLabels[dataset.status] || dataset.status}
-                </span>
+                </StatusBadge>
               </div>
               <div className="app-field">
                 <div className="app-label">数据项</div>
@@ -1486,9 +1487,9 @@ export function ProviderDatasetsPage() {
                       </div>
                     </td>
                     <td className="px-4 py-4 align-middle">
-                      <span className="app-badge" data-kind="status" data-status={dataset.status}>
+                      <StatusBadge status={dataset.status}>
                         {datasetStatusLabels[dataset.status] || dataset.status}
-                      </span>
+                      </StatusBadge>
                     </td>
                     <td className="px-4 py-4 align-middle text-gray-600">
                       {getDatasetSchemaSummary(dataset)}

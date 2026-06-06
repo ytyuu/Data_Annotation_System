@@ -7,6 +7,7 @@ import type { AnnotationSchema } from '../../components/shared/AnnotationEditor'
 import { AppButton } from '../../components/shared/AppButton';
 import { SegmentedControl } from '../../components/shared/SegmentedControl';
 import { AppModal } from '../../components/shared/AppModal';
+import { StatusBadge } from '../../components/shared/StatusBadge';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -72,6 +73,18 @@ const adoptionStatusColors: Record<number, string> = {
   1: '#22c55e',
   2: '#ef4444',
 };
+
+function getAnnotationStatusTone(status: string) {
+  if (status === 'accepted') return 'success';
+  if (status === 'rejected' || status === 'returned') return 'danger';
+  return 'info';
+}
+
+function getAdoptionStatusTone(status: number) {
+  if (status === 1) return 'success';
+  if (status === 2) return 'danger';
+  return 'muted';
+}
 
 interface TaskBatchDetailModalProps {
   batchId: string;
@@ -308,9 +321,9 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
                         <DataItemViewer item={task.item} className="max-h-24" />
                       </td>
                       <td className="px-4 py-3">
-                        <span className="app-badge" data-kind="status" data-status={task.status}>
+                        <StatusBadge status={task.status}>
                           {taskStatusLabels[task.status] || task.status}
-                        </span>
+                        </StatusBadge>
                       </td>
                       <td className="px-4 py-3 text-gray-600">
                         <AnnotationResultViewer
@@ -320,34 +333,18 @@ export function TaskBatchDetailModal({ batchId, onClose }: TaskBatchDetailModalP
                       </td>
                       <td className="px-4 py-3">
                         {task.annotationStatus ? (
-                          <span
-                            className={`app-badge ${
-                              task.annotationStatus === 'accepted'
-                                ? 'bg-green-50 text-green-700'
-                                : task.annotationStatus === 'rejected' || task.annotationStatus === 'returned'
-                                ? 'bg-red-50 text-red-700'
-                                : 'bg-blue-50 text-blue-700'
-                            }`}
-                          >
+                          <StatusBadge tone={getAnnotationStatusTone(task.annotationStatus)}>
                             {annotationStatusLabels[task.annotationStatus] || task.annotationStatus}
-                          </span>
+                          </StatusBadge>
                         ) : (
                           <span className="text-gray-400">-</span>
                         )}
                       </td>
                       <td className="px-4 py-3">
                         {task.adoptionStatus !== null ? (
-                          <span
-                            className={`app-badge ${
-                              task.adoptionStatus === 1
-                                ? 'bg-green-50 text-green-700'
-                                : task.adoptionStatus === 2
-                                ? 'bg-red-50 text-red-700'
-                                : 'bg-gray-50 text-gray-600'
-                            }`}
-                          >
+                          <StatusBadge tone={getAdoptionStatusTone(task.adoptionStatus)}>
                             {adoptionStatusLabels[task.adoptionStatus] || task.adoptionStatus}
-                          </span>
+                          </StatusBadge>
                         ) : (
                           <span className="text-gray-400">-</span>
                         )}

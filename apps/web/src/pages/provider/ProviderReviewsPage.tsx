@@ -5,6 +5,7 @@ import { AnnotationResultViewer } from '../../components/shared/AnnotationResult
 import type { AnnotationSchema } from '../../components/shared/AnnotationEditor';
 import { AppButton } from '../../components/shared/AppButton';
 import { SegmentedControl } from '../../components/shared/SegmentedControl';
+import { StatusBadge } from '../../components/shared/StatusBadge';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -313,9 +314,9 @@ export function ProviderReviewsPage() {
                         </div>
                       </div>
                       <div className="ml-auto">
-                        <span className="app-badge" data-kind="status" data-status="reviewing">
+                        <StatusBadge status="reviewing">
                           审核中
-                        </span>
+                        </StatusBadge>
                       </div>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
@@ -358,9 +359,9 @@ export function ProviderReviewsPage() {
                           </div>
                         </div>
                         <div className="ml-auto">
-                          <span className="inline-block rounded border border-green-200 bg-green-50 px-2 py-0.5 text-xs font-medium text-green-700">
+                          <StatusBadge tone="success">
                             已完成审核
-                          </span>
+                          </StatusBadge>
                         </div>
                       </div>
                     </div>

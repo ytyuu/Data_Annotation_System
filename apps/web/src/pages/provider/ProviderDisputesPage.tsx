@@ -8,6 +8,7 @@ import { AnnotationCard } from '../../components/shared/AnnotationCard';
 import type { AnnotationSchema } from '../../components/shared/AnnotationEditor';
 import { AppButton } from '../../components/shared/AppButton';
 import { AppModal } from '../../components/shared/AppModal';
+import { StatusBadge } from '../../components/shared/StatusBadge';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -301,9 +302,9 @@ export function ProviderDisputesPage() {
                       </div>
                     </div>
                     <div className="ml-auto">
-                      <span className="app-badge" data-kind="status" data-status="disputed">
+                      <StatusBadge status="disputed">
                         {dataset.disputedItemCount} 条争议
-                      </span>
+                      </StatusBadge>
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
@@ -380,9 +381,9 @@ export function ProviderDisputesPage() {
                       />
                     </td>
                     <td className="px-4 py-3">
-                      <span className="app-badge" data-kind="status" data-status="disputed">
+                      <StatusBadge status="disputed">
                         有争议
-                      </span>
+                      </StatusBadge>
                     </td>
                     <td className="px-4 py-3 text-gray-500">
                       {new Date(item.updatedAt).toLocaleString()}

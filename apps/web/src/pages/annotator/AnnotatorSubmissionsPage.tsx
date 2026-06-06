@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { TaskBatchDetailModal } from './TaskBatchDetailModal';
 import { AppButton } from '../../components/shared/AppButton';
+import { StatusBadge } from '../../components/shared/StatusBadge';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -36,13 +37,6 @@ const taskBatchStatusLabels: Record<string, string> = {
   returned: '已退回',
   accepted: '已通过',
   cancelled: '已退回',
-};
-
-const statusBadgeColors: Record<string, string> = {
-  submitted: 'bg-gray-200 text-gray-700 ring-1 ring-inset ring-gray-300',
-  returned: 'bg-gray-200 text-gray-700 ring-1 ring-inset ring-gray-300',
-  accepted: 'bg-gray-200 text-gray-700 ring-1 ring-inset ring-gray-300',
-  cancelled: 'bg-gray-200 text-gray-700 ring-1 ring-inset ring-gray-300',
 };
 
 function computeDatasetSummaries(batches: TaskBatch[]): DatasetSummary[] {
@@ -214,14 +208,9 @@ export function AnnotatorSubmissionsPage() {
                     <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
                       <div className="flex flex-wrap justify-end gap-1.5">
                         {Object.entries(summary.statusCounts).map(([status, count]) => (
-                          <span
-                            key={status}
-                            className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                              statusBadgeColors[status] || 'bg-gray-200 text-gray-700 ring-1 ring-inset ring-gray-300'
-                            }`}
-                          >
+                          <StatusBadge key={status} status={status}>
                             {taskBatchStatusLabels[status] || status} {count}
-                          </span>
+                          </StatusBadge>
                         ))}
                       </div>
                       <AppButton
@@ -288,9 +277,9 @@ export function AnnotatorSubmissionsPage() {
                           {batch.orderNo}
                         </div>
                         <div className="mt-1">
-                          <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusBadgeColors[batch.status] || 'bg-gray-200 text-gray-700 ring-1 ring-inset ring-gray-300'}`}>
+                          <StatusBadge status={batch.status}>
                             {taskBatchStatusLabels[batch.status] || batch.status}
-                          </span>
+                          </StatusBadge>
                         </div>
                     </div>
 
