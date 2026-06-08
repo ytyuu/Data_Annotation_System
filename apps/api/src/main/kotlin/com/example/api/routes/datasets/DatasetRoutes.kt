@@ -35,6 +35,7 @@ fun registerDatasetRoutes(authMiddleware: AuthMiddleware?) {
         post("/provider/datasets/{datasetId}/review-item/{itemId}") { ctx -> providerDatasetHandler.reviewItem(ctx) }
         post("/provider/datasets/{datasetId}/finish-review") { ctx -> providerDatasetHandler.finishReview(ctx) }
         post("/provider/datasets/{datasetId}/complete-review") { ctx -> providerDatasetHandler.completeReview(ctx) }
+        post("/provider/datasets/{datasetId}/republish") { ctx -> providerDatasetHandler.republish(ctx) }
         post("/provider/datasets/{datasetId}/submit-review") { ctx -> providerDatasetHandler.submitReview(ctx) }
         delete("/provider/datasets/{datasetId}/items/{itemId}") { ctx -> providerDatasetHandler.deleteItem(ctx) }
         post("/provider/datasets/{datasetId}/publish") { ctx -> providerDatasetHandler.publish(ctx) }

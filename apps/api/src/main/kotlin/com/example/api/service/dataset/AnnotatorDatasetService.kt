@@ -36,6 +36,7 @@ import java.util.UUID
 class AnnotatorDatasetService {
     private val activeTaskStatuses = listOf("assigned", "in_progress")
     private val activeBatchStatuses = listOf("assigned", "in_progress")
+    private data class ItemRoundKey(val itemId: UUID, val roundNo: Int)
 
     /**
      * 查询标注员可领取任务的开放数据集列表。
@@ -56,37 +57,22 @@ class AnnotatorDatasetService {
                 .toList()
 
             val datasetIds = datasetRows.map { it[DatasetsTable.id] }
-            val pendingItemCount = DataItemsTable.id.count()
-            val alreadyAssignedItemIds = if (datasetIds.isEmpty()) {
-                emptySet()
-            } else {
-                AnnotationTasksTable
-                    .select(AnnotationTasksTable.itemId)
-                    .where {
-                        (AnnotationTasksTable.annotatorId eq annotatorId) and
-                            (AnnotationTasksTable.datasetId inList datasetIds)
-                    }
-                    .map { it[AnnotationTasksTable.itemId] }
-                    .toSet()
-            }
+            val existingTaskRounds = loadAnnotatorTaskRounds(annotatorId, datasetIds)
 
             val pendingCounts = if (datasetIds.isEmpty()) {
                 emptyMap()
             } else {
                 // 查询每个可处理数据集下当前标注员仍可领取的 pending 数据项数量。
                 DataItemsTable
-                    .select(DataItemsTable.datasetId, pendingItemCount)
+                    .selectAll()
                     .where {
                         (DataItemsTable.datasetId inList datasetIds) and
-                            (DataItemsTable.status eq "pending") and
-                            if (alreadyAssignedItemIds.isEmpty()) {
-                                Op.TRUE
-                            } else {
-                                DataItemsTable.id notInList alreadyAssignedItemIds
-                            }
+                            (DataItemsTable.status eq "pending")
                     }
-                    .groupBy(DataItemsTable.datasetId)
-                    .associate { it[DataItemsTable.datasetId] to it[pendingItemCount] }
+                    .toList()
+                    .filter { ItemRoundKey(it[DataItemsTable.id], it[DataItemsTable.currentRoundNo]) !in existingTaskRounds }
+                    .groupingBy { it[DataItemsTable.datasetId] }
+                    .eachCount()
             }
 
             val activeByDataset = if (datasetIds.isEmpty()) {
@@ -129,11 +115,15 @@ class AnnotatorDatasetService {
                 }
                 .sumOf { it[AnnotationTaskBatchesTable.totalCount] }
 
-            // 查询每个数据集下已有原始标注、尚未互查且当前标注员未参与过的数据项数量（互查任务来源）。
+            // 查询每个数据集下“当前轮可互查”的数据项数量。
+            // 这里的可互查不是看全历史，而是只看当前轮：
+            // 1. 当前轮已有原始标注；
+            // 2. 当前轮还没有 review 标注；
+            // 3. 当前标注员当前轮未参与过该数据项。
             val reviewableCounts = if (datasetIds.isEmpty()) {
                 emptyMap()
             } else {
-                findReviewableItemRows(datasetIds, alreadyAssignedItemIds)
+                findReviewableItemRows(datasetIds, existingTaskRounds)
                     .groupingBy { it[DataItemsTable.datasetId] }
                     .eachCount()
             }
@@ -144,6 +134,8 @@ class AnnotatorDatasetService {
             datasetRows.map { row ->
                 val datasetId = row[DatasetsTable.id]
                 val hasPending = (pendingCounts[datasetId] ?: 0) > 0
+                // 前端看到的“互查 N 条”就是这里的 reviewableCounts。
+                // 若为 0，表示当前轮不存在可领取的互查任务，不代表这个数据集历史上没有标注记录。
                 val hasReviewable = (reviewableCounts[datasetId] ?: 0) > 0
                 val hasActiveInDataset = (activeByDataset[datasetId] ?: 0) > 0
                 val hasActiveReviewInDataset = (activeReviewByDataset[datasetId] ?: 0) > 0
@@ -151,7 +143,7 @@ class AnnotatorDatasetService {
                 val canClaimReview = hasReviewable && !hasActiveReviewInDataset && totalActive < 5
                 val canClaim = canClaimAnnotation || canClaimReview
 
-                val pendingCount = (pendingCounts[datasetId] ?: 0).toInt()
+                val pendingCount = (pendingCounts[datasetId] ?: 0)
                 val reviewableCount = reviewableCounts[datasetId] ?: 0
                 val completedCount = completedCounts[datasetId] ?: 0
 
@@ -232,34 +224,24 @@ class AnnotatorDatasetService {
                 return@transaction ClaimTasksTransactionResult.TooManyActive
             }
 
-            val alreadyAssignedItemIds = AnnotationTasksTable
-                .select(AnnotationTasksTable.itemId)
-                .where {
-                    (AnnotationTasksTable.annotatorId eq annotatorId) and
-                        (AnnotationTasksTable.datasetId eq datasetId)
-                }
-                .map { it[AnnotationTasksTable.itemId] }
-                .toSet()
+            val existingTaskRounds = loadAnnotatorTaskRounds(annotatorId, listOf(datasetId))
 
             val items = if (taskType == "review") {
-                // 互查任务：查询已有原始标注但尚未互查的数据项，排除当前标注员已参与过的。
-                findReviewableItemRows(listOf(datasetId), alreadyAssignedItemIds, requestedCount)
+                // 互查任务：只查询当前轮已有原始标注、但当前轮尚未互查的数据项，
+                // 同时排除当前标注员当前轮已经参与过的数据项。
+                findReviewableItemRows(listOf(datasetId), existingTaskRounds, requestedCount)
             } else {
                 // 标注任务：查询 pending 数据项，排除当前标注员已参与过的。
                 DataItemsTable
                     .selectAll()
                     .where {
                         (DataItemsTable.datasetId eq datasetId) and
-                            (DataItemsTable.status eq "pending") and
-                            if (alreadyAssignedItemIds.isEmpty()) {
-                                Op.TRUE
-                            } else {
-                                DataItemsTable.id notInList alreadyAssignedItemIds
-                            }
+                            (DataItemsTable.status eq "pending")
                     }
                     .orderBy(DataItemsTable.createdAt to SortOrder.ASC)
-                    .limit(requestedCount)
                     .toList()
+                    .filter { ItemRoundKey(it[DataItemsTable.id], it[DataItemsTable.currentRoundNo]) !in existingTaskRounds }
+                    .take(requestedCount)
             }
 
             if (items.isEmpty()) {
@@ -311,6 +293,7 @@ class AnnotatorDatasetService {
                     it[AnnotationTasksTable.datasetId] = datasetId
                     it[AnnotationTasksTable.itemId] = item[DataItemsTable.id]
                     it[AnnotationTasksTable.annotatorId] = annotatorId
+                    it[roundNo] = item[DataItemsTable.currentRoundNo]
                     it[status] = "assigned"
                     it[assignedAt] = now
                     it[createdAt] = now
@@ -325,6 +308,7 @@ class AnnotatorDatasetService {
                         content = item[DataItemsTable.content],
                         contentType = item[DataItemsTable.contentType],
                         metadata = item[DataItemsTable.metadata],
+                        currentRoundNo = item[DataItemsTable.currentRoundNo],
                         finalResult = item[DataItemsTable.finalResult],
                         finalizedAt = item[DataItemsTable.finalizedAt]?.toString(),
                         finalizedBy = item[DataItemsTable.finalizedBy]?.toString(),
@@ -408,58 +392,82 @@ class AnnotatorDatasetService {
      * 查询可供互查的数据项。
      *
      * 互查候选需同时满足：
-     * 1. 已有原始标注（annotation_type = 'annotation' 且 status = 'submitted'）
-     * 2. 尚未被互查过（不存在 annotation_type = 'review' 的记录）
-     * 3. 排除当前标注员已参与过的数据项
-     * 4. 数据项状态为 assigned / annotated / disputed（已有原始标注但尚未完结）
+     * 1. 数据项当前状态为 assigned / annotated / disputed
+     * 2. 当前轮已有原始标注（annotation_type = 'annotation' 且 status = 'submitted'）
+     * 3. 当前轮尚未产生 review 标注
+     * 4. 当前标注员在当前轮未参与过该数据项
      */
     private fun findReviewableItemRows(
         datasetIds: List<UUID>,
-        excludedItemIds: Set<UUID>,
+        excludedRounds: Set<ItemRoundKey>,
         limit: Int? = null,
     ): List<ResultRow> {
         if (datasetIds.isEmpty()) {
             return emptyList()
         }
 
-        val originalItemIds = AnnotationsTable
-            .select(AnnotationsTable.itemId)
-            .where {
-                (AnnotationsTable.annotationType eq "annotation") and
-                    (AnnotationsTable.status eq "submitted")
-            }
-            .map { it[AnnotationsTable.itemId] }
-            .toSet()
-
-        if (originalItemIds.isEmpty()) {
-            return emptyList()
-        }
-
-        val reviewedItemIds = AnnotationsTable
-            .select(AnnotationsTable.itemId)
-            .where { AnnotationsTable.annotationType eq "review" }
-            .map { it[AnnotationsTable.itemId] }
-            .toSet()
-
-        val candidateItemIds = originalItemIds - reviewedItemIds - excludedItemIds
-        if (candidateItemIds.isEmpty()) {
-            return emptyList()
-        }
-
-        val query = DataItemsTable
+        val candidateItems = DataItemsTable
             .selectAll()
             .where {
                 (DataItemsTable.datasetId inList datasetIds) and
-                    (DataItemsTable.id inList candidateItemIds) and
                     (DataItemsTable.status inList listOf("assigned", "annotated", "disputed"))
             }
             .orderBy(DataItemsTable.createdAt to SortOrder.ASC)
+            .toList()
 
-        return if (limit == null) {
-            query.toList()
-        } else {
-            query.limit(limit).toList()
+        if (candidateItems.isEmpty()) {
+            return emptyList()
         }
+
+        val itemIds = candidateItems.map { it[DataItemsTable.id] }
+        val annotationsByItem = AnnotationsTable
+            .selectAll()
+            .where {
+                (AnnotationsTable.itemId inList itemIds) and
+                    (AnnotationsTable.annotationType inList listOf("annotation", "review"))
+            }
+            .toList()
+            .groupBy { it[AnnotationsTable.itemId] }
+
+        val filteredItems = candidateItems.filter { item ->
+            val currentRoundNo = item[DataItemsTable.currentRoundNo]
+            val itemRoundKey = ItemRoundKey(item[DataItemsTable.id], currentRoundNo)
+            if (itemRoundKey in excludedRounds) {
+                return@filter false
+            }
+
+            val annotations = annotationsByItem[item[DataItemsTable.id]].orEmpty()
+            // 只按数据项当前活跃轮次计算互查候选。
+            // 旧轮次的 annotation/review 记录保留作历史，但不会阻止当前轮再次进入互查。
+            val hasCurrentOriginal = annotations.any {
+                it[AnnotationsTable.roundNo] == currentRoundNo &&
+                    it[AnnotationsTable.annotationType] == "annotation" &&
+                    it[AnnotationsTable.status] == "submitted"
+            }
+            val hasCurrentReview = annotations.any {
+                it[AnnotationsTable.roundNo] == currentRoundNo &&
+                    it[AnnotationsTable.annotationType] == "review"
+            }
+
+            hasCurrentOriginal && !hasCurrentReview
+        }
+
+        return if (limit == null) filteredItems else filteredItems.take(limit)
+    }
+
+    private fun loadAnnotatorTaskRounds(annotatorId: UUID, datasetIds: List<UUID>): Set<ItemRoundKey> {
+        if (datasetIds.isEmpty()) {
+            return emptySet()
+        }
+
+        return AnnotationTasksTable
+            .selectAll()
+            .where {
+                (AnnotationTasksTable.annotatorId eq annotatorId) and
+                    (AnnotationTasksTable.datasetId inList datasetIds)
+            }
+            .map { ItemRoundKey(it[AnnotationTasksTable.itemId], it[AnnotationTasksTable.roundNo]) }
+            .toSet()
     }
 
     /**
@@ -984,7 +992,8 @@ class AnnotatorDatasetService {
                         .selectAll()
                         .where {
                             (AnnotationsTable.itemId eq submission.itemId) and
-                                (AnnotationsTable.annotationType eq "annotation")
+                                (AnnotationsTable.annotationType eq "annotation") and
+                                (AnnotationsTable.roundNo eq taskRow[AnnotationTasksTable.roundNo])
                         }
                         .orderBy(AnnotationsTable.submittedAt to SortOrder.ASC)
                         .limit(1)
@@ -1018,6 +1027,7 @@ class AnnotatorDatasetService {
                         if (isReviewBatch) {
                             it[reviewOfAnnotationId] = originalAnnotation?.get(AnnotationsTable.id)
                         }
+                        it[roundNo] = taskRow[AnnotationTasksTable.roundNo]
                         it[comment] = submission.comment
                         it[AnnotationsTable.isDisputed] = isDisputed
                         it[status] = "submitted"
@@ -1035,6 +1045,7 @@ class AnnotatorDatasetService {
                         if (isReviewBatch) {
                             it[reviewOfAnnotationId] = originalAnnotation?.get(AnnotationsTable.id)
                         }
+                        it[roundNo] = taskRow[AnnotationTasksTable.roundNo]
                         it[comment] = submission.comment
                         it[AnnotationsTable.isDisputed] = isDisputed
                         it[status] = "submitted"
@@ -1058,6 +1069,7 @@ class AnnotatorDatasetService {
                         datasetId = taskRow[AnnotationTasksTable.datasetId],
                         itemId = submission.itemId,
                         originalAnnotationId = originalAnnotation[AnnotationsTable.id],
+                        roundNo = taskRow[AnnotationTasksTable.roundNo],
                         now = now,
                     )
                 }
@@ -1142,12 +1154,14 @@ class AnnotatorDatasetService {
         datasetId: UUID,
         itemId: UUID,
         originalAnnotationId: UUID,
+        roundNo: Int,
         now: OffsetDateTime,
     ) {
         val annotations = AnnotationsTable
             .selectAll()
             .where {
                 (AnnotationsTable.itemId eq itemId) and
+                    (AnnotationsTable.roundNo eq roundNo) and
                     (AnnotationsTable.annotationType inList listOf("annotation", "review"))
             }
             .toList()
@@ -1164,6 +1178,7 @@ class AnnotatorDatasetService {
         if (isDisputed) {
             AnnotationsTable.update({
                 (AnnotationsTable.itemId eq itemId) and
+                    (AnnotationsTable.roundNo eq roundNo) and
                     (AnnotationsTable.annotationType inList listOf("annotation", "review"))
             }) {
                 it[AnnotationsTable.isDisputed] = true
@@ -1185,6 +1200,7 @@ class AnnotatorDatasetService {
         } else {
             AnnotationsTable.update({
                 (AnnotationsTable.itemId eq itemId) and
+                    (AnnotationsTable.roundNo eq roundNo) and
                     (AnnotationsTable.annotationType inList listOf("annotation", "review"))
             }) {
                 it[AnnotationsTable.isDisputed] = false

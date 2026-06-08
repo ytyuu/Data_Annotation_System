@@ -303,6 +303,24 @@ class ProviderDatasetHandler(private val datasetService: ProviderDatasetService)
     }
 
     /**
+     * 处理 `POST /api/provider/datasets/{datasetId}/republish` 请求。
+     *
+     * @param ctx Javalin 请求上下文
+     */
+    fun republish(ctx: Context) {
+        val providerId = UUID.fromString(ctx.currentUser().id)
+        val datasetId = UUID.fromString(ctx.pathParam("datasetId"))
+
+        when (val result = datasetService.republishRejectedItems(providerId, datasetId)) {
+            is Result.Success -> ctx.json(result.value)
+            is Result.BadRequest -> ctx.badRequest(result.message)
+            is Result.Forbidden -> ctx.forbidden(result.message)
+            is Result.Conflict -> ctx.conflict(result.message)
+            is Result.Unauthorized -> ctx.unauthorized(result.message)
+        }
+    }
+
+    /**
      * 处理 `DELETE /api/provider/datasets/{datasetId}` 请求。
      *
      * @param ctx Javalin 请求上下文

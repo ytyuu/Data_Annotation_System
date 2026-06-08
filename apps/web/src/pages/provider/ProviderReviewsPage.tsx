@@ -88,6 +88,8 @@ export function ProviderReviewsPage() {
   const [finishDone, setFinishDone] = useState(false);
   const [completeSubmitting, setCompleteSubmitting] = useState(false);
   const [completeError, setCompleteError] = useState('');
+  const [republishSubmitting, setRepublishSubmitting] = useState(false);
+  const [republishError, setRepublishError] = useState('');
 
   useEffect(() => {
     loadDatasets();
@@ -178,6 +180,7 @@ export function ProviderReviewsPage() {
     setFinishDone(false);
     setFinishError('');
     setCompleteError('');
+    setRepublishError('');
   }
 
   const schema = useMemo(() => {
@@ -291,6 +294,40 @@ export function ProviderReviewsPage() {
       setCompleteError(err instanceof Error ? err.message : '标记完成失败');
     } finally {
       setCompleteSubmitting(false);
+    }
+  }
+
+  async function handleRepublishRejected() {
+    if (!selectedDataset) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setRepublishSubmitting(true);
+    setRepublishError('');
+
+    try {
+      const response = await fetch(
+        `${apiBaseUrl}/api/provider/datasets/${selectedDataset.id}/republish`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.message || '重新发布失败');
+      }
+
+      await loadDatasets();
+      await loadReviewItems(selectedDataset);
+    } catch (err) {
+      setRepublishError(err instanceof Error ? err.message : '重新发布失败');
+    } finally {
+      setRepublishSubmitting(false);
     }
   }
 
@@ -428,6 +465,9 @@ export function ProviderReviewsPage() {
     const canComplete = reviewDetail
       ? reviewDetail.items.length > 0 &&
         reviewDetail.items.every((ri) => ri.item.status === 'accepted')
+      : false;
+    const hasRejectedItems = reviewDetail
+      ? reviewDetail.items.some((ri) => ri.item.status === 'rejected')
       : false;
 
     return (
@@ -578,6 +618,24 @@ export function ProviderReviewsPage() {
                 {completeError && (
                   <AppAlert kind="error" className="px-3 py-1.5">
                     {completeError}
+                  </AppAlert>
+                )}
+              </div>
+            )}
+
+            {hasRejectedItems && (
+              <div className="flex items-center gap-3">
+                <AppButton
+                  type="button"
+                  variant="secondary"
+                  disabled={republishSubmitting}
+                  onClick={handleRepublishRejected}
+                >
+                  {republishSubmitting ? '重新发布中...' : '重新发布未通过项'}
+                </AppButton>
+                {republishError && (
+                  <AppAlert kind="error" className="px-3 py-1.5">
+                    {republishError}
                   </AppAlert>
                 )}
               </div>

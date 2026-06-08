@@ -47,6 +47,7 @@ CREATE TABLE "public"."annotation_tasks" (
                                              "dataset_id" uuid NOT NULL,
                                              "item_id" uuid NOT NULL,
                                              "annotator_id" uuid NOT NULL,
+                                             "round_no" int4 NOT NULL DEFAULT 1,
                                              "status" varchar(32) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'assigned'::character varying,
                                              "assigned_at" timestamptz(6) NOT NULL DEFAULT now(),
                                              "started_at" timestamptz(6),
@@ -61,6 +62,7 @@ COMMENT ON COLUMN "public"."annotation_tasks"."id" IS '任务 ID';
 COMMENT ON COLUMN "public"."annotation_tasks"."dataset_id" IS '所属数据集 ID';
 COMMENT ON COLUMN "public"."annotation_tasks"."item_id" IS '待标注数据项 ID';
 COMMENT ON COLUMN "public"."annotation_tasks"."annotator_id" IS '标注员用户 ID';
+COMMENT ON COLUMN "public"."annotation_tasks"."round_no" IS '所属标注轮次，从 1 开始递增';
 COMMENT ON COLUMN "public"."annotation_tasks"."status" IS '任务状态：assigned、in_progress、submitted、returned、accepted、cancelled';
 COMMENT ON COLUMN "public"."annotation_tasks"."assigned_at" IS '分配时间';
 COMMENT ON COLUMN "public"."annotation_tasks"."started_at" IS '开始标注时间';
@@ -79,6 +81,7 @@ CREATE TABLE "public"."annotations" (
                                         "task_id" uuid NOT NULL,
                                         "item_id" uuid NOT NULL,
                                         "annotator_id" uuid NOT NULL,
+                                        "round_no" int4 NOT NULL DEFAULT 1,
                                         "result" jsonb NOT NULL,
                                         "annotation_type" varchar(32) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'annotation'::character varying,
                                         "review_of_annotation_id" uuid,
@@ -99,6 +102,7 @@ COMMENT ON COLUMN "public"."annotations"."id" IS '标注结果 ID';
 COMMENT ON COLUMN "public"."annotations"."task_id" IS '所属标注任务 ID';
 COMMENT ON COLUMN "public"."annotations"."item_id" IS '被标注的数据项 ID';
 COMMENT ON COLUMN "public"."annotations"."annotator_id" IS '提交标注结果的标注员 ID';
+COMMENT ON COLUMN "public"."annotations"."round_no" IS '所属标注轮次，从 1 开始递增';
 COMMENT ON COLUMN "public"."annotations"."result" IS '当前记录提交人的标注结果，使用 JSONB 保存';
 COMMENT ON COLUMN "public"."annotations"."annotation_type" IS '标注结果类别：annotation 原始标注，review 互查复核';
 COMMENT ON COLUMN "public"."annotations"."review_of_annotation_id" IS '互查复核对应的原始标注结果 ID，仅 annotation_type=review 时使用';
@@ -125,6 +129,7 @@ CREATE TABLE "public"."data_items" (
                                        "content" text COLLATE "pg_catalog"."default" NOT NULL,
                                        "content_type" varchar(32) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'text'::character varying,
                                        "metadata" jsonb NOT NULL DEFAULT '{}'::jsonb,
+                                       "current_round_no" int4 NOT NULL DEFAULT 1,
                                        "final_result" jsonb,
                                        "finalized_at" timestamptz(6),
                                        "finalized_by" uuid,
@@ -138,6 +143,7 @@ COMMENT ON COLUMN "public"."data_items"."dataset_id" IS '所属数据集 ID';
 COMMENT ON COLUMN "public"."data_items"."content" IS '数据内容或资源地址';
 COMMENT ON COLUMN "public"."data_items"."content_type" IS '内容类型：text、image、audio、video、json';
 COMMENT ON COLUMN "public"."data_items"."metadata" IS '数据项扩展信息，例如来源、文件名、尺寸、语言、导入批次等，不保存标注规则';
+COMMENT ON COLUMN "public"."data_items"."current_round_no" IS '当前活跃标注轮次，从 1 开始递增';
 COMMENT ON COLUMN "public"."data_items"."final_result" IS '争议裁决后的最终标注结果';
 COMMENT ON COLUMN "public"."data_items"."finalized_at" IS '最终结果确认时间';
 COMMENT ON COLUMN "public"."data_items"."finalized_by" IS '确认最终结果的提供方用户 ID';
@@ -617,7 +623,7 @@ CREATE INDEX "idx_annotation_tasks_dataset_status" ON "public"."annotation_tasks
 -- ----------------------------
 -- Uniques structure for table annotation_tasks
 -- ----------------------------
-ALTER TABLE "public"."annotation_tasks" ADD CONSTRAINT "annotation_tasks_item_id_annotator_id_key" UNIQUE ("item_id", "annotator_id");
+ALTER TABLE "public"."annotation_tasks" ADD CONSTRAINT "annotation_tasks_item_id_annotator_id_round_no_key" UNIQUE ("item_id", "annotator_id", "round_no");
 
 -- ----------------------------
 -- Checks structure for table annotation_tasks

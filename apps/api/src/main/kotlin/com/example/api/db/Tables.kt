@@ -40,6 +40,7 @@ object DataItemsTable : Table("data_items") {
     val content = text("content")
     val contentType = varchar("content_type", 32)
     val metadata = jsonb("metadata")
+    val currentRoundNo = integer("current_round_no")
     val finalResult = jsonb("final_result").nullable()
     val finalizedAt = timestampWithTimeZone("finalized_at").nullable()
     val finalizedBy = uuid("finalized_by").nullable()
@@ -74,6 +75,7 @@ object AnnotationTasksTable : Table("annotation_tasks") {
     val datasetId = uuid("dataset_id").references(DatasetsTable.id, onDelete = ReferenceOption.CASCADE)
     val itemId = uuid("item_id").references(DataItemsTable.id, onDelete = ReferenceOption.CASCADE)
     val annotatorId = uuid("annotator_id").references(UsersTable.id)
+    val roundNo = integer("round_no")
     val status = varchar("status", 32)
     val assignedAt = timestampWithTimeZone("assigned_at")
     val startedAt = timestampWithTimeZone("started_at").nullable()
@@ -85,7 +87,7 @@ object AnnotationTasksTable : Table("annotation_tasks") {
     override val primaryKey = PrimaryKey(id)
 
     init {
-        uniqueIndex(itemId, annotatorId)
+        uniqueIndex(itemId, annotatorId, roundNo)
     }
 }
 
@@ -94,6 +96,7 @@ object AnnotationsTable : Table("annotations") {
     val taskId = uuid("task_id").references(AnnotationTasksTable.id, onDelete = ReferenceOption.CASCADE).uniqueIndex()
     val itemId = uuid("item_id").references(DataItemsTable.id, onDelete = ReferenceOption.CASCADE)
     val annotatorId = uuid("annotator_id").references(UsersTable.id)
+    val roundNo = integer("round_no")
     val result = jsonb("result")
     val annotationType = varchar("annotation_type", 32).default("annotation")
     val reviewOfAnnotationId = uuid("review_of_annotation_id").nullable()

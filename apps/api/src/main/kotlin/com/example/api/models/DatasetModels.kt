@@ -110,6 +110,7 @@ data class DataItemResponse(
     val content: String,
     val contentType: String,
     val metadata: String,
+    val currentRoundNo: Int = 1,
     val finalResult: String? = null,
     val finalizedAt: String? = null,
     val finalizedBy: String? = null,

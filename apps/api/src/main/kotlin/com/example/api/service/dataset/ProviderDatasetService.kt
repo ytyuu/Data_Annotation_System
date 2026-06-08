@@ -195,6 +195,7 @@ class ProviderDatasetService {
                         it[content] = item.content
                         it[contentType] = item.contentType
                         it[metadata] = item.metadata
+                        it[currentRoundNo] = 1
                         it[status] = "pending"
                         it[createdAt] = now
                         it[updatedAt] = now
@@ -306,6 +307,7 @@ class ProviderDatasetService {
                 .selectAll()
                 .where {
                     (AnnotationsTable.itemId eq itemId) and
+                        (AnnotationsTable.roundNo eq item[DataItemsTable.currentRoundNo]) and
                         (AnnotationsTable.annotationType inList listOf("annotation", "review"))
                 }
                 .toList()
@@ -619,6 +621,7 @@ class ProviderDatasetService {
                 .selectAll()
                 .where {
                     (AnnotationsTable.itemId eq itemId) and
+                        (AnnotationsTable.roundNo eq item[DataItemsTable.currentRoundNo]) and
                         (AnnotationsTable.annotationType inList listOf("annotation", "review"))
                 }
                 .orderBy(AnnotationsTable.annotationType to SortOrder.ASC)
@@ -730,6 +733,12 @@ class ProviderDatasetService {
                     }
                     .orderBy(AnnotationsTable.annotationType to SortOrder.ASC)
                     .toList()
+                    .filter { ann ->
+                        items.any { item ->
+                            item[DataItemsTable.id] == ann[AnnotationsTable.itemId] &&
+                                item[DataItemsTable.currentRoundNo] == ann[AnnotationsTable.roundNo]
+                        }
+                    }
 
                 val annotatorIds = annRows.map { it[AnnotationsTable.annotatorId] }.toSet()
                 val annotatorNames = if (annotatorIds.isEmpty()) {
@@ -1082,6 +1091,66 @@ class ProviderDatasetService {
     }
 
     /**
+     * 重新发布审核未通过的数据项，开启新一轮标注。
+     *
+     * 数据集保持在 `reviewing` 状态，仅将未通过的数据项推进到下一轮并重新置为待标注。
+     */
+    fun republishRejectedItems(
+        providerId: UUID,
+        datasetId: UUID,
+    ): Result<UpdateDatasetResponse> {
+        val result = transaction {
+            val dataset = findProviderDataset(providerId, datasetId)
+                ?: return@transaction RepublishRejectedItemsResult.NotFound
+
+            if (dataset.status != "reviewing") {
+                return@transaction RepublishRejectedItemsResult.InvalidStatus
+            }
+
+            val rejectedItems = DataItemsTable
+                .selectAll()
+                .where {
+                    (DataItemsTable.datasetId eq datasetId) and
+                        (DataItemsTable.status eq "rejected")
+                }
+                .toList()
+
+            if (rejectedItems.isEmpty()) {
+                return@transaction RepublishRejectedItemsResult.NoRejectedItems
+            }
+
+            val now = OffsetDateTime.now()
+            rejectedItems.forEach { item ->
+                DataItemsTable.update({ DataItemsTable.id eq item[DataItemsTable.id] }) {
+                    it[currentRoundNo] = item[DataItemsTable.currentRoundNo] + 1
+                    it[status] = "pending"
+                    it[finalResult] = null
+                    it[finalizedAt] = null
+                    it[finalizedBy] = null
+                    it[updatedAt] = now
+                }
+            }
+
+            DatasetQueryHelper.refreshDatasetCompletedItemCount(datasetId, now)
+            DatasetsTable.update({ DatasetsTable.id eq datasetId }) {
+                it[status] = "reviewing"
+                it[updatedAt] = now
+            }
+
+            RepublishRejectedItemsResult.Success(rejectedItems.size)
+        }
+
+        return when (result) {
+            RepublishRejectedItemsResult.NotFound -> Result.BadRequest("数据集不存在或无权访问")
+            RepublishRejectedItemsResult.InvalidStatus -> Result.BadRequest("仅可重新发布审核中的数据集")
+            RepublishRejectedItemsResult.NoRejectedItems -> Result.BadRequest("当前没有可重新发布的未通过数据项")
+            is RepublishRejectedItemsResult.Success -> Result.Success(
+                UpdateDatasetResponse("已重新发布 ${result.count} 条未通过数据项")
+            )
+        }
+    }
+
+    /**
      * 手动将审核中的数据集标记为完成。
      *
      * 仅当数据集下所有数据项都已审核通过时允许完成。
@@ -1220,6 +1289,7 @@ class ProviderDatasetService {
             content = row[DataItemsTable.content],
             contentType = row[DataItemsTable.contentType],
             metadata = row[DataItemsTable.metadata],
+            currentRoundNo = row[DataItemsTable.currentRoundNo],
             finalResult = row[DataItemsTable.finalResult],
             finalizedAt = row[DataItemsTable.finalizedAt]?.toString(),
             finalizedBy = row[DataItemsTable.finalizedBy]?.toString(),
@@ -1340,6 +1410,13 @@ class ProviderDatasetService {
         data class Success(val itemCount: Int) : DeleteDataItemTransactionResult()
         data object NotFound : DeleteDataItemTransactionResult()
         data object InvalidStatus : DeleteDataItemTransactionResult()
+    }
+
+    private sealed class RepublishRejectedItemsResult {
+        data class Success(val count: Int) : RepublishRejectedItemsResult()
+        data object NotFound : RepublishRejectedItemsResult()
+        data object InvalidStatus : RepublishRejectedItemsResult()
+        data object NoRejectedItems : RepublishRejectedItemsResult()
     }
 
     private sealed class ReviewItemsResult {
