@@ -364,7 +364,7 @@ data class ReviewDetailResponse(
 /**
  * 提交数据集审核请求。
  *
- * @property status 审核结果：`approved` / `revision_required` / `rejected`
+ * @property status 审核结果：`approved` / `revision_required`
  * @property opinion 审核意见
  * @property sampledItemCount 抽样审核的数据项数量
  */
@@ -378,7 +378,7 @@ data class SubmitReviewRequest(
  * 提交数据集审核响应。
  *
  * @property message 处理结果消息
- * @property datasetStatus 审核后的数据集状态
+ * @property datasetStatus 审核后的数据集状态（当前保持为 `reviewing`）
  */
 data class SubmitReviewResponse(
     val message: String,
@@ -395,7 +395,7 @@ data class ReviewItemActionRequest(
 )
 
 /**
- * 完成数据集审核请求。
+ * 保存数据集审核结果请求。
  *
  * @property opinion 审核意见（可选）
  */
@@ -404,10 +404,10 @@ data class FinishReviewRequest(
 )
 
 /**
- * 完成数据集审核响应。
+ * 保存数据集审核结果响应。
  *
  * @property message 处理结果消息
- * @property datasetStatus 完成后的数据集状态
+ * @property datasetStatus 保存后的数据集状态
  * @property acceptedCount 通过审核的数据项数
  * @property rejectedCount 未通过审核的数据项数
  */

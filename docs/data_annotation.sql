@@ -200,7 +200,7 @@ COMMENT ON COLUMN "public"."datasets"."name" IS '数据集名称';
 COMMENT ON COLUMN "public"."datasets"."description" IS '数据集描述';
 COMMENT ON COLUMN "public"."datasets"."annotation_guide" IS '标注文档或标注说明';
 COMMENT ON COLUMN "public"."datasets"."annotation_schema" IS '标注配置结构，定义标注类型、字段、选项、校验规则和结果格式，使用 JSONB 保存';
-COMMENT ON COLUMN "public"."datasets"."status" IS '数据集状态：draft、open、annotating、reviewing、revision_required、completed、closed';
+COMMENT ON COLUMN "public"."datasets"."status" IS '数据集状态：draft、in_progress、reviewing、completed';
 COMMENT ON COLUMN "public"."datasets"."target_completion_ratio" IS '触发审核的目标完成比例，默认 50%';
 COMMENT ON COLUMN "public"."datasets"."item_count" IS '数据项总数';
 COMMENT ON COLUMN "public"."datasets"."completed_item_count" IS '已完成数据项数量';
@@ -734,7 +734,7 @@ CREATE INDEX "idx_datasets_status_created_at" ON "public"."datasets" USING btree
 -- ----------------------------
 -- Checks structure for table datasets
 -- ----------------------------
-ALTER TABLE "public"."datasets" ADD CONSTRAINT "datasets_status_check" CHECK (status::text = ANY (ARRAY['draft'::character varying, 'open'::character varying, 'annotating'::character varying, 'reviewing'::character varying, 'revision_required'::character varying, 'completed'::character varying, 'closed'::character varying]::text[]));
+ALTER TABLE "public"."datasets" ADD CONSTRAINT "datasets_status_check" CHECK (status::text = ANY (ARRAY['draft'::character varying, 'in_progress'::character varying, 'reviewing'::character varying, 'completed'::character varying]::text[]));
 ALTER TABLE "public"."datasets" ADD CONSTRAINT "datasets_item_count_check" CHECK (item_count >= 0);
 ALTER TABLE "public"."datasets" ADD CONSTRAINT "datasets_completed_item_count_check" CHECK (completed_item_count >= 0);
 ALTER TABLE "public"."datasets" ADD CONSTRAINT "datasets_target_completion_ratio_check" CHECK (target_completion_ratio > 0::numeric AND target_completion_ratio <= 100::numeric);

@@ -84,8 +84,8 @@ object DatasetQueryHelper {
     }
 
     /**
-     * 检查数据集是否达到目标完成比例，若达到且当前为可过渡状态（`annotating` 或 `open`），
-     * 则自动过渡到 `reviewing` 状态，等待提供者审核。
+     * 检查数据集是否达到目标完成比例，若达到且当前仍处于进行中，
+     * 则自动过渡到 `reviewing` 状态，进入审核阶段。
      *
      * 应在 [refreshDatasetCompletedItemCount] 之后调用。
      */
@@ -96,7 +96,7 @@ object DatasetQueryHelper {
             .limit(1)
             .firstOrNull() ?: return
 
-        if (dataset[DatasetsTable.status] !in listOf("annotating", "open")) return
+        if (dataset[DatasetsTable.status] != "in_progress") return
 
         val itemCount = dataset[DatasetsTable.itemCount]
         if (itemCount <= 0) return

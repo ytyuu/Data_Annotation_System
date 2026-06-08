@@ -86,6 +86,8 @@ export function ProviderReviewsPage() {
   const [finishSubmitting, setFinishSubmitting] = useState(false);
   const [finishError, setFinishError] = useState('');
   const [finishDone, setFinishDone] = useState(false);
+  const [completeSubmitting, setCompleteSubmitting] = useState(false);
+  const [completeError, setCompleteError] = useState('');
 
   useEffect(() => {
     loadDatasets();
@@ -175,6 +177,7 @@ export function ProviderReviewsPage() {
     setReviewDecisions({});
     setFinishDone(false);
     setFinishError('');
+    setCompleteError('');
   }
 
   const schema = useMemo(() => {
@@ -245,6 +248,9 @@ export function ProviderReviewsPage() {
         throw new Error(data?.message || '提交失败');
       }
 
+      const reviewingDataset = { ...selectedDataset, status: 'reviewing' };
+      setSelectedDataset(reviewingDataset);
+      await loadReviewItems(reviewingDataset);
       setFinishDone(true);
       await loadDatasets();
     } catch (err) {
@@ -254,15 +260,51 @@ export function ProviderReviewsPage() {
     }
   }
 
+  async function handleCompleteReview() {
+    if (!selectedDataset) return;
+
+    const token = localStorage.getItem('token');
+    if (!token) return;
+
+    setCompleteSubmitting(true);
+    setCompleteError('');
+
+    try {
+      const response = await fetch(
+        `${apiBaseUrl}/api/provider/datasets/${selectedDataset.id}/complete-review`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+      const data = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(data?.message || '标记完成失败');
+      }
+
+      await loadDatasets();
+      backToDatasets();
+    } catch (err) {
+      setCompleteError(err instanceof Error ? err.message : '标记完成失败');
+    } finally {
+      setCompleteSubmitting(false);
+    }
+  }
+
   function renderDatasetsView() {
     const pendingDatasets = datasets.filter((d) => {
-      if (d.hasBeenReviewed) return false;
+      if (d.status === 'completed') return false;
+      if (d.status === 'reviewing') return true;
+      if (d.status !== 'in_progress') return false;
       if (d.itemCount <= 0) return false;
       const ratio = Number(d.targetCompletionRatio);
       return (d.completedItemCount / d.itemCount) * 100 >= ratio;
     });
 
-    const reviewedDatasets = datasets.filter((d) => d.hasBeenReviewed);
+    const reviewedDatasets = datasets.filter((d) => d.status === 'completed');
 
     return (
       <div>
@@ -317,8 +359,8 @@ export function ProviderReviewsPage() {
                         </div>
                       </div>
                       <div className="ml-auto">
-                        <StatusBadge status="reviewing">
-                          审核中
+                        <StatusBadge status={dataset.status === 'reviewing' ? 'reviewing' : 'in_progress'}>
+                          {dataset.status === 'reviewing' ? '审核中' : '待开始审核'}
                         </StatusBadge>
                       </div>
                     </div>
@@ -329,7 +371,7 @@ export function ProviderReviewsPage() {
                         size="sm"
                         onClick={() => openDataset(dataset)}
                       >
-                        开始审核
+                        {dataset.status === 'reviewing' ? '继续审核' : '开始审核'}
                       </AppButton>
                     </div>
                   </div>
@@ -383,6 +425,10 @@ export function ProviderReviewsPage() {
       ? reviewDetail.items.length > 0 &&
         reviewDetail.items.every((ri) => ri.item.id in reviewDecisions)
       : false;
+    const canComplete = reviewDetail
+      ? reviewDetail.items.length > 0 &&
+        reviewDetail.items.every((ri) => ri.item.status === 'accepted')
+      : false;
 
     return (
       <div>
@@ -396,7 +442,9 @@ export function ProviderReviewsPage() {
             返回
           </AppButton>
           <div className="text-base font-semibold text-gray-900">{selectedDataset.name}</div>
-          <div className="text-sm text-gray-500">逐条审核</div>
+          <div className="text-sm text-gray-500">
+            {selectedDataset.status === 'reviewing' ? '审核中' : '开始审核'}
+          </div>
         </div>
 
         {detailError && <AppAlert kind="error" className="mb-6">{detailError}</AppAlert>}
@@ -414,7 +462,7 @@ export function ProviderReviewsPage() {
                 {reviewDetail.annotationGuide || '暂无标注说明'}
               </div>
               <div className="mt-2 text-xs text-blue-700">
-                标记为通过后仍可改为不通过；标记为不通过后将无法修改。
+                数据集进入审核阶段后会一直保持审核中，直到手动标记完成。
               </div>
             </AppAlert>
 
@@ -507,11 +555,29 @@ export function ProviderReviewsPage() {
                   disabled={finishSubmitting}
                   onClick={handleFinishReview}
                 >
-                  {finishSubmitting ? '提交中...' : '审核完成'}
+                  {finishSubmitting ? '保存中...' : '保存审核结果'}
                 </AppButton>
                 {finishError && (
                   <AppAlert kind="error" className="px-3 py-1.5">
                     {finishError}
+                  </AppAlert>
+                )}
+              </div>
+            )}
+
+            {canComplete && (
+              <div className="flex items-center gap-3">
+                <AppButton
+                  type="button"
+                  variant="primary"
+                  disabled={completeSubmitting}
+                  onClick={handleCompleteReview}
+                >
+                  {completeSubmitting ? '提交中...' : '标记完成'}
+                </AppButton>
+                {completeError && (
+                  <AppAlert kind="error" className="px-3 py-1.5">
+                    {completeError}
                   </AppAlert>
                 )}
               </div>

@@ -48,10 +48,10 @@ class AnnotatorDatasetService {
      */
     fun listOpenDatasets(annotatorId: UUID): Result<List<DatasetResponse>> {
         val datasets = transaction {
-            // 查询所有已开放的数据集，作为标注员可领取任务的候选列表。
+            // 查询所有仍可继续处理的数据集，作为标注员可领取任务的候选列表。
             val datasetRows = DatasetsTable
                 .selectAll()
-                .where { DatasetsTable.status eq "open" }
+                .where { DatasetsTable.status inList listOf("in_progress", "reviewing") }
                 .orderBy(DatasetsTable.updatedAt to SortOrder.DESC)
                 .toList()
 
@@ -73,7 +73,7 @@ class AnnotatorDatasetService {
             val pendingCounts = if (datasetIds.isEmpty()) {
                 emptyMap()
             } else {
-                // 查询每个开放数据集下当前标注员仍可领取的 pending 数据项数量。
+                // 查询每个可处理数据集下当前标注员仍可领取的 pending 数据项数量。
                 DataItemsTable
                     .select(DataItemsTable.datasetId, pendingItemCount)
                     .where {
@@ -199,7 +199,7 @@ class AnnotatorDatasetService {
                 .firstOrNull()
                 ?: return@transaction ClaimTasksTransactionResult.NotFound
 
-            if (dataset[DatasetsTable.status] != "open") {
+            if (dataset[DatasetsTable.status] !in listOf("in_progress", "reviewing")) {
                 return@transaction ClaimTasksTransactionResult.InvalidStatus
             }
 
@@ -281,14 +281,6 @@ class AnnotatorDatasetService {
                 items
             }
 
-            // 首次领取标注任务时，将数据集从 open 过渡到 annotating。
-            if (taskType == "annotation" && claimedItems.isNotEmpty() && dataset[DatasetsTable.status] == "open") {
-                DatasetsTable.update({ DatasetsTable.id eq datasetId }) {
-                    it[status] = "annotating"
-                    it[updatedAt] = now
-                }
-            }
-
             if (claimedItems.isEmpty()) {
                 return@transaction ClaimTasksTransactionResult.EmptyDataset
             }
@@ -356,7 +348,7 @@ class AnnotatorDatasetService {
 
         return when (result) {
             ClaimTasksTransactionResult.NotFound -> Result.BadRequest("数据集不存在或无权访问")
-            ClaimTasksTransactionResult.InvalidStatus -> Result.BadRequest("该数据集未开放领取")
+            ClaimTasksTransactionResult.InvalidStatus -> Result.BadRequest("该数据集当前不可领取")
             ClaimTasksTransactionResult.AlreadyClaimed -> Result.BadRequest("该数据集已有未完成任务单")
             ClaimTasksTransactionResult.TooManyActive -> Result.BadRequest("当前进行中的任务已达上限")
             ClaimTasksTransactionResult.EmptyDataset -> Result.BadRequest("该数据集暂无可领取任务")
@@ -408,7 +400,7 @@ class AnnotatorDatasetService {
             pendingItemCount = pendingItemCount,
             reviewableItemCount = reviewableItemCount,
             disputedItemCount = null,
-            hasBeenReviewed = row[DatasetsTable.status] in listOf("completed", "closed", "revision_required"),
+            hasBeenReviewed = row[DatasetsTable.status] == "completed",
         )
     }
 

@@ -8,7 +8,7 @@
 -- 1. 删除所有 dataset_reviews（数据集审核记录）。
 -- 2. 删除所有 annotation_task_batches（级联删除 annotation_tasks 和 annotations）。
 -- 3. 将所有数据项状态恢复为 pending，并清空 final_result/finalized_at/finalized_by。
--- 4. 将所有数据集状态恢复为 open（已发布但未开始标注的状态），并重置 completed_item_count。
+-- 4. 将所有数据集状态恢复为 in_progress（已发布进行中状态），并重置 completed_item_count。
 --
 -- 注意：此脚本会清空全库标注执行数据，保留 users、datasets、data_items。
 
@@ -36,14 +36,14 @@ where status <> 'pending'
    or finalized_by is not null;
 
 -- 4. 恢复数据集状态并重置统计计数
--- 数据集状态从 annotating/reviewing/revision_required/completed/closed 恢复为 open
+-- 数据集状态从 reviewing/completed 恢复为 in_progress
 -- 这样数据集可以继续被标注员领取任务
 update datasets
 set
-    status = 'open',
+    status = 'in_progress',
     completed_item_count = 0,
     updated_at = now()
 where status <> 'draft'
-   and status <> 'open';
+   and status <> 'in_progress';
 
 commit;

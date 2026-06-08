@@ -18,6 +18,7 @@ const apiBaseUrl = 'http://localhost:7000';
 
 const datasetStatusLabels: Record<string, string> = {
   draft: '草稿',
+  in_progress: '进行中',
   open: '已开放',
   annotating: '标注中',
   reviewing: '审核中',

@@ -466,7 +466,7 @@ class ProviderDatasetService {
      * 发布指定提供者的草稿数据集，使其对标注员开放。
      *
      * 发布前会校验数据集是否包含至少一条数据项，且数据集当前必须为 `draft` 状态。
-     * 发布后数据集状态变为 `open`，标注员可以领取其中的任务。
+     * 发布后数据集状态变为 `in_progress`，标注员可以领取其中的任务。
      *
      * @param providerId 数据集提供者用户 ID
      * @param datasetId 要发布的数据集 ID
@@ -493,7 +493,7 @@ class ProviderDatasetService {
             }
 
             DatasetsTable.update({ DatasetsTable.id eq datasetId }) {
-                it[status] = "open"
+                it[status] = "in_progress"
                 it[DatasetsTable.itemCount] = itemCount
                 it[updatedAt] = OffsetDateTime.now()
             }
@@ -508,7 +508,7 @@ class ProviderDatasetService {
             PublishDatasetTransactionResult.Success -> Result.Success(
                 PublishDatasetResponse(
                     message = "数据集已发布",
-                    status = "open",
+                    status = "in_progress",
                 )
             )
         }
@@ -693,7 +693,7 @@ class ProviderDatasetService {
             val currentStatus = ds[DatasetsTable.status]
             if (currentStatus != "reviewing") {
                 val itemCount = ds[DatasetsTable.itemCount]
-                if (itemCount > 0 && currentStatus in listOf("open", "annotating")) {
+                if (itemCount > 0 && currentStatus == "in_progress") {
                     val completedCount = ds[DatasetsTable.completedItemCount]
                     val targetRatio = ds[DatasetsTable.targetCompletionRatio]
                     if (completedCount.toDouble() / itemCount.toDouble() * 100.0 >= targetRatio.toDouble()) {
@@ -713,7 +713,7 @@ class ProviderDatasetService {
                 .selectAll()
                 .where {
                     (DataItemsTable.datasetId eq datasetId) and
-                        (DataItemsTable.status inList listOf("annotated", "accepted"))
+                        (DataItemsTable.status inList listOf("annotated", "accepted", "rejected"))
                 }
                 .orderBy(DataItemsTable.updatedAt to SortOrder.DESC)
                 .toList()
@@ -796,10 +796,8 @@ class ProviderDatasetService {
     /**
      * 提交数据集审核结果。
      *
-     * 提供者审核数据集标注质量后，可选择：
-     * - `approved`：审核通过，数据集进入完成状态
-     * - `revision_required`：需要修改，数据集退回标注阶段
-     * - `rejected`：审核拒绝，数据集关闭
+     * 提供者审核数据集标注质量后，可提交阶段性审核结论。
+     * 数据集保持在 `reviewing` 状态，直到手动标记完成。
      *
      * @param providerId 数据集提供者用户 ID
      * @param datasetId 数据集 ID
@@ -813,10 +811,10 @@ class ProviderDatasetService {
     ): Result<SubmitReviewResponse> {
         val reviewStatus = request.status.trim().lowercase()
         val opinion = request.opinion?.trim()?.takeIf { it.isNotEmpty() }
-        val validStatuses = setOf("approved", "revision_required", "rejected")
+        val validStatuses = setOf("approved", "revision_required")
 
         if (reviewStatus !in validStatuses) {
-            return Result.BadRequest("审核结果必须为 approved、revision_required 或 rejected")
+            return Result.BadRequest("审核结果必须为 approved 或 revision_required")
         }
 
         val result = transaction {
@@ -888,20 +886,12 @@ class ProviderDatasetService {
                 }
             }
 
-            // 更新数据集状态
-            val datasetStatus = when (reviewStatus) {
-                "approved" -> "completed"
-                "revision_required" -> "revision_required"
-                "rejected" -> "closed"
-                else -> "reviewing"
-            }
-
             DatasetsTable.update({ DatasetsTable.id eq datasetId }) {
-                it[DatasetsTable.status] = datasetStatus
+                it[DatasetsTable.status] = "reviewing"
                 it[updatedAt] = now
             }
 
-            SubmitReviewTransactionResult.Success(datasetStatus)
+            SubmitReviewTransactionResult.Success("reviewing")
         }
 
         return when (result) {
@@ -909,7 +899,7 @@ class ProviderDatasetService {
             SubmitReviewTransactionResult.InvalidStatus -> Result.BadRequest("仅可审核状态为「审核中」的数据集")
             is SubmitReviewTransactionResult.Success -> Result.Success(
                 SubmitReviewResponse(
-                    message = "审核结果已提交",
+                    message = "审核结果已提交，数据集保持审核中",
                     datasetStatus = result.datasetStatus,
                 )
             )
@@ -935,7 +925,7 @@ class ProviderDatasetService {
             val dataset = findProviderDataset(providerId, datasetId)
                 ?: return@transaction ReviewItemTransactionResult.NotFound
 
-            if (dataset.status !in listOf("reviewing", "open", "annotating")) {
+            if (dataset.status != "reviewing") {
                 return@transaction ReviewItemTransactionResult.InvalidStatus
             }
 
@@ -970,9 +960,7 @@ class ProviderDatasetService {
     }
 
     /**
-     * 完成数据集审核，根据逐条审核结果更新数据集状态。
-     *
-     * 全部通过时数据集转为 `completed`，存在不通过时转为 `revision_required`。
+     * 保存数据集审核结果，但保持数据集停留在 `reviewing` 状态。
      *
      * @param providerId 数据集提供者用户 ID
      * @param datasetId 数据集 ID
@@ -995,7 +983,7 @@ class ProviderDatasetService {
                 .firstOrNull()
                 ?: return@transaction FinishReviewTransactionResult.NotFound
 
-            if (ds[DatasetsTable.status] !in listOf("reviewing", "open", "annotating")) {
+            if (ds[DatasetsTable.status] != "reviewing") {
                 return@transaction FinishReviewTransactionResult.InvalidStatus
             }
 
@@ -1034,13 +1022,7 @@ class ProviderDatasetService {
                 return@transaction FinishReviewTransactionResult.NotAllReviewed
             }
 
-            val datasetStatus = if (rejectedCount > 0) "revision_required" else "completed"
             val reviewStatus = if (rejectedCount > 0) "revision_required" else "approved"
-
-            DatasetsTable.update({ DatasetsTable.id eq datasetId }) {
-                it[DatasetsTable.status] = datasetStatus
-                it[updatedAt] = now
-            }
 
             val existingReview = DatasetReviewsTable
                 .selectAll()
@@ -1076,7 +1058,12 @@ class ProviderDatasetService {
                 }
             }
 
-            FinishReviewTransactionResult.Success(datasetStatus, acceptedCount, rejectedCount)
+            DatasetsTable.update({ DatasetsTable.id eq datasetId }) {
+                it[DatasetsTable.status] = "reviewing"
+                it[updatedAt] = now
+            }
+
+            FinishReviewTransactionResult.Success("reviewing", acceptedCount, rejectedCount)
         }
 
         return when (result) {
@@ -1085,12 +1072,83 @@ class ProviderDatasetService {
             FinishReviewTransactionResult.NotAllReviewed -> Result.BadRequest("尚有数据项未完成逐条审核")
             is FinishReviewTransactionResult.Success -> Result.Success(
                 FinishReviewResponse(
-                    message = "审核已完成",
+                    message = "审核结果已保存",
                     datasetStatus = result.datasetStatus,
                     acceptedCount = result.acceptedCount,
                     rejectedCount = result.rejectedCount,
                 )
             )
+        }
+    }
+
+    /**
+     * 手动将审核中的数据集标记为完成。
+     *
+     * 仅当数据集下所有数据项都已审核通过时允许完成。
+     */
+    fun completeReview(
+        providerId: UUID,
+        datasetId: UUID,
+    ): Result<UpdateDatasetResponse> {
+        val result = transaction {
+            findProviderDataset(providerId, datasetId)
+                ?: return@transaction CompleteReviewTransactionResult.NotFound
+
+            val dataset = DatasetsTable
+                .selectAll()
+                .where { DatasetsTable.id eq datasetId }
+                .limit(1)
+                .firstOrNull()
+                ?: return@transaction CompleteReviewTransactionResult.NotFound
+
+            if (dataset[DatasetsTable.status] != "reviewing") {
+                return@transaction CompleteReviewTransactionResult.InvalidStatus
+            }
+
+            val hasUnfinishedItems = DataItemsTable
+                .selectAll()
+                .where {
+                    (DataItemsTable.datasetId eq datasetId) and
+                        (DataItemsTable.status neq "accepted")
+                }
+                .limit(1)
+                .any()
+
+            if (hasUnfinishedItems) {
+                return@transaction CompleteReviewTransactionResult.HasUnfinishedItems
+            }
+
+            val now = OffsetDateTime.now()
+            DatasetsTable.update({ DatasetsTable.id eq datasetId }) {
+                it[status] = "completed"
+                it[updatedAt] = now
+            }
+
+            val existingReview = DatasetReviewsTable
+                .selectAll()
+                .where {
+                    (DatasetReviewsTable.datasetId eq datasetId) and
+                        (DatasetReviewsTable.providerId eq providerId)
+                }
+                .limit(1)
+                .firstOrNull()
+
+            if (existingReview != null) {
+                DatasetReviewsTable.update({ DatasetReviewsTable.id eq existingReview[DatasetReviewsTable.id] }) {
+                    it[DatasetReviewsTable.status] = "approved"
+                    it[DatasetReviewsTable.reviewedAt] = now
+                    it[updatedAt] = now
+                }
+            }
+
+            CompleteReviewTransactionResult.Success
+        }
+
+        return when (result) {
+            CompleteReviewTransactionResult.NotFound -> Result.BadRequest("数据集不存在或无权访问")
+            CompleteReviewTransactionResult.InvalidStatus -> Result.BadRequest("仅可完成审核中的数据集")
+            CompleteReviewTransactionResult.HasUnfinishedItems -> Result.BadRequest("仍有未通过或未处理的数据项，无法标记完成")
+            CompleteReviewTransactionResult.Success -> Result.Success(UpdateDatasetResponse("数据集已标记完成"))
         }
     }
 
@@ -1198,7 +1256,7 @@ class ProviderDatasetService {
             updatedAt = row[DatasetsTable.updatedAt].toString(),
             canClaim = canClaim,
             disputedItemCount = disputedItemCount,
-            hasBeenReviewed = row[DatasetsTable.status] in listOf("completed", "closed", "revision_required"),
+            hasBeenReviewed = row[DatasetsTable.status] == "completed",
         )
     }
 
@@ -1307,6 +1365,13 @@ class ProviderDatasetService {
         data object NotFound : FinishReviewTransactionResult()
         data object InvalidStatus : FinishReviewTransactionResult()
         data object NotAllReviewed : FinishReviewTransactionResult()
+    }
+
+    private enum class CompleteReviewTransactionResult {
+        Success,
+        NotFound,
+        InvalidStatus,
+        HasUnfinishedItems,
     }
 
 }
