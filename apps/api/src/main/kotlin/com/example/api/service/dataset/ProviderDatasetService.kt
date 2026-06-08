@@ -20,7 +20,6 @@ import com.example.api.models.ReviewDetailResponse
 import com.example.api.models.ReviewItemResponse
 import com.example.api.models.SubmitReviewRequest
 import com.example.api.models.SubmitReviewResponse
-import com.example.api.models.ReviewItemActionRequest
 import com.example.api.models.FinishReviewRequest
 import com.example.api.models.FinishReviewResponse
 import com.example.api.models.UpdateDatasetRequest

@@ -17,12 +17,9 @@ import com.example.api.models.TaskAssignmentResponse
 import com.example.api.models.UpdateDatasetResponse
 import com.example.api.http.Result
 import org.jetbrains.exposed.sql.SortOrder
-import org.jetbrains.exposed.sql.Op
-import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.insert
-import org.jetbrains.exposed.sql.count
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
