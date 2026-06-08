@@ -4,7 +4,6 @@ import com.example.api.db.AnnotationsTable
 import com.example.api.db.DatasetsTable
 import com.example.api.db.DataItemsTable
 import com.example.api.db.DatasetReviewsTable
-import com.example.api.db.UsersTable
 import com.example.api.models.AnnotationDetailResponse
 import com.example.api.models.CreateDatasetRequest
 import com.example.api.models.DataItemResponse
@@ -25,11 +24,26 @@ import com.example.api.models.FinishReviewResponse
 import com.example.api.models.UpdateDatasetRequest
 import com.example.api.models.UpdateDatasetResponse
 import com.example.api.http.Result
+import com.example.api.service.dataset.policy.DatasetStatusPolicy
+import com.example.api.service.dataset.result.CompleteReviewTransactionResult
+import com.example.api.service.dataset.result.DeleteDataItemTransactionResult
+import com.example.api.service.dataset.result.DeleteDatasetTransactionResult
+import com.example.api.service.dataset.result.DisputeDetailResult
+import com.example.api.service.dataset.result.FinishReviewTransactionResult
+import com.example.api.service.dataset.result.ImportDataItemsTransactionResult
+import com.example.api.service.dataset.result.PublishDatasetTransactionResult
+import com.example.api.service.dataset.result.RepublishRejectedItemsResult
+import com.example.api.service.dataset.result.ResolveDisputeTransactionResult
+import com.example.api.service.dataset.result.ReviewItemTransactionResult
+import com.example.api.service.dataset.result.ReviewItemsResult
+import com.example.api.service.dataset.result.SubmitReviewTransactionResult
+import com.example.api.service.dataset.result.UpdateDatasetTransactionResult
+import com.example.api.service.dataset.store.ProviderDatasetStore
+import com.example.api.service.dataset.view.toDataItemResponse
+import com.example.api.service.dataset.view.toDatasetResponse
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.jetbrains.exposed.exceptions.ExposedSQLException
-import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
-import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
@@ -44,6 +58,7 @@ import java.util.UUID
  * 数据集提供者业务服务，封装提供者侧数据集和数据项管理逻辑。
  */
 class ProviderDatasetService {
+    private val store = ProviderDatasetStore()
     private val objectMapper = ObjectMapper()
     private val supportedContentTypes = setOf("text", "image", "audio", "video", "json")
 
@@ -76,20 +91,16 @@ class ProviderDatasetService {
                 val now = OffsetDateTime.now()
                 val datasetId = UUID.randomUUID()
 
-                DatasetsTable.insert {
-                    it[id] = datasetId
-                    it[DatasetsTable.providerId] = providerId
-                    it[DatasetsTable.name] = name
-                    it[DatasetsTable.description] = description
-                    it[DatasetsTable.annotationGuide] = annotationGuide
-                    it[DatasetsTable.annotationSchema] = annotationSchema
-                    it[status] = "draft"
-                    it[DatasetsTable.targetCompletionRatio] = ratio
-                    it[itemCount] = 0
-                    it[completedItemCount] = 0
-                    it[createdAt] = now
-                    it[updatedAt] = now
-                }
+                store.insertDraftDataset(
+                    providerId = providerId,
+                    datasetId = datasetId,
+                    name = name,
+                    description = description,
+                    annotationGuide = annotationGuide,
+                    annotationSchema = annotationSchema,
+                    targetCompletionRatio = ratio,
+                    now = now,
+                )
 
                 DatasetResponse(
                     id = datasetId.toString(),
@@ -123,11 +134,7 @@ class ProviderDatasetService {
     fun listProviderDatasets(providerId: UUID): Result<List<DatasetResponse>> {
         val datasets = transaction {
             // 查询当前提供者创建的数据集，并按最近更新时间倒序展示。
-            val datasetRows = DatasetsTable
-                .selectAll()
-                .where { DatasetsTable.providerId eq providerId }
-                .orderBy(DatasetsTable.updatedAt to SortOrder.DESC)
-                .toList()
+            val datasetRows = store.listProviderDatasetRows(providerId)
 
             val datasetIds = datasetRows.map { it[DatasetsTable.id] }
 
@@ -177,7 +184,7 @@ class ProviderDatasetService {
 
         return try {
             val response = transaction {
-                val dataset = findProviderDataset(providerId, datasetId)
+                val dataset = store.findProviderDataset(providerId, datasetId)
                     ?: return@transaction null
 
                 if (dataset.status != "draft") {
@@ -187,32 +194,12 @@ class ProviderDatasetService {
                 val now = OffsetDateTime.now()
 
                 // 插入数据项
-                items.forEach { item ->
-                    DataItemsTable.insert {
-                        it[id] = UUID.randomUUID()
-                        it[DataItemsTable.datasetId] = datasetId
-                        it[content] = item.content
-                        it[contentType] = item.contentType
-                        it[metadata] = item.metadata
-                        it[currentRoundNo] = 1
-                        it[status] = "pending"
-                        it[createdAt] = now
-                        it[updatedAt] = now
-                    }
-                }
+                store.insertDataItems(datasetId, items, now)
 
                 // 重新查询数据集的数据项总数并同步写回 datasets.item_count。
                 // 使用实际查询值而非 items.size，确保与数据库状态一致（并发导入等场景）。
-                val itemCount = DataItemsTable
-                    .selectAll()
-                    .where { DataItemsTable.datasetId eq datasetId }
-                    .count()
-                    .toInt()
-
-                DatasetsTable.update({ DatasetsTable.id eq datasetId }) {
-                    it[DatasetsTable.itemCount] = itemCount
-                    it[updatedAt] = now
-                }
+                val itemCount = store.countDatasetItems(datasetId)
+                store.updateDatasetItemCount(datasetId, itemCount, now)
 
                 ImportDataItemsTransactionResult.Success(
                     ImportDataItemsResponse(
@@ -241,15 +228,11 @@ class ProviderDatasetService {
      */
     fun listProviderDataItems(providerId: UUID, datasetId: UUID): Result<List<DataItemResponse>> {
         val items = transaction {
-            findProviderDataset(providerId, datasetId)
+            store.findProviderDataset(providerId, datasetId)
                 ?: return@transaction null
 
             // 查询指定数据集下的全部数据项，供提供者查看导入内容。
-            DataItemsTable
-                .selectAll()
-                .where { DataItemsTable.datasetId eq datasetId }
-                .orderBy(DataItemsTable.createdAt to SortOrder.DESC)
-                .map(::toDataItemResponse)
+            store.listDatasetItemRows(datasetId).map(::toDataItemResponse)
         }
 
         return if (items == null) {
@@ -285,7 +268,7 @@ class ProviderDatasetService {
         }
 
         val result = transaction {
-            findProviderDataset(providerId, datasetId)
+            store.findProviderDataset(providerId, datasetId)
                 ?: return@transaction ResolveDisputeTransactionResult.NotFound
 
             val item = DataItemsTable
@@ -378,7 +361,7 @@ class ProviderDatasetService {
         itemId: UUID,
     ): Result<DeleteDataItemResponse> {
         val result = transaction {
-            val dataset = findProviderDataset(providerId, datasetId)
+            val dataset = store.findProviderDataset(providerId, datasetId)
                 ?: return@transaction DeleteDataItemTransactionResult.NotFound
 
             if (dataset.status != "draft") {
@@ -393,7 +376,11 @@ class ProviderDatasetService {
                 return@transaction DeleteDataItemTransactionResult.NotFound
             }
 
-            DeleteDataItemTransactionResult.Success(refreshDatasetItemCount(datasetId))
+            DeleteDataItemTransactionResult.Success(
+                store.countDatasetItems(datasetId).also { itemCount ->
+                    store.updateDatasetItemCount(datasetId, itemCount, OffsetDateTime.now())
+                }
+            )
         }
 
         return when (result) {
@@ -435,7 +422,7 @@ class ProviderDatasetService {
         val ratio = targetCompletionRatio.toBigDecimal()
 
         val result = transaction {
-            val dataset = findProviderDataset(providerId, datasetId)
+            val dataset = store.findProviderDataset(providerId, datasetId)
                 ?: return@transaction UpdateDatasetTransactionResult.NotFound
 
             if (dataset.status != "draft") {
@@ -475,7 +462,7 @@ class ProviderDatasetService {
      */
     fun publishProviderDataset(providerId: UUID, datasetId: UUID): Result<PublishDatasetResponse> {
         val result = transaction {
-            val dataset = findProviderDataset(providerId, datasetId)
+            val dataset = store.findProviderDataset(providerId, datasetId)
                 ?: return@transaction PublishDatasetTransactionResult.NotFound
 
             if (dataset.status != "draft") {
@@ -524,7 +511,7 @@ class ProviderDatasetService {
      */
     fun deleteProviderDataset(providerId: UUID, datasetId: UUID): Result<DeleteDatasetResponse> {
         val result = transaction {
-            val dataset = findProviderDataset(providerId, datasetId)
+            val dataset = store.findProviderDataset(providerId, datasetId)
                 ?: return@transaction DeleteDatasetTransactionResult.NotFound
 
             if (dataset.status != "draft") {
@@ -557,17 +544,10 @@ class ProviderDatasetService {
         datasetId: UUID,
     ): Result<List<DataItemResponse>> {
         val items = transaction {
-            findProviderDataset(providerId, datasetId)
+            store.findProviderDataset(providerId, datasetId)
                 ?: return@transaction null
 
-            DataItemsTable
-                .selectAll()
-                .where {
-                    (DataItemsTable.datasetId eq datasetId) and
-                        (DataItemsTable.status eq "disputed")
-                }
-                .orderBy(DataItemsTable.updatedAt to SortOrder.DESC)
-                .map(::toDataItemResponse)
+            store.listDisputedItemRows(datasetId).map(::toDataItemResponse)
         }
 
         return if (items == null) {
@@ -591,51 +571,24 @@ class ProviderDatasetService {
         itemId: UUID,
     ): Result<DisputedItemDetailResponse> {
         val result = transaction {
-            findProviderDataset(providerId, datasetId)
+            store.findProviderDataset(providerId, datasetId)
                 ?: return@transaction DisputeDetailResult.NotFound
 
-            val item = DataItemsTable
-                .selectAll()
-                .where {
-                    (DataItemsTable.id eq itemId) and
-                        (DataItemsTable.datasetId eq datasetId)
-                }
-                .limit(1)
-                .firstOrNull()
+            val item = store.findDataItemRow(datasetId, itemId)
                 ?: return@transaction DisputeDetailResult.NotFound
 
             if (item[DataItemsTable.status] != "disputed") {
                 return@transaction DisputeDetailResult.InvalidStatus
             }
 
-            val dataset = DatasetsTable
-                .selectAll()
-                .where { DatasetsTable.id eq datasetId }
-                .limit(1)
-                .firstOrNull()
+            val dataset = store.findDatasetRow(datasetId)
                 ?: return@transaction DisputeDetailResult.NotFound
 
-            // 查询该数据项的原始标注和互查标注。
-            val annotations = AnnotationsTable
-                .selectAll()
-                .where {
-                    (AnnotationsTable.itemId eq itemId) and
-                        (AnnotationsTable.roundNo eq item[DataItemsTable.currentRoundNo]) and
-                        (AnnotationsTable.annotationType inList listOf("annotation", "review"))
-                }
-                .orderBy(AnnotationsTable.annotationType to SortOrder.ASC)
-                .toList()
+            val annotations = store.listCurrentRoundAnnotationsForItem(itemId, item[DataItemsTable.currentRoundNo])
 
             // 批量查询标注员名称。
             val annotatorIds = annotations.map { it[AnnotationsTable.annotatorId] }.toSet()
-            val annotatorNames = if (annotatorIds.isEmpty()) {
-                emptyMap()
-            } else {
-                UsersTable
-                    .selectAll()
-                    .where { UsersTable.id inList annotatorIds }
-                    .associate { it[UsersTable.id].toString() to it[UsersTable.displayName] }
-            }
+            val annotatorNames = store.loadUserDisplayNames(annotatorIds)
 
             val annotationDetails = annotations.map { ann ->
                 AnnotationDetailResponse(
@@ -682,14 +635,10 @@ class ProviderDatasetService {
         datasetId: UUID,
     ): Result<ReviewDetailResponse> {
         val result = transaction {
-            val dataset = findProviderDataset(providerId, datasetId)
+            val dataset = store.findProviderDataset(providerId, datasetId)
                 ?: return@transaction ReviewItemsResult.NotFound
 
-            val ds = DatasetsTable
-                .selectAll()
-                .where { DatasetsTable.id eq datasetId }
-                .limit(1)
-                .firstOrNull()
+            val ds = store.findDatasetRow(datasetId)
                 ?: return@transaction ReviewItemsResult.NotFound
 
             val currentStatus = ds[DatasetsTable.status]
@@ -711,45 +660,15 @@ class ProviderDatasetService {
                 }
             }
 
-            val items = DataItemsTable
-                .selectAll()
-                .where {
-                    (DataItemsTable.datasetId eq datasetId) and
-                        (DataItemsTable.status inList listOf("annotated", "accepted", "rejected"))
-                }
-                .orderBy(DataItemsTable.updatedAt to SortOrder.DESC)
-                .toList()
+            val items = store.listReviewableItemRowsForProvider(datasetId)
 
-            val itemIds = items.map { it[DataItemsTable.id] }
-            val annotationsByItem = if (itemIds.isEmpty()) {
+            val annotationsByItem = if (items.isEmpty()) {
                 emptyMap()
             } else {
-                val annRows = AnnotationsTable
-                    .selectAll()
-                    .where {
-                        (AnnotationsTable.itemId inList itemIds) and
-                            (AnnotationsTable.annotationType inList listOf("annotation", "review"))
-                    }
-                    .orderBy(AnnotationsTable.annotationType to SortOrder.ASC)
-                    .toList()
-                    .filter { ann ->
-                        items.any { item ->
-                            item[DataItemsTable.id] == ann[AnnotationsTable.itemId] &&
-                                item[DataItemsTable.currentRoundNo] == ann[AnnotationsTable.roundNo]
-                        }
-                    }
-
-                val annotatorIds = annRows.map { it[AnnotationsTable.annotatorId] }.toSet()
-                val annotatorNames = if (annotatorIds.isEmpty()) {
-                    emptyMap()
-                } else {
-                    UsersTable
-                        .selectAll()
-                        .where { UsersTable.id inList annotatorIds }
-                        .associate { it[UsersTable.id].toString() to it[UsersTable.displayName] }
-                }
-
-                annRows.groupBy { it[AnnotationsTable.itemId] }.mapValues { (_, anns) ->
+                val annRows = store.listCurrentRoundAnnotationsByItem(items)
+                val flatAnnotations = annRows.values.flatten()
+                val annotatorNames = store.loadUserDisplayNames(flatAnnotations.map { it[AnnotationsTable.annotatorId] }.toSet())
+                annRows.mapValues { (_, anns) ->
                     anns.map { ann ->
                         AnnotationDetailResponse(
                             id = ann[AnnotationsTable.id].toString(),
@@ -826,14 +745,10 @@ class ProviderDatasetService {
         }
 
         val result = transaction {
-            findProviderDataset(providerId, datasetId)
+            store.findProviderDataset(providerId, datasetId)
                 ?: return@transaction SubmitReviewTransactionResult.NotFound
 
-            val ds = DatasetsTable
-                .selectAll()
-                .where { DatasetsTable.id eq datasetId }
-                .limit(1)
-                .firstOrNull()
+            val ds = store.findDatasetRow(datasetId)
                 ?: return@transaction SubmitReviewTransactionResult.NotFound
 
             if (ds[DatasetsTable.status] != "reviewing") {
@@ -930,32 +845,22 @@ class ProviderDatasetService {
         accepted: Boolean,
     ): Result<UpdateDatasetResponse> {
         val result = transaction {
-            val dataset = findProviderDataset(providerId, datasetId)
+            val dataset = store.findProviderDataset(providerId, datasetId)
                 ?: return@transaction ReviewItemTransactionResult.NotFound
 
-            if (dataset.status != "reviewing") {
+            if (!DatasetStatusPolicy.canReviewDataset(dataset.status)) {
                 return@transaction ReviewItemTransactionResult.InvalidStatus
             }
 
-            val item = DataItemsTable
-                .selectAll()
-                .where {
-                    (DataItemsTable.id eq itemId) and
-                        (DataItemsTable.datasetId eq datasetId)
-                }
-                .limit(1)
-                .firstOrNull()
+            val item = store.findDataItemRow(datasetId, itemId)
                 ?: return@transaction ReviewItemTransactionResult.NotFound
 
-            if (item[DataItemsTable.status] !in listOf("annotated", "accepted")) {
+            if (!DatasetStatusPolicy.canReviewItem(item[DataItemsTable.status])) {
                 return@transaction ReviewItemTransactionResult.InvalidStatus
             }
 
             val now = OffsetDateTime.now()
-            DataItemsTable.update({ DataItemsTable.id eq itemId }) {
-                it[DataItemsTable.status] = if (accepted) "accepted" else "rejected"
-                it[updatedAt] = now
-            }
+            store.updateDataItemReviewStatus(itemId, accepted, now)
 
             ReviewItemTransactionResult.Success
         }
@@ -981,49 +886,22 @@ class ProviderDatasetService {
         request: FinishReviewRequest,
     ): Result<FinishReviewResponse> {
         val result = transaction {
-            findProviderDataset(providerId, datasetId)
+            store.findProviderDataset(providerId, datasetId)
                 ?: return@transaction FinishReviewTransactionResult.NotFound
 
-            val ds = DatasetsTable
-                .selectAll()
-                .where { DatasetsTable.id eq datasetId }
-                .limit(1)
-                .firstOrNull()
+            val ds = store.findDatasetRow(datasetId)
                 ?: return@transaction FinishReviewTransactionResult.NotFound
 
-            if (ds[DatasetsTable.status] != "reviewing") {
+            if (!DatasetStatusPolicy.canReviewDataset(ds[DatasetsTable.status])) {
                 return@transaction FinishReviewTransactionResult.InvalidStatus
             }
 
             val now = OffsetDateTime.now()
             val opinion = request.opinion?.trim()?.takeIf { it.isNotEmpty() }
 
-            val acceptedCount = DataItemsTable
-                .selectAll()
-                .where {
-                    (DataItemsTable.datasetId eq datasetId) and
-                        (DataItemsTable.status eq "accepted")
-                }
-                .count()
-                .toInt()
-
-            val rejectedCount = DataItemsTable
-                .selectAll()
-                .where {
-                    (DataItemsTable.datasetId eq datasetId) and
-                        (DataItemsTable.status eq "rejected")
-                }
-                .count()
-                .toInt()
-
-            val totalReviewable = DataItemsTable
-                .selectAll()
-                .where {
-                    (DataItemsTable.datasetId eq datasetId) and
-                        (DataItemsTable.status inList listOf("annotated", "accepted", "rejected"))
-                }
-                .count()
-                .toInt()
+            val acceptedCount = store.countDatasetItemsByStatuses(datasetId, listOf("accepted"))
+            val rejectedCount = store.countDatasetItemsByStatuses(datasetId, listOf("rejected"))
+            val totalReviewable = store.countDatasetItemsByStatuses(datasetId, listOf("annotated", "accepted", "rejected"))
 
             val reviewedCount = acceptedCount + rejectedCount
             if (reviewedCount < totalReviewable) {
@@ -1032,44 +910,9 @@ class ProviderDatasetService {
 
             val reviewStatus = if (rejectedCount > 0) "revision_required" else "approved"
 
-            val existingReview = DatasetReviewsTable
-                .selectAll()
-                .where {
-                    (DatasetReviewsTable.datasetId eq datasetId) and
-                        (DatasetReviewsTable.providerId eq providerId)
-                }
-                .limit(1)
-                .firstOrNull()
-
             val sampledCount = acceptedCount + rejectedCount
-            if (existingReview != null) {
-                DatasetReviewsTable.update({ DatasetReviewsTable.id eq existingReview[DatasetReviewsTable.id] }) {
-                    it[DatasetReviewsTable.status] = reviewStatus
-                    it[DatasetReviewsTable.sampledItemCount] = sampledCount
-                    it[DatasetReviewsTable.disputedItemCount] = 0
-                    it[DatasetReviewsTable.opinion] = opinion
-                    it[DatasetReviewsTable.reviewedAt] = now
-                    it[updatedAt] = now
-                }
-            } else {
-                DatasetReviewsTable.insert {
-                    it[id] = UUID.randomUUID()
-                    it[DatasetReviewsTable.datasetId] = datasetId
-                    it[DatasetReviewsTable.providerId] = providerId
-                    it[DatasetReviewsTable.status] = reviewStatus
-                    it[DatasetReviewsTable.sampledItemCount] = sampledCount
-                    it[DatasetReviewsTable.disputedItemCount] = 0
-                    it[DatasetReviewsTable.opinion] = opinion
-                    it[DatasetReviewsTable.reviewedAt] = now
-                    it[createdAt] = now
-                    it[updatedAt] = now
-                }
-            }
-
-            DatasetsTable.update({ DatasetsTable.id eq datasetId }) {
-                it[DatasetsTable.status] = "reviewing"
-                it[updatedAt] = now
-            }
+            store.upsertDatasetReview(datasetId, providerId, reviewStatus, sampledCount, 0, opinion, now)
+            store.updateDatasetStatus(datasetId, "reviewing", now)
 
             FinishReviewTransactionResult.Success("reviewing", acceptedCount, rejectedCount)
         }
@@ -1099,42 +942,24 @@ class ProviderDatasetService {
         datasetId: UUID,
     ): Result<UpdateDatasetResponse> {
         val result = transaction {
-            val dataset = findProviderDataset(providerId, datasetId)
+            val dataset = store.findProviderDataset(providerId, datasetId)
                 ?: return@transaction RepublishRejectedItemsResult.NotFound
 
-            if (dataset.status != "reviewing") {
+            if (!DatasetStatusPolicy.canRepublishDataset(dataset.status)) {
                 return@transaction RepublishRejectedItemsResult.InvalidStatus
             }
 
-            val rejectedItems = DataItemsTable
-                .selectAll()
-                .where {
-                    (DataItemsTable.datasetId eq datasetId) and
-                        (DataItemsTable.status eq "rejected")
-                }
-                .toList()
+            val rejectedItems = store.listRejectedItemRows(datasetId)
 
             if (rejectedItems.isEmpty()) {
                 return@transaction RepublishRejectedItemsResult.NoRejectedItems
             }
 
             val now = OffsetDateTime.now()
-            rejectedItems.forEach { item ->
-                DataItemsTable.update({ DataItemsTable.id eq item[DataItemsTable.id] }) {
-                    it[currentRoundNo] = item[DataItemsTable.currentRoundNo] + 1
-                    it[status] = "pending"
-                    it[finalResult] = null
-                    it[finalizedAt] = null
-                    it[finalizedBy] = null
-                    it[updatedAt] = now
-                }
-            }
+            store.republishRejectedItems(rejectedItems, now)
 
             DatasetQueryHelper.refreshDatasetCompletedItemCount(datasetId, now)
-            DatasetsTable.update({ DatasetsTable.id eq datasetId }) {
-                it[status] = "reviewing"
-                it[updatedAt] = now
-            }
+            store.updateDatasetStatus(datasetId, "reviewing", now)
 
             RepublishRejectedItemsResult.Success(rejectedItems.size)
         }
@@ -1159,54 +984,27 @@ class ProviderDatasetService {
         datasetId: UUID,
     ): Result<UpdateDatasetResponse> {
         val result = transaction {
-            findProviderDataset(providerId, datasetId)
+            store.findProviderDataset(providerId, datasetId)
                 ?: return@transaction CompleteReviewTransactionResult.NotFound
 
-            val dataset = DatasetsTable
-                .selectAll()
-                .where { DatasetsTable.id eq datasetId }
-                .limit(1)
-                .firstOrNull()
+            val dataset = store.findDatasetRow(datasetId)
                 ?: return@transaction CompleteReviewTransactionResult.NotFound
 
-            if (dataset[DatasetsTable.status] != "reviewing") {
+            if (!DatasetStatusPolicy.canCompleteReview(dataset[DatasetsTable.status])) {
                 return@transaction CompleteReviewTransactionResult.InvalidStatus
             }
 
-            val hasUnfinishedItems = DataItemsTable
-                .selectAll()
-                .where {
-                    (DataItemsTable.datasetId eq datasetId) and
-                        (DataItemsTable.status neq "accepted")
-                }
-                .limit(1)
-                .any()
+            val hasUnfinishedItems = store.hasNonAcceptedItems(datasetId)
 
             if (hasUnfinishedItems) {
                 return@transaction CompleteReviewTransactionResult.HasUnfinishedItems
             }
 
             val now = OffsetDateTime.now()
-            DatasetsTable.update({ DatasetsTable.id eq datasetId }) {
-                it[status] = "completed"
-                it[updatedAt] = now
-            }
-
-            val existingReview = DatasetReviewsTable
-                .selectAll()
-                .where {
-                    (DatasetReviewsTable.datasetId eq datasetId) and
-                        (DatasetReviewsTable.providerId eq providerId)
-                }
-                .limit(1)
-                .firstOrNull()
-
+            store.updateDatasetStatus(datasetId, "completed", now)
+            val existingReview = store.findDatasetReviewRow(datasetId, providerId)
             if (existingReview != null) {
-                DatasetReviewsTable.update({ DatasetReviewsTable.id eq existingReview[DatasetReviewsTable.id] }) {
-                    it[DatasetReviewsTable.status] = "approved"
-                    it[DatasetReviewsTable.reviewedAt] = now
-                    it[updatedAt] = now
-                }
+                store.updateDatasetReviewStatus(existingReview[DatasetReviewsTable.id], "approved", now)
             }
 
             CompleteReviewTransactionResult.Success
@@ -1254,106 +1052,6 @@ class ProviderDatasetService {
     }
 
     /**
-     * 重新计算并写回数据集的数据项总数。
-     *
-     * @param datasetId 数据集 ID
-     * @return 最新数据项总数
-     */
-    private fun refreshDatasetItemCount(datasetId: UUID): Int {
-        // 查询数据集当前实际数据项数量，用于删除后刷新冗余计数字段。
-        val itemCount = DataItemsTable
-            .selectAll()
-            .where { DataItemsTable.datasetId eq datasetId }
-            .count()
-            .toInt()
-
-        DatasetsTable.update({ DatasetsTable.id eq datasetId }) {
-            it[DatasetsTable.itemCount] = itemCount
-            it[updatedAt] = OffsetDateTime.now()
-        }
-
-        return itemCount
-    }
-
-    /**
-     * 将数据项表记录转换为响应数据。
-     *
-     * @param row 数据项表查询结果行
-     * @return 数据项响应数据
-     */
-    private fun toDataItemResponse(row: ResultRow): DataItemResponse {
-        return DataItemResponse(
-            id = row[DataItemsTable.id].toString(),
-            datasetId = row[DataItemsTable.datasetId].toString(),
-            content = row[DataItemsTable.content],
-            contentType = row[DataItemsTable.contentType],
-            metadata = row[DataItemsTable.metadata],
-            currentRoundNo = row[DataItemsTable.currentRoundNo],
-            finalResult = row[DataItemsTable.finalResult],
-            finalizedAt = row[DataItemsTable.finalizedAt]?.toString(),
-            finalizedBy = row[DataItemsTable.finalizedBy]?.toString(),
-            status = row[DataItemsTable.status],
-            createdAt = row[DataItemsTable.createdAt].toString(),
-            updatedAt = row[DataItemsTable.updatedAt].toString(),
-        )
-    }
-
-    /**
-     * 将数据集表记录转换为响应数据。
-     *
-     * @param row 数据集表查询结果行
-     * @return 数据集响应数据
-     */
-    private fun toDatasetResponse(
-        row: ResultRow,
-        canClaim: Boolean? = null,
-        completedItemCount: Int? = null,
-        disputedItemCount: Int? = null,
-    ): DatasetResponse {
-        return DatasetResponse(
-            id = row[DatasetsTable.id].toString(),
-            providerId = row[DatasetsTable.providerId].toString(),
-            name = row[DatasetsTable.name],
-            description = row[DatasetsTable.description],
-            annotationGuide = row[DatasetsTable.annotationGuide],
-            annotationSchema = row[DatasetsTable.annotationSchema],
-            status = row[DatasetsTable.status],
-            targetCompletionRatio = row[DatasetsTable.targetCompletionRatio].toPlainString(),
-            itemCount = row[DatasetsTable.itemCount],
-            completedItemCount = completedItemCount ?: row[DatasetsTable.completedItemCount],
-            createdAt = row[DatasetsTable.createdAt].toString(),
-            updatedAt = row[DatasetsTable.updatedAt].toString(),
-            canClaim = canClaim,
-            disputedItemCount = disputedItemCount,
-            hasBeenReviewed = row[DatasetsTable.status] == "completed",
-        )
-    }
-
-    /**
-     * 查找指定提供者拥有的数据集。
-     *
-     * @param providerId 数据集提供者用户 ID
-     * @param datasetId 数据集 ID
-     * @return 查找到的数据集状态信息，不存在时返回 null
-     */
-    private fun findProviderDataset(providerId: UUID, datasetId: UUID): ProviderDatasetRecord? {
-        // 查询提供者名下的指定数据集，用于校验归属和读取状态。
-        return DatasetsTable
-            .selectAll()
-            .where {
-                (DatasetsTable.id eq datasetId) and (DatasetsTable.providerId eq providerId)
-            }
-            .limit(1)
-            .firstOrNull()
-            ?.let { row ->
-                ProviderDatasetRecord(
-                    id = row[DatasetsTable.id],
-                    status = row[DatasetsTable.status],
-                )
-            }
-    }
-
-    /**
      * 判断输入字符串是否为 JSON 对象。
      *
      * @param value 待校验的 JSON 字符串
@@ -1361,93 +1059,6 @@ class ProviderDatasetService {
      */
     private fun isJsonObject(value: String): Boolean {
         return runCatching { objectMapper.readTree(value)?.isObject == true }.getOrDefault(false)
-    }
-
-    private data class ProviderDatasetRecord(
-        val id: UUID,
-        val status: String,
-    )
-
-    private sealed class DisputeDetailResult {
-        data class Success(val value: DisputedItemDetailResponse) : DisputeDetailResult()
-        data object NotFound : DisputeDetailResult()
-        data object InvalidStatus : DisputeDetailResult()
-    }
-
-    private sealed class ImportDataItemsTransactionResult {
-        data class Success(val value: ImportDataItemsResponse) : ImportDataItemsTransactionResult()
-        data object InvalidStatus : ImportDataItemsTransactionResult()
-    }
-
-    private enum class DeleteDatasetTransactionResult {
-        Success,
-        NotFound,
-        InvalidStatus,
-    }
-
-    private enum class UpdateDatasetTransactionResult {
-        Success,
-        NotFound,
-        InvalidStatus,
-    }
-
-    private enum class PublishDatasetTransactionResult {
-        Success,
-        NotFound,
-        InvalidStatus,
-        EmptyDataset,
-    }
-
-    private enum class ResolveDisputeTransactionResult {
-        Success,
-        NotFound,
-        InvalidStatus,
-        InvalidAnnotations,
-    }
-
-    private sealed class DeleteDataItemTransactionResult {
-        data class Success(val itemCount: Int) : DeleteDataItemTransactionResult()
-        data object NotFound : DeleteDataItemTransactionResult()
-        data object InvalidStatus : DeleteDataItemTransactionResult()
-    }
-
-    private sealed class RepublishRejectedItemsResult {
-        data class Success(val count: Int) : RepublishRejectedItemsResult()
-        data object NotFound : RepublishRejectedItemsResult()
-        data object InvalidStatus : RepublishRejectedItemsResult()
-        data object NoRejectedItems : RepublishRejectedItemsResult()
-    }
-
-    private sealed class ReviewItemsResult {
-        data class Success(val value: ReviewDetailResponse) : ReviewItemsResult()
-        data object NotFound : ReviewItemsResult()
-        data object InvalidStatus : ReviewItemsResult()
-    }
-
-    private sealed class SubmitReviewTransactionResult {
-        data class Success(val datasetStatus: String) : SubmitReviewTransactionResult()
-        data object NotFound : SubmitReviewTransactionResult()
-        data object InvalidStatus : SubmitReviewTransactionResult()
-    }
-
-    private enum class ReviewItemTransactionResult {
-        Success,
-        NotFound,
-        InvalidStatus,
-    }
-
-    private sealed class FinishReviewTransactionResult {
-        data class Success(val datasetStatus: String, val acceptedCount: Int, val rejectedCount: Int) : FinishReviewTransactionResult()
-        data object NotFound : FinishReviewTransactionResult()
-        data object InvalidStatus : FinishReviewTransactionResult()
-        data object NotAllReviewed : FinishReviewTransactionResult()
-    }
-
-    private enum class CompleteReviewTransactionResult {
-        Success,
-        NotFound,
-        InvalidStatus,
-        HasUnfinishedItems,
     }
 
 }
