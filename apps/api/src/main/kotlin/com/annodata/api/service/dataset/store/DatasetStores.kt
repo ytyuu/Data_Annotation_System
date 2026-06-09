@@ -13,14 +13,32 @@ import org.jetbrains.exposed.sql.NotExists
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.batchInsert
 import org.jetbrains.exposed.sql.count
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.statements.StatementType
 import org.jetbrains.exposed.sql.sum
+import org.jetbrains.exposed.sql.transactions.TransactionManager
 import org.jetbrains.exposed.sql.update
 import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.util.UUID
+
+internal data class ClaimedDataItem(
+    val id: UUID,
+    val datasetId: UUID,
+    val content: String,
+    val contentType: String,
+    val metadata: String,
+    val currentRoundNo: Int,
+    val finalResult: String?,
+    val finalizedAt: OffsetDateTime?,
+    val finalizedBy: UUID?,
+    val status: String,
+    val createdAt: OffsetDateTime,
+    val updatedAt: OffsetDateTime,
+)
 
 internal data class TaskStatusCounts(
     val assigned: Int = 0,
@@ -90,18 +108,16 @@ internal class ProviderDatasetStore {
             .toList()
 
     fun insertDataItems(datasetId: UUID, items: List<com.annodata.api.models.DataItemInput>, now: OffsetDateTime) {
-        items.forEach { item ->
-            DataItemsTable.insert {
-                it[id] = UUID.randomUUID()
-                it[DataItemsTable.datasetId] = datasetId
-                it[content] = item.content
-                it[contentType] = item.contentType
-                it[metadata] = item.metadata
-                it[currentRoundNo] = 1
-                it[status] = "pending"
-                it[createdAt] = now
-                it[updatedAt] = now
-            }
+        DataItemsTable.batchInsert(items) { item ->
+            this[DataItemsTable.id] = UUID.randomUUID()
+            this[DataItemsTable.datasetId] = datasetId
+            this[DataItemsTable.content] = item.content
+            this[DataItemsTable.contentType] = item.contentType
+            this[DataItemsTable.metadata] = item.metadata
+            this[DataItemsTable.currentRoundNo] = 1
+            this[DataItemsTable.status] = "pending"
+            this[DataItemsTable.createdAt] = now
+            this[DataItemsTable.updatedAt] = now
         }
     }
 
@@ -366,25 +382,81 @@ internal class AnnotatorDatasetStore {
             }
     }
 
-    fun listClaimablePendingItemRows(datasetId: UUID, annotatorId: UUID, limit: Int): List<ResultRow> =
-        DataItemsTable
-            .selectAll()
-            .where {
-                (DataItemsTable.datasetId eq datasetId) and
-                    (DataItemsTable.status eq "pending") and
-                    NotExists(
-                        AnnotationTasksTable
-                            .select(AnnotationTasksTable.id)
-                            .where {
-                                (AnnotationTasksTable.annotatorId eq annotatorId) and
-                                    (AnnotationTasksTable.itemId eq DataItemsTable.id) and
-                                    (AnnotationTasksTable.roundNo eq DataItemsTable.currentRoundNo)
-                            }
+    fun claimPendingItemsForAnnotation(
+        datasetId: UUID,
+        annotatorId: UUID,
+        limit: Int,
+        now: OffsetDateTime,
+    ): List<ClaimedDataItem> {
+        val sql = """
+            WITH candidates AS (
+                SELECT di.id
+                FROM data_items di
+                WHERE di.dataset_id = ?
+                  AND di.status = 'pending'
+                  AND NOT EXISTS (
+                      SELECT 1
+                      FROM annotation_tasks task
+                      WHERE task.annotator_id = ?
+                        AND task.item_id = di.id
+                        AND task.round_no = di.current_round_no
+                  )
+                ORDER BY di.created_at
+                LIMIT ?
+                FOR UPDATE SKIP LOCKED
+            )
+            UPDATE data_items di
+            SET status = 'assigned',
+                updated_at = ?
+            FROM candidates c
+            WHERE di.id = c.id
+            RETURNING
+                di.id,
+                di.dataset_id,
+                di.content,
+                di.content_type,
+                di.metadata,
+                di.current_round_no,
+                di.final_result,
+                di.finalized_at,
+                di.finalized_by,
+                di.status,
+                di.created_at,
+                di.updated_at
+        """.trimIndent()
+
+        return TransactionManager.current().exec(
+            stmt = sql,
+            args = listOf(
+                DataItemsTable.datasetId.columnType to datasetId,
+                AnnotationTasksTable.annotatorId.columnType to annotatorId,
+                DataItemsTable.currentRoundNo.columnType to limit,
+                DataItemsTable.updatedAt.columnType to now,
+            ),
+            explicitStatementType = StatementType.SELECT,
+        ) { rs ->
+            buildList {
+                while (rs.next()) {
+                    add(
+                        ClaimedDataItem(
+                            id = rs.getObject("id", UUID::class.java),
+                            datasetId = rs.getObject("dataset_id", UUID::class.java),
+                            content = rs.getString("content"),
+                            contentType = rs.getString("content_type"),
+                            metadata = rs.getString("metadata"),
+                            currentRoundNo = rs.getInt("current_round_no"),
+                            finalResult = rs.getString("final_result"),
+                            finalizedAt = rs.getObject("finalized_at", OffsetDateTime::class.java),
+                            finalizedBy = rs.getObject("finalized_by", UUID::class.java),
+                            status = rs.getString("status"),
+                            createdAt = rs.getObject("created_at", OffsetDateTime::class.java),
+                            updatedAt = rs.getObject("updated_at", OffsetDateTime::class.java),
+                        )
                     )
+                }
             }
-            .orderBy(DataItemsTable.createdAt to SortOrder.ASC)
-            .limit(limit)
-            .toList()
+        } ?: emptyList()
+    }
 
     fun countActiveBatchItems(annotatorId: UUID, activeBatchStatuses: List<String>): Int {
         val totalCountSum = AnnotationTaskBatchesTable.totalCount.sum()
@@ -542,17 +614,6 @@ internal class AnnotatorDatasetStore {
             }
     }
 
-    fun claimPendingItems(items: List<ResultRow>, now: OffsetDateTime): List<ResultRow> =
-        items.filter { item ->
-            DataItemsTable.update({
-                (DataItemsTable.id eq item[DataItemsTable.id]) and
-                    (DataItemsTable.status eq "pending")
-            }) {
-                it[status] = "assigned"
-                it[updatedAt] = now
-            } > 0
-        }
-
     fun createTaskBatch(
         batchId: UUID,
         orderNo: String,
@@ -626,15 +687,6 @@ internal class AnnotatorDatasetStore {
             .orderBy(AnnotationTasksTable.assignedAt to SortOrder.ASC)
             .toList()
 
-    fun listTaskRowsForBatchByIds(annotatorId: UUID, batchId: UUID, taskIds: List<UUID>): List<ResultRow> =
-        AnnotationTasksTable
-            .selectAll()
-            .where {
-                (AnnotationTasksTable.annotatorId eq annotatorId) and
-                    (AnnotationTasksTable.batchId eq batchId) and
-                    (AnnotationTasksTable.id inList taskIds)
-            }
-            .toList()
 
     fun listAnnotationsByTaskIds(taskIds: List<UUID>): Map<UUID, ResultRow> {
         if (taskIds.isEmpty()) {

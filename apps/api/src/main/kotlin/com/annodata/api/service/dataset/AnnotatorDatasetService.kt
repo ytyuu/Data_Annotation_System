@@ -26,6 +26,7 @@ import com.annodata.api.service.dataset.result.ReturnTaskTransactionResult
 import com.annodata.api.service.dataset.result.StartTaskBatchTransactionResult
 import com.annodata.api.service.dataset.result.SubmitAnnotationBatchResult
 import com.annodata.api.service.dataset.store.AnnotatorDatasetStore
+import com.annodata.api.service.dataset.store.ClaimedDataItem
 import com.annodata.api.service.dataset.view.toDatasetResponse
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.and
@@ -166,27 +167,30 @@ class AnnotatorDatasetService {
                 return@transaction ClaimTasksTransactionResult.TooManyActive
             }
 
-            val items = if (taskType == "review") {
+            val now = OffsetDateTime.now()
+
+            if (taskType == "annotation") {
+                val claimedItems = store.claimPendingItemsForAnnotation(datasetId, annotatorId, requestedCount, now)
+                if (claimedItems.isEmpty()) {
+                    return@transaction ClaimTasksTransactionResult.EmptyDataset
+                }
+
+                return@transaction createAnnotationClaimResult(
+                    datasetId = datasetId,
+                    annotatorId = annotatorId,
+                    taskType = taskType,
+                    claimedItems = claimedItems,
+                    now = now,
+                )
+            }
+
+            val items = run {
                 // 互查任务：只查询当前轮已有原始标注、但当前轮尚未互查的数据项，
                 // 同时排除当前标注员当前轮已经参与过的数据项。
                 store.findReviewableItemRows(listOf(datasetId), annotatorId, requestedCount)
-            } else {
-                // 标注任务：查询 pending 数据项，排除当前标注员已参与过的当前轮数据项。
-                store.listClaimablePendingItemRows(datasetId, annotatorId, requestedCount)
             }
 
             if (items.isEmpty()) {
-                return@transaction ClaimTasksTransactionResult.EmptyDataset
-            }
-
-            val now = OffsetDateTime.now()
-            val claimedItems = if (taskType == "annotation") {
-                store.claimPendingItems(items, now)
-            } else {
-                items
-            }
-
-            if (claimedItems.isEmpty()) {
                 return@transaction ClaimTasksTransactionResult.EmptyDataset
             }
 
@@ -194,9 +198,9 @@ class AnnotatorDatasetService {
             val orderNo = generateOrderNo(now, taskType)
 
             // 创建任务单记录。
-            store.createTaskBatch(batchId, orderNo, datasetId, annotatorId, taskType, claimedItems.size, now)
+            store.createTaskBatch(batchId, orderNo, datasetId, annotatorId, taskType, items.size, now)
 
-            val tasks = claimedItems.map { item ->
+            val tasks = items.map { item ->
                 val taskId = UUID.randomUUID()
 
                 store.createAnnotationTask(
@@ -247,6 +251,61 @@ class AnnotatorDatasetService {
             ClaimTasksTransactionResult.EmptyDataset -> Result.BadRequest("该数据集暂无可领取任务")
             is ClaimTasksTransactionResult.Success -> Result.Success(result.value)
         }
+    }
+
+    private fun createAnnotationClaimResult(
+        datasetId: UUID,
+        annotatorId: UUID,
+        taskType: String,
+        claimedItems: List<ClaimedDataItem>,
+        now: OffsetDateTime,
+    ): ClaimTasksTransactionResult.Success {
+        val batchId = UUID.randomUUID()
+        val orderNo = generateOrderNo(now, taskType)
+
+        store.createTaskBatch(batchId, orderNo, datasetId, annotatorId, taskType, claimedItems.size, now)
+
+        val tasks = claimedItems.map { item ->
+            val taskId = UUID.randomUUID()
+
+            store.createAnnotationTask(
+                taskId = taskId,
+                batchId = batchId,
+                datasetId = datasetId,
+                itemId = item.id,
+                annotatorId = annotatorId,
+                roundNo = item.currentRoundNo,
+                now = now,
+            )
+
+            TaskAssignmentResponse(
+                taskId = taskId.toString(),
+                item = DataItemResponse(
+                    id = item.id.toString(),
+                    datasetId = item.datasetId.toString(),
+                    content = item.content,
+                    contentType = item.contentType,
+                    metadata = item.metadata,
+                    currentRoundNo = item.currentRoundNo,
+                    finalResult = item.finalResult,
+                    finalizedAt = item.finalizedAt?.toString(),
+                    finalizedBy = item.finalizedBy?.toString(),
+                    status = item.status,
+                    createdAt = item.createdAt.toString(),
+                    updatedAt = item.updatedAt.toString(),
+                )
+            )
+        }
+
+        return ClaimTasksTransactionResult.Success(
+            ClaimTasksResponse(
+                batchId = batchId.toString(),
+                orderNo = orderNo,
+                datasetId = datasetId.toString(),
+                assignedCount = tasks.size,
+                tasks = tasks,
+            )
+        )
     }
 
     /**
