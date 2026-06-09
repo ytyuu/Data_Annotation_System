@@ -8,6 +8,7 @@ import com.annodata.api.db.DatasetsTable
 import com.annodata.api.db.DatasetReviewsTable
 import com.annodata.api.db.UsersTable
 import org.jetbrains.exposed.sql.Exists
+import org.jetbrains.exposed.sql.JoinType
 import org.jetbrains.exposed.sql.NotExists
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
@@ -293,6 +294,11 @@ internal class ProviderDatasetStore {
         }
 
         val annRows = AnnotationsTable
+            .join(
+                otherTable = DataItemsTable,
+                joinType = JoinType.INNER,
+                additionalConstraint = { AnnotationsTable.itemId eq DataItemsTable.id },
+            )
             .select(
                 AnnotationsTable.id,
                 AnnotationsTable.itemId,
@@ -306,17 +312,12 @@ internal class ProviderDatasetStore {
                 AnnotationsTable.submittedAt,
             )
             .where {
-                (AnnotationsTable.itemId inList itemIds) and
+                (DataItemsTable.id inList itemIds) and
+                    (AnnotationsTable.roundNo eq DataItemsTable.currentRoundNo) and
                     (AnnotationsTable.annotationType inList listOf("annotation", "review"))
             }
             .orderBy(AnnotationsTable.annotationType to SortOrder.ASC)
             .toList()
-            .filter { ann ->
-                items.any { item ->
-                    item[DataItemsTable.id] == ann[AnnotationsTable.itemId] &&
-                        item[DataItemsTable.currentRoundNo] == ann[AnnotationsTable.roundNo]
-                }
-            }
 
         return annRows.groupBy { it[AnnotationsTable.itemId] }
     }
