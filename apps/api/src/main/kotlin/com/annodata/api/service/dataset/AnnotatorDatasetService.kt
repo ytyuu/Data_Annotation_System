@@ -25,7 +25,10 @@ import com.annodata.api.service.dataset.result.ClaimTasksTransactionResult
 import com.annodata.api.service.dataset.result.ReturnTaskTransactionResult
 import com.annodata.api.service.dataset.result.StartTaskBatchTransactionResult
 import com.annodata.api.service.dataset.result.SubmitAnnotationBatchResult
-import com.annodata.api.service.dataset.store.AnnotatorDatasetStore
+import com.annodata.api.service.dataset.store.AnnotationStore
+import com.annodata.api.service.dataset.store.AnnotationTaskStore
+import com.annodata.api.service.dataset.store.DataItemStore
+import com.annodata.api.service.dataset.store.DatasetStore
 import com.annodata.api.service.dataset.store.ClaimedDataItem
 import com.annodata.api.service.dataset.view.toDatasetResponse
 import org.jetbrains.exposed.sql.SortOrder
@@ -41,7 +44,10 @@ import java.util.UUID
  * 数据标注员业务服务，封装标注员侧数据集领取、任务和提交逻辑。
  */
 class AnnotatorDatasetService {
-    private val store = AnnotatorDatasetStore()
+    private val datasetStore = DatasetStore()
+    private val dataItemStore = DataItemStore()
+    private val annotationTaskStore = AnnotationTaskStore()
+    private val annotationStore = AnnotationStore()
     private val activeTaskStatuses = listOf("assigned", "in_progress")
     private val activeBatchStatuses = listOf("assigned", "in_progress")
 
@@ -57,17 +63,17 @@ class AnnotatorDatasetService {
     fun listOpenDatasets(annotatorId: UUID): Result<List<DatasetResponse>> {
         val datasets = transaction {
             // 查询所有仍可继续处理的数据集，作为标注员可领取任务的候选列表。
-            val datasetRows = store.listClaimableDatasetRows()
+            val datasetRows = datasetStore.listClaimableDatasetRows()
 
             val datasetIds = datasetRows.map { it[DatasetsTable.id] }
 
             // 查询每个可处理数据集下当前标注员仍可领取的 pending 数据项数量。
-            val pendingCounts = store.countClaimablePendingItemsByDataset(annotatorId, datasetIds)
+            val pendingCounts = dataItemStore.countClaimablePendingItemsByDataset(annotatorId, datasetIds)
 
-            val activeByDataset = store.countActiveBatchesByDataset(annotatorId, datasetIds, activeBatchStatuses)
+            val activeByDataset = annotationTaskStore.countActiveBatchesByDataset(annotatorId, datasetIds, activeBatchStatuses)
 
             // 查询当前标注员在每个数据集下是否已有互查类型的活跃任务单。
-            val activeReviewByDataset = store.countActiveBatchesByDataset(
+            val activeReviewByDataset = annotationTaskStore.countActiveBatchesByDataset(
                 annotatorId = annotatorId,
                 datasetIds = datasetIds,
                 activeBatchStatuses = activeBatchStatuses,
@@ -75,14 +81,14 @@ class AnnotatorDatasetService {
             )
 
             // 限制同时持有的活跃任务项总数不超过 5 个，避免单用户过度占用系统资源。
-            val totalActive = store.countActiveBatchItems(annotatorId, activeBatchStatuses)
+            val totalActive = annotationTaskStore.countActiveBatchItems(annotatorId, activeBatchStatuses)
 
             // 查询每个数据集下“当前轮可互查”的数据项数量。
             // 这里的可互查不是看全历史，而是只看当前轮：
             // 1. 当前轮已有原始标注；
             // 2. 当前轮还没有 review 标注；
             // 3. 当前标注员当前轮未参与过该数据项。
-            val reviewableCounts = store.countReviewableItemsByDataset(annotatorId, datasetIds)
+            val reviewableCounts = dataItemStore.countReviewableItemsByDataset(annotatorId, datasetIds)
 
             // 查询每个数据集中已经形成最终结果的数据项数量。
             val completedCounts = DatasetQueryHelper.countCompletedItems(datasetIds)
@@ -140,7 +146,7 @@ class AnnotatorDatasetService {
 
         val result = transaction {
             // 查询目标数据集，确认数据集存在且可被领取。
-            val dataset = store.findDatasetRow(datasetId)
+            val dataset = datasetStore.findDatasetRow(datasetId)
                 ?: return@transaction ClaimTasksTransactionResult.NotFound
 
             if (!DatasetStatusPolicy.canClaimDataset(dataset[DatasetsTable.status])) {
@@ -148,7 +154,7 @@ class AnnotatorDatasetService {
             }
 
             // 查询当前标注员是否已持有该数据集同类型的活跃任务单。
-            val existingInDataset = store.countExistingActiveBatchesInDataset(
+            val existingInDataset = annotationTaskStore.countExistingActiveBatchesInDataset(
                 annotatorId = annotatorId,
                 datasetId = datasetId,
                 taskType = taskType,
@@ -160,7 +166,7 @@ class AnnotatorDatasetService {
             }
 
             // 查询当前标注员所有活跃任务单的任务项总数，控制并发持有上限。
-            val totalActive = store.countActiveBatchItems(annotatorId, activeBatchStatuses)
+            val totalActive = annotationTaskStore.countActiveBatchItems(annotatorId, activeBatchStatuses)
 
             // 限制同时持有的活跃任务项总数不超过 5 个，避免单用户过度占用系统资源。
             if (ClaimPolicy.hasReachedActiveTaskLimit(totalActive)) {
@@ -170,7 +176,7 @@ class AnnotatorDatasetService {
             val now = OffsetDateTime.now()
 
             if (taskType == "annotation") {
-                val claimedItems = store.claimPendingItemsForAnnotation(datasetId, annotatorId, requestedCount, now)
+                val claimedItems = dataItemStore.claimPendingItemsForAnnotation(datasetId, annotatorId, requestedCount, now)
                 if (claimedItems.isEmpty()) {
                     return@transaction ClaimTasksTransactionResult.EmptyDataset
                 }
@@ -187,7 +193,7 @@ class AnnotatorDatasetService {
             val items = run {
                 // 互查任务：只查询当前轮已有原始标注、但当前轮尚未互查的数据项，
                 // 同时排除当前标注员当前轮已经参与过的数据项。
-                store.findReviewableItemRows(listOf(datasetId), annotatorId, requestedCount)
+                dataItemStore.findReviewableItemRows(listOf(datasetId), annotatorId, requestedCount)
             }
 
             if (items.isEmpty()) {
@@ -198,12 +204,12 @@ class AnnotatorDatasetService {
             val orderNo = generateOrderNo(now, taskType)
 
             // 创建任务单记录。
-            store.createTaskBatch(batchId, orderNo, datasetId, annotatorId, taskType, items.size, now)
+            annotationTaskStore.createTaskBatch(batchId, orderNo, datasetId, annotatorId, taskType, items.size, now)
 
             val tasks = items.map { item ->
                 val taskId = UUID.randomUUID()
 
-                store.createAnnotationTask(
+                annotationTaskStore.createAnnotationTask(
                     taskId = taskId,
                     batchId = batchId,
                     datasetId = datasetId,
@@ -263,12 +269,12 @@ class AnnotatorDatasetService {
         val batchId = UUID.randomUUID()
         val orderNo = generateOrderNo(now, taskType)
 
-        store.createTaskBatch(batchId, orderNo, datasetId, annotatorId, taskType, claimedItems.size, now)
+        annotationTaskStore.createTaskBatch(batchId, orderNo, datasetId, annotatorId, taskType, claimedItems.size, now)
 
         val tasks = claimedItems.map { item ->
             val taskId = UUID.randomUUID()
 
-            store.createAnnotationTask(
+            annotationTaskStore.createAnnotationTask(
                 taskId = taskId,
                 batchId = batchId,
                 datasetId = datasetId,
@@ -333,13 +339,13 @@ class AnnotatorDatasetService {
         annotatorId: UUID,
         batchId: UUID,
     ): BatchTaskRows {
-        val taskRows = store.listTaskRowsForBatch(annotatorId, batchId)
+        val taskRows = annotationTaskStore.listTaskRowsForBatch(annotatorId, batchId)
 
         val taskIds = taskRows.map { it[AnnotationTasksTable.id] }
         val itemIds = taskRows.map { it[AnnotationTasksTable.itemId] }.toSet()
 
-        val annotationsByTask = store.listAnnotationsByTaskIds(taskIds)
-        val items = store.listItemsByIds(itemIds)
+        val annotationsByTask = annotationStore.listAnnotationsByTaskIds(taskIds)
+        val items = dataItemStore.listItemsByIds(itemIds)
 
         return BatchTaskRows(
             taskRows = taskRows,
@@ -445,7 +451,7 @@ class AnnotatorDatasetService {
             }
 
             // 批量统计任务单下各状态任务项数量，避免拉取所有任务项行后本地分组。
-            val taskCountsByBatch = store.countTaskStatusesByBatch(batchIds)
+            val taskCountsByBatch = annotationTaskStore.countTaskStatusesByBatch(batchIds)
 
             batchRows.mapNotNull { batch ->
                 val datasetId = batch[AnnotationTaskBatchesTable.datasetId]
@@ -485,7 +491,7 @@ class AnnotatorDatasetService {
     ): Result<List<AnnotatorTaskDetailResponse>> {
         val result = transaction {
             // 查询任务单并校验其属于当前标注员。
-            val batch = store.findBatchRowForAnnotator(batchId, annotatorId)
+            val batch = annotationTaskStore.findBatchRowForAnnotator(batchId, annotatorId)
                 ?: return@transaction null
 
             toTaskDetailResponses(
@@ -649,7 +655,7 @@ class AnnotatorDatasetService {
     ): Result<AnnotatorTaskWorkspaceResponse> {
         val result = transaction {
             // 查询任务单并校验其属于当前标注员。
-            val batch = store.findBatchRowForAnnotator(batchId, annotatorId)
+            val batch = annotationTaskStore.findBatchRowForAnnotator(batchId, annotatorId)
                 ?: return@transaction null
 
             // 查询任务单所属的数据集，获取标注说明和标注配置。
@@ -768,11 +774,11 @@ class AnnotatorDatasetService {
                 }
 
                 // 查询任务项是否已有标注结果，决定后续插入还是覆盖更新。
-                val existingAnnotation = store.findExistingAnnotationByTaskId(submission.taskId)
+                val existingAnnotation = annotationStore.findExistingAnnotationByTaskId(submission.taskId)
 
                 val isReviewBatch = batch[AnnotationTaskBatchesTable.batchType] == "review"
                 val originalAnnotation = if (isReviewBatch) {
-                    store.findOriginalAnnotation(submission.itemId, taskRow[AnnotationTasksTable.roundNo])
+                    annotationStore.findOriginalAnnotation(submission.itemId, taskRow[AnnotationTasksTable.roundNo])
                         ?: return@transaction SubmitAnnotationBatchResult.InvalidTasks
                 } else null
                 // 互查任务需要比对原始标注与互查结果的一致性：
@@ -786,7 +792,7 @@ class AnnotatorDatasetService {
                     submittedResult = submission.result,
                 )
 
-                store.upsertSubmittedAnnotation(
+                annotationStore.upsertSubmittedAnnotation(
                     existingAnnotation = existingAnnotation,
                     taskId = submission.taskId,
                     itemId = submission.itemId,
@@ -801,7 +807,7 @@ class AnnotatorDatasetService {
                     now = now,
                 )
 
-                store.markTaskSubmitted(submission.taskId, now)
+                annotationTaskStore.markTaskSubmitted(submission.taskId, now)
 
                 // 互查提交完成后，触发数据项状态机推进（一致则采纳，不一致则争议）。
                 if (isReviewBatch && originalAnnotation != null) {
@@ -816,14 +822,14 @@ class AnnotatorDatasetService {
             }
 
             // 查询任务单下已提交的任务项数量，用于判断整单是否完成。
-            val submittedCount = store.countSubmittedTasksInBatch(batchId)
+            val submittedCount = annotationTaskStore.countSubmittedTasksInBatch(batchId)
 
             if (batch[AnnotationTaskBatchesTable.status] == "assigned") {
-                store.markBatchInProgress(batchId, batch[AnnotationTaskBatchesTable.startedAt] == null, now)
+                annotationTaskStore.markBatchInProgress(batchId, batch[AnnotationTaskBatchesTable.startedAt] == null, now)
             }
 
             if (batch[AnnotationTaskBatchesTable.totalCount] in 1..submittedCount) {
-                store.markBatchSubmitted(batchId, now)
+                annotationTaskStore.markBatchSubmitted(batchId, now)
             }
 
             SubmitAnnotationBatchResult.Success(submittedCount, batch[AnnotationTaskBatchesTable.totalCount])
@@ -863,7 +869,7 @@ class AnnotatorDatasetService {
         roundNo: Int,
         now: OffsetDateTime,
     ) {
-        val annotations = store.listRoundAnnotations(itemId, roundNo)
+        val annotations = annotationStore.listRoundAnnotations(itemId, roundNo)
 
         val originalAnnotation = annotations.firstOrNull { it[AnnotationsTable.id] == originalAnnotationId } ?: return
         val reviewAnnotation = annotations.firstOrNull { it[AnnotationsTable.annotationType] == "review" } ?: return
@@ -875,11 +881,11 @@ class AnnotatorDatasetService {
         )
 
         if (isDisputed) {
-            store.markRoundAnnotationsDisputed(itemId, roundNo, now)
-            store.markItemDisputed(itemId, now)
+            annotationStore.markRoundAnnotationsDisputed(itemId, roundNo, now)
+            dataItemStore.markItemDisputed(itemId, now)
         } else {
-            store.markRoundAnnotationsAccepted(itemId, roundNo, now)
-            store.markItemAnnotated(itemId, originalAnnotation[AnnotationsTable.result], now)
+            annotationStore.markRoundAnnotationsAccepted(itemId, roundNo, now)
+            dataItemStore.markItemAnnotated(itemId, originalAnnotation[AnnotationsTable.result], now)
         }
 
         DatasetQueryHelper.refreshDatasetCompletedItemCount(datasetId, now)
