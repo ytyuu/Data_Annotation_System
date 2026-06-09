@@ -1,10 +1,8 @@
 package com.annodata.api.service.dataset.result
 
 import com.annodata.api.models.DisputedItemDetailResponse
-import com.annodata.api.models.FinishReviewResponse
 import com.annodata.api.models.ImportDataItemsResponse
 import com.annodata.api.models.ReviewDetailResponse
-import java.util.UUID
 
 internal sealed class DisputeDetailResult {
     data class Success(val value: DisputedItemDetailResponse) : DisputeDetailResult()

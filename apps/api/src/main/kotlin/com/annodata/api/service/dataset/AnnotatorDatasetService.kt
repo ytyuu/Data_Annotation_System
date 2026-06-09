@@ -29,7 +29,6 @@ import com.annodata.api.service.dataset.store.AnnotatorDatasetStore
 import com.annodata.api.service.dataset.store.ItemRoundKey
 import com.annodata.api.service.dataset.view.toDatasetResponse
 import org.jetbrains.exposed.sql.SortOrder
-import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction

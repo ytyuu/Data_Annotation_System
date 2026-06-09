@@ -12,7 +12,6 @@ import com.annodata.api.middleware.auth.requireAuth
 import com.annodata.api.routes.routeGroup
 import com.annodata.api.service.auth.AuthService
 import io.javalin.apibuilder.ApiBuilder.post
-import io.javalin.http.Handler
 
 /**
  * 注册认证相关路由（/register、/login、/me）。

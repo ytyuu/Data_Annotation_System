@@ -7,7 +7,6 @@ import com.annodata.api.db.DataItemsTable
 import com.annodata.api.db.DatasetsTable
 import com.annodata.api.db.DatasetReviewsTable
 import com.annodata.api.db.UsersTable
-import com.annodata.api.service.dataset.model.BatchTaskRows
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.and
