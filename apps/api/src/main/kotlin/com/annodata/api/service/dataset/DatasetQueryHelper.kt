@@ -5,6 +5,7 @@ import com.annodata.api.db.DatasetsTable
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.count
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.update
 import java.time.OffsetDateTime
@@ -27,14 +28,18 @@ object DatasetQueryHelper {
             return emptyMap()
         }
 
+        val itemCount = DataItemsTable.id.count()
+
         return DataItemsTable
-            .select(DataItemsTable.datasetId)
+            .select(DataItemsTable.datasetId, itemCount)
             .where {
                 (DataItemsTable.datasetId inList datasetIds) and
                     (DataItemsTable.status inList listOf("annotated", "accepted"))
             }
-            .groupingBy { it[DataItemsTable.datasetId] }
-            .eachCount()
+            .groupBy(DataItemsTable.datasetId)
+            .associate { row ->
+                row[DataItemsTable.datasetId] to row[itemCount].toInt()
+            }
     }
 
     /**
@@ -70,14 +75,18 @@ object DatasetQueryHelper {
             return emptyMap()
         }
 
+        val itemCount = DataItemsTable.id.count()
+
         return DataItemsTable
-            .select(DataItemsTable.datasetId)
+            .select(DataItemsTable.datasetId, itemCount)
             .where {
                 (DataItemsTable.datasetId inList datasetIds) and
                     (DataItemsTable.status eq "disputed")
             }
-            .groupingBy { it[DataItemsTable.datasetId] }
-            .eachCount()
+            .groupBy(DataItemsTable.datasetId)
+            .associate { row ->
+                row[DataItemsTable.datasetId] to row[itemCount].toInt()
+            }
     }
 
     /**

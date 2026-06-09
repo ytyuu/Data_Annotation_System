@@ -7,17 +7,25 @@ import com.annodata.api.db.DataItemsTable
 import com.annodata.api.db.DatasetsTable
 import com.annodata.api.db.DatasetReviewsTable
 import com.annodata.api.db.UsersTable
+import org.jetbrains.exposed.sql.Exists
+import org.jetbrains.exposed.sql.NotExists
 import org.jetbrains.exposed.sql.ResultRow
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.and
+import org.jetbrains.exposed.sql.count
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.sum
 import org.jetbrains.exposed.sql.update
 import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.util.UUID
 
-internal data class ItemRoundKey(val itemId: UUID, val roundNo: Int)
+internal data class TaskStatusCounts(
+    val assigned: Int = 0,
+    val inProgress: Int = 0,
+    val submitted: Int = 0,
+)
 
 internal data class ProviderDatasetRecord(
     val id: UUID,
@@ -318,53 +326,67 @@ internal class AnnotatorDatasetStore {
             .limit(1)
             .firstOrNull()
 
-    fun loadAnnotatorTaskRounds(annotatorId: UUID, datasetIds: List<UUID>): Set<ItemRoundKey> {
+    fun countClaimablePendingItemsByDataset(annotatorId: UUID, datasetIds: List<UUID>): Map<UUID, Int> {
         if (datasetIds.isEmpty()) {
-            return emptySet()
+            return emptyMap()
         }
 
-        return AnnotationTasksTable
-            .selectAll()
-            .where {
-                (AnnotationTasksTable.annotatorId eq annotatorId) and
-                    (AnnotationTasksTable.datasetId inList datasetIds)
-            }
-            .map { ItemRoundKey(it[AnnotationTasksTable.itemId], it[AnnotationTasksTable.roundNo]) }
-            .toSet()
-    }
-
-    fun listPendingItemRows(datasetIds: List<UUID>): List<ResultRow> {
-        if (datasetIds.isEmpty()) {
-            return emptyList()
-        }
+        val itemCount = DataItemsTable.id.count()
 
         return DataItemsTable
-            .selectAll()
+            .select(DataItemsTable.datasetId, itemCount)
             .where {
                 (DataItemsTable.datasetId inList datasetIds) and
-                    (DataItemsTable.status eq "pending")
+                    (DataItemsTable.status eq "pending") and
+                    NotExists(
+                        AnnotationTasksTable
+                            .select(AnnotationTasksTable.id)
+                            .where {
+                                (AnnotationTasksTable.annotatorId eq annotatorId) and
+                                    (AnnotationTasksTable.itemId eq DataItemsTable.id) and
+                                    (AnnotationTasksTable.roundNo eq DataItemsTable.currentRoundNo)
+                            }
+                    )
             }
-            .toList()
+            .groupBy(DataItemsTable.datasetId)
+            .associate { row ->
+                row[DataItemsTable.datasetId] to row[itemCount].toInt()
+            }
     }
 
-    fun listPendingItemRows(datasetId: UUID): List<ResultRow> =
+    fun listClaimablePendingItemRows(datasetId: UUID, annotatorId: UUID, limit: Int): List<ResultRow> =
         DataItemsTable
             .selectAll()
             .where {
                 (DataItemsTable.datasetId eq datasetId) and
-                    (DataItemsTable.status eq "pending")
+                    (DataItemsTable.status eq "pending") and
+                    NotExists(
+                        AnnotationTasksTable
+                            .select(AnnotationTasksTable.id)
+                            .where {
+                                (AnnotationTasksTable.annotatorId eq annotatorId) and
+                                    (AnnotationTasksTable.itemId eq DataItemsTable.id) and
+                                    (AnnotationTasksTable.roundNo eq DataItemsTable.currentRoundNo)
+                            }
+                    )
             }
             .orderBy(DataItemsTable.createdAt to SortOrder.ASC)
+            .limit(limit)
             .toList()
 
-    fun countActiveBatchItems(annotatorId: UUID, activeBatchStatuses: List<String>): Int =
-        AnnotationTaskBatchesTable
-            .selectAll()
+    fun countActiveBatchItems(annotatorId: UUID, activeBatchStatuses: List<String>): Int {
+        val totalCountSum = AnnotationTaskBatchesTable.totalCount.sum()
+
+        return AnnotationTaskBatchesTable
+            .select(totalCountSum)
             .where {
                 (AnnotationTaskBatchesTable.annotatorId eq annotatorId) and
                     (AnnotationTaskBatchesTable.status inList activeBatchStatuses)
             }
-            .sumOf { it[AnnotationTaskBatchesTable.totalCount] }
+            .firstOrNull()
+            ?.get(totalCountSum)
+            ?: 0
+    }
 
     fun countActiveBatchesByDataset(
         annotatorId: UUID,
@@ -376,8 +398,10 @@ internal class AnnotatorDatasetStore {
             return emptyMap()
         }
 
+        val batchCount = AnnotationTaskBatchesTable.id.count()
+
         return AnnotationTaskBatchesTable
-            .selectAll()
+            .select(AnnotationTaskBatchesTable.datasetId, batchCount)
             .where {
                 val baseCondition =
                     (AnnotationTaskBatchesTable.annotatorId eq annotatorId) and
@@ -389,8 +413,10 @@ internal class AnnotatorDatasetStore {
                     baseCondition and (AnnotationTaskBatchesTable.batchType eq batchType)
                 }
             }
-            .groupBy { it[AnnotationTaskBatchesTable.datasetId] }
-            .mapValues { it.value.size.toLong() }
+            .groupBy(AnnotationTaskBatchesTable.datasetId)
+            .associate { row ->
+                row[AnnotationTaskBatchesTable.datasetId] to row[batchCount]
+            }
     }
 
     fun countExistingActiveBatchesInDataset(
@@ -411,58 +437,97 @@ internal class AnnotatorDatasetStore {
 
     fun findReviewableItemRows(
         datasetIds: List<UUID>,
-        excludedRounds: Set<ItemRoundKey>,
+        annotatorId: UUID,
         limit: Int? = null,
     ): List<ResultRow> {
         if (datasetIds.isEmpty()) {
             return emptyList()
         }
 
-        val candidateItems = DataItemsTable
+        val query = DataItemsTable
             .selectAll()
             .where {
                 (DataItemsTable.datasetId inList datasetIds) and
-                    (DataItemsTable.status inList listOf("assigned", "annotated", "disputed"))
+                    (DataItemsTable.status inList listOf("assigned", "annotated", "disputed")) and
+                    Exists(
+                        AnnotationsTable
+                            .select(AnnotationsTable.id)
+                            .where {
+                                (AnnotationsTable.itemId eq DataItemsTable.id) and
+                                    (AnnotationsTable.roundNo eq DataItemsTable.currentRoundNo) and
+                                    (AnnotationsTable.annotationType eq "annotation") and
+                                    (AnnotationsTable.status eq "submitted")
+                            }
+                    ) and
+                    NotExists(
+                        AnnotationsTable
+                            .select(AnnotationsTable.id)
+                            .where {
+                                (AnnotationsTable.itemId eq DataItemsTable.id) and
+                                    (AnnotationsTable.roundNo eq DataItemsTable.currentRoundNo) and
+                                    (AnnotationsTable.annotationType eq "review")
+                            }
+                    ) and
+                    NotExists(
+                        AnnotationTasksTable
+                            .select(AnnotationTasksTable.id)
+                            .where {
+                                (AnnotationTasksTable.annotatorId eq annotatorId) and
+                                    (AnnotationTasksTable.itemId eq DataItemsTable.id) and
+                                    (AnnotationTasksTable.roundNo eq DataItemsTable.currentRoundNo)
+                            }
+                    )
             }
             .orderBy(DataItemsTable.createdAt to SortOrder.ASC)
-            .toList()
 
-        if (candidateItems.isEmpty()) {
-            return emptyList()
+        return if (limit == null) query.toList() else query.limit(limit).toList()
+    }
+
+    fun countReviewableItemsByDataset(annotatorId: UUID, datasetIds: List<UUID>): Map<UUID, Int> {
+        if (datasetIds.isEmpty()) {
+            return emptyMap()
         }
 
-        val itemIds = candidateItems.map { it[DataItemsTable.id] }
-        val annotationsByItem = AnnotationsTable
-            .selectAll()
+        val itemCount = DataItemsTable.id.count()
+
+        return DataItemsTable
+            .select(DataItemsTable.datasetId, itemCount)
             .where {
-                (AnnotationsTable.itemId inList itemIds) and
-                    (AnnotationsTable.annotationType inList listOf("annotation", "review"))
+                (DataItemsTable.datasetId inList datasetIds) and
+                    (DataItemsTable.status inList listOf("assigned", "annotated", "disputed")) and
+                    Exists(
+                        AnnotationsTable
+                            .select(AnnotationsTable.id)
+                            .where {
+                                (AnnotationsTable.itemId eq DataItemsTable.id) and
+                                    (AnnotationsTable.roundNo eq DataItemsTable.currentRoundNo) and
+                                    (AnnotationsTable.annotationType eq "annotation") and
+                                    (AnnotationsTable.status eq "submitted")
+                            }
+                    ) and
+                    NotExists(
+                        AnnotationsTable
+                            .select(AnnotationsTable.id)
+                            .where {
+                                (AnnotationsTable.itemId eq DataItemsTable.id) and
+                                    (AnnotationsTable.roundNo eq DataItemsTable.currentRoundNo) and
+                                    (AnnotationsTable.annotationType eq "review")
+                            }
+                    ) and
+                    NotExists(
+                        AnnotationTasksTable
+                            .select(AnnotationTasksTable.id)
+                            .where {
+                                (AnnotationTasksTable.annotatorId eq annotatorId) and
+                                    (AnnotationTasksTable.itemId eq DataItemsTable.id) and
+                                    (AnnotationTasksTable.roundNo eq DataItemsTable.currentRoundNo)
+                            }
+                    )
             }
-            .toList()
-            .groupBy { it[AnnotationsTable.itemId] }
-
-        val filteredItems = candidateItems.filter { item ->
-            val currentRoundNo = item[DataItemsTable.currentRoundNo]
-            val itemRoundKey = ItemRoundKey(item[DataItemsTable.id], currentRoundNo)
-            if (itemRoundKey in excludedRounds) {
-                return@filter false
+            .groupBy(DataItemsTable.datasetId)
+            .associate { row ->
+                row[DataItemsTable.datasetId] to row[itemCount].toInt()
             }
-
-            val annotations = annotationsByItem[item[DataItemsTable.id]].orEmpty()
-            val hasCurrentOriginal = annotations.any {
-                it[AnnotationsTable.roundNo] == currentRoundNo &&
-                    it[AnnotationsTable.annotationType] == "annotation" &&
-                    it[AnnotationsTable.status] == "submitted"
-            }
-            val hasCurrentReview = annotations.any {
-                it[AnnotationsTable.roundNo] == currentRoundNo &&
-                    it[AnnotationsTable.annotationType] == "review"
-            }
-
-            hasCurrentOriginal && !hasCurrentReview
-        }
-
-        return if (limit == null) filteredItems else filteredItems.take(limit)
     }
 
     fun claimPendingItems(items: List<ResultRow>, now: OffsetDateTime): List<ResultRow> =
@@ -561,6 +626,33 @@ internal class AnnotatorDatasetStore {
             .selectAll()
             .where { AnnotationsTable.taskId inList taskIds }
             .associateBy { it[AnnotationsTable.taskId] }
+    }
+
+    fun countTaskStatusesByBatch(batchIds: Set<UUID>): Map<UUID, TaskStatusCounts> {
+        if (batchIds.isEmpty()) {
+            return emptyMap()
+        }
+
+        val taskCount = AnnotationTasksTable.id.count()
+        val counts = mutableMapOf<UUID, TaskStatusCounts>()
+
+        AnnotationTasksTable
+            .select(AnnotationTasksTable.batchId, AnnotationTasksTable.status, taskCount)
+            .where { AnnotationTasksTable.batchId inList batchIds }
+            .groupBy(AnnotationTasksTable.batchId, AnnotationTasksTable.status)
+            .forEach { row ->
+                val batchId = row[AnnotationTasksTable.batchId]
+                val count = row[taskCount].toInt()
+                val current = counts[batchId] ?: TaskStatusCounts()
+                counts[batchId] = when (row[AnnotationTasksTable.status]) {
+                    "assigned" -> current.copy(assigned = count)
+                    "in_progress" -> current.copy(inProgress = count)
+                    "submitted" -> current.copy(submitted = count)
+                    else -> current
+                }
+            }
+
+        return counts
     }
 
     fun listItemsByIds(itemIds: Set<UUID>): Map<UUID, ResultRow> {
