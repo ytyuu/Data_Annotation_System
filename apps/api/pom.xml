@@ -4,7 +4,7 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>com.example</groupId>
+    <groupId>com.annodata</groupId>
     <artifactId>data-annotation-api</artifactId>
     <version>0.1.0</version>
 
@@ -98,7 +98,7 @@
                 <artifactId>exec-maven-plugin</artifactId>
                 <version>${exec.maven.plugin.version}</version>
                 <configuration>
-                    <mainClass>com.example.api.Main</mainClass>
+                    <mainClass>com.annodata.api.Main</mainClass>
                     <classpathScope>compile</classpathScope>
                 </configuration>
             </plugin>

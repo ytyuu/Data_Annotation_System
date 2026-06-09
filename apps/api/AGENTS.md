@@ -14,8 +14,8 @@
 ## 目录与入口
 
 - 源码目录：`src/main/kotlin`
-- 应用入口：`com.example.api.Main`
-- Javalin 应用创建：`com.example.api.ApplicationKt#createApp`
+- 应用入口：`com.annodata.api.Main`
+- Javalin 应用创建：`com.annodata.api.ApplicationKt#createApp`
 - 路由注册：`routes/ApiRoutes.kt`
 - HTTP 配置：`http/HttpConfig.kt`
 - 默认开发端口：`7000`

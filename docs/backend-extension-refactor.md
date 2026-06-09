@@ -62,7 +62,7 @@
 **文件**：`apps/api/src/main/kotlin/com/example/api/service/dataset/AnnotationType.kt`
 
 ```kotlin
-package com.example.api.service.dataset
+package com.annodata.api.service.dataset
 
 /**
  * 支持的标注类型枚举。
@@ -94,9 +94,9 @@ enum class AnnotationType(val typeName: String) {
 **文件**：`apps/api/src/main/kotlin/com/example/api/service/dataset/consistency/AnnotationConsistencyStrategy.kt`
 
 ```kotlin
-package com.example.api.service.dataset.consistency
+package com.annodata.api.service.dataset.consistency
 
-import com.example.api.service.dataset.AnnotationType
+import com.annodata.api.service.dataset.AnnotationType
 import com.fasterxml.jackson.databind.JsonNode
 
 /**
@@ -141,9 +141,9 @@ interface AnnotationConsistencyStrategy {
 **文件**：`apps/api/src/main/kotlin/com/example/api/service/dataset/consistency/ClassificationConsistencyStrategy.kt`
 
 ```kotlin
-package com.example.api.service.dataset.consistency
+package com.annodata.api.service.dataset.consistency
 
-import com.example.api.service.dataset.AnnotationType
+import com.annodata.api.service.dataset.AnnotationType
 import com.fasterxml.jackson.databind.JsonNode
 
 /**
@@ -211,9 +211,9 @@ class ClassificationConsistencyStrategy : AnnotationConsistencyStrategy {
 **文件**：`apps/api/src/main/kotlin/com/example/api/service/dataset/consistency/BoundingBoxConsistencyStrategy.kt`
 
 ```kotlin
-package com.example.api.service.dataset.consistency
+package com.annodata.api.service.dataset.consistency
 
-import com.example.api.service.dataset.AnnotationType
+import com.annodata.api.service.dataset.AnnotationType
 import com.fasterxml.jackson.databind.JsonNode
 import kotlin.math.max
 import kotlin.math.min
@@ -316,9 +316,9 @@ class BoundingBoxConsistencyStrategy(
 **文件**：`apps/api/src/main/kotlin/com/example/api/service/dataset/consistency/NERConsistencyStrategy.kt`
 
 ```kotlin
-package com.example.api.service.dataset.consistency
+package com.annodata.api.service.dataset.consistency
 
-import com.example.api.service.dataset.AnnotationType
+import com.annodata.api.service.dataset.AnnotationType
 import com.fasterxml.jackson.databind.JsonNode
 
 /**
@@ -436,9 +436,9 @@ class NERConsistencyStrategy(
 **文件**：`apps/api/src/main/kotlin/com/example/api/service/dataset/consistency/ConsistencyStrategyFactory.kt`
 
 ```kotlin
-package com.example.api.service.dataset.consistency
+package com.annodata.api.service.dataset.consistency
 
-import com.example.api.service.dataset.AnnotationType
+import com.annodata.api.service.dataset.AnnotationType
 import com.fasterxml.jackson.databind.JsonNode
 
 /**
@@ -513,11 +513,11 @@ object ConsistencyStrategyFactory {
 **文件**：`apps/api/src/main/kotlin/com/example/api/service/dataset/DatasetQueryHelper.kt`
 
 ```kotlin
-package com.example.api.service.dataset
+package com.annodata.api.service.dataset
 
-import com.example.api.db.DataItemsTable
-import com.example.api.db.DatasetsTable
-import com.example.api.service.dataset.consistency.ConsistencyStrategyFactory
+import com.annodata.api.db.DataItemsTable
+import com.annodata.api.db.DatasetsTable
+import com.annodata.api.service.dataset.consistency.ConsistencyStrategyFactory
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 import org.jetbrains.exposed.sql.and
@@ -716,7 +716,7 @@ enum class AnnotationType(val typeName: String) {
 
 ```kotlin
 // consistency/SegmentationConsistencyStrategy.kt
-package com.example.api.service.dataset.consistency
+package com.annodata.api.service.dataset.consistency
 
 class SegmentationConsistencyStrategy(
     private val overlapThreshold: Double = 0.7
