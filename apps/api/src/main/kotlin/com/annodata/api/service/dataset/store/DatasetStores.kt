@@ -271,7 +271,7 @@ internal class ProviderDatasetStore {
         }
 
         return UsersTable
-            .selectAll()
+            .select(UsersTable.id, UsersTable.displayName)
             .where { UsersTable.id inList userIds }
             .associate { it[UsersTable.id].toString() to it[UsersTable.displayName] }
     }
@@ -293,7 +293,18 @@ internal class ProviderDatasetStore {
         }
 
         val annRows = AnnotationsTable
-            .selectAll()
+            .select(
+                AnnotationsTable.id,
+                AnnotationsTable.itemId,
+                AnnotationsTable.annotatorId,
+                AnnotationsTable.roundNo,
+                AnnotationsTable.annotationType,
+                AnnotationsTable.result,
+                AnnotationsTable.comment,
+                AnnotationsTable.isDisputed,
+                AnnotationsTable.status,
+                AnnotationsTable.submittedAt,
+            )
             .where {
                 (AnnotationsTable.itemId inList itemIds) and
                     (AnnotationsTable.annotationType inList listOf("annotation", "review"))
@@ -599,7 +610,14 @@ internal class AnnotatorDatasetStore {
 
     fun listTaskRowsForBatch(annotatorId: UUID, batchId: UUID): List<ResultRow> =
         AnnotationTasksTable
-            .selectAll()
+            .select(
+                AnnotationTasksTable.id,
+                AnnotationTasksTable.itemId,
+                AnnotationTasksTable.status,
+                AnnotationTasksTable.assignedAt,
+                AnnotationTasksTable.startedAt,
+                AnnotationTasksTable.submittedAt,
+            )
             .where {
                 (AnnotationTasksTable.annotatorId eq annotatorId) and
                     (AnnotationTasksTable.batchId eq batchId)
@@ -623,7 +641,14 @@ internal class AnnotatorDatasetStore {
         }
 
         return AnnotationsTable
-            .selectAll()
+            .select(
+                AnnotationsTable.taskId,
+                AnnotationsTable.result,
+                AnnotationsTable.isDisputed,
+                AnnotationsTable.status,
+                AnnotationsTable.adoptionStatus,
+                AnnotationsTable.adoptionComment,
+            )
             .where { AnnotationsTable.taskId inList taskIds }
             .associateBy { it[AnnotationsTable.taskId] }
     }

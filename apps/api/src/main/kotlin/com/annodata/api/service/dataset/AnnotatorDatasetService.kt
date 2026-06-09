@@ -351,7 +351,16 @@ class AnnotatorDatasetService {
         val taskBatches = transaction {
             // 查询当前标注员的任务单列表，可按任务单状态筛选。
             val batchRows = AnnotationTaskBatchesTable
-                .selectAll()
+                .select(
+                    AnnotationTaskBatchesTable.id,
+                    AnnotationTaskBatchesTable.orderNo,
+                    AnnotationTaskBatchesTable.datasetId,
+                    AnnotationTaskBatchesTable.status,
+                    AnnotationTaskBatchesTable.totalCount,
+                    AnnotationTaskBatchesTable.assignedAt,
+                    AnnotationTaskBatchesTable.startedAt,
+                    AnnotationTaskBatchesTable.submittedAt,
+                )
                 .where {
                     val baseCondition = AnnotationTaskBatchesTable.annotatorId eq annotatorId
                     if (!statusFilters.isNullOrEmpty()) {
@@ -371,7 +380,7 @@ class AnnotatorDatasetService {
             } else {
                 // 批量查询任务单关联的数据集名称，避免逐条查数据集。
                 DatasetsTable
-                    .selectAll()
+                    .select(DatasetsTable.id, DatasetsTable.name)
                     .where { DatasetsTable.id inList datasetIds }
                     .associateBy { it[DatasetsTable.id] }
             }
