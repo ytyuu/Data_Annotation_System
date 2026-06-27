@@ -3,8 +3,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "nodemon --watch src -e kt --exec \"powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dev-api.ps1\"",
-    "stop": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/stop-api-port.ps1",
+    "dev": "nodemon --watch src -e kt --exec \"node scripts/dev-api.mjs\"",
+    "stop": "node scripts/stop-api-port.mjs",
     "build": "mvnd -q compile",
     "test": "mvnd -q compile",
     "lint": "mvnd -q compile"

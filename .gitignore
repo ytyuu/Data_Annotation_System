@@ -34,3 +34,5 @@ mvnd.properties
 
 test-dataset.txt
 test-dataset-suboptions.txt
+
+.pnpm-store/
