@@ -1,0 +1,973 @@
+# 大模型标注接入方案讨论记录
+
+本文档整理当前项目中引入大模型标注能力的推荐方案。内容基于现有人工标注链路、数据库状态机和接口实现进行讨论，重点说明业务边界、数据归属、状态流转、接口能力、前端页面和第一版实现范围。
+
+本文不直接定义最终数据库迁移 SQL 或接口 DTO，仅作为后续实现前的方案共识。
+
+## 1. 方案摘要
+
+推荐方案：
+
+```text
+复用 datasets / data_items
+新增 ai_annotation_batches / ai_annotation_results
+新增 data_items.status = ai_processing
+大模型生产链路独立
+大模型结果格式对齐人工 result
+提供方治理和审核大模型结果
+确认后的结果再写入 data_items.final_result
+标注员侧第一版无感
+```
+
+核心原则：
+
+- 大模型不模拟人工标注员。
+- 大模型不领取人工任务单。
+- 大模型不写入 `annotation_task_batches` / `annotation_tasks`。
+- 第一版不直接写入 `annotations`。
+- 大模型结果被接受后，才汇入现有数据项和数据集完成流程。
+- 大模型结果被驳回并转人工时，数据项回到 `pending`，由现有人工链路继续处理。
+
+## 2. 当前人工链路现状
+
+当前项目的人工标注链路以这些表为核心：
+
+- `datasets`：数据集主表，保存数据集状态、标注说明和标注结构。
+- `data_items`：数据项表，保存待标注样本、当前轮次和最终结果。
+- `annotation_task_batches`：人工任务单表，表示标注员领取的一批任务。
+- `annotation_tasks`：人工任务项表，表示任务单下每条数据项的执行记录。
+- `annotations`：人工标注结果表，保存原始标注和互查标注。
+- `dataset_reviews`：提供方审核记录表。
+
+当前数据库和代码实际使用的数据集状态：
+
+```text
+[draft] -> [in_progress] -> [reviewing] -> [completed]
+```
+
+当前数据项状态：
+
+```text
+[pending] --领取任务--> [assigned]
+                         |
+                         +--提交并互查一致--> [annotated] --提供方通过--> [accepted]
+                         |
+                         +--提交但互查不一致--> [disputed] --提供方裁决--> [accepted]
+                         |
+                         +--提供方驳回--> [rejected] --重新发布/下一轮--> [pending]
+```
+
+人工链路关键规则：
+
+- 人工首次标注只领取 `data_items.status = pending` 的数据项。
+- 领取人工标注任务后，数据项从 `pending` 变为 `assigned`。
+- 人工原始标注提交后，写入 `annotations.annotation_type = annotation`。
+- 互查任务从当前轮已有原始标注、尚未互查、且当前标注员未参与过的数据项中领取。
+- 互查一致时，数据项变为 `annotated`，并写入 `final_result`。
+- 互查不一致或存在争议时，数据项变为 `disputed`，由提供方裁决。
+- 提供方审核通过后，数据项变为 `accepted`。
+- 提供方审核不通过后，数据项变为 `rejected`，重新发布时进入下一轮并恢复为 `pending`。
+
+## 3. 大模型标注定位
+
+大模型标注应定位为：
+
+```text
+批量标注执行器
+```
+
+不建议定位为：
+
+```text
+特殊标注员账号
+```
+
+原因：
+
+- 人工任务单围绕“领取、开始、提交、退回、我的任务、提交记录”等人工行为设计。
+- 大模型是批处理，不需要人工任务单生命周期。
+- 人工任务表存在 `annotator_id`、活跃任务限制、同数据集领取限制等约束。
+- 让大模型伪装成标注员会污染标注员页面和统计语义。
+
+推荐业务边界：
+
+- 提供方发起大模型标注批次。
+- 大模型按数据集规则批量产出结果。
+- 系统按置信度和风险规则分流结果。
+- 提供方审核、抽检、接受、修改或驳回 AI 结果。
+- 通过后的 AI 结果汇入现有最终结果和数据集审核流程。
+- 标注员侧第一版不感知 AI 任务。
+
+## 4. 表复用与新增边界
+
+### 4.1 复用现有表
+
+应复用：
+
+- `datasets`
+- `data_items`
+- `datasets.annotation_guide`
+- `datasets.annotation_schema`
+- `datasets.target_completion_ratio`
+
+原因：
+
+- 大模型标注对象仍然是同一批数据项。
+- 标注规则仍然来自数据集配置。
+- 后续仍要进入当前数据集进度和最终审核流程。
+
+### 4.2 不复用人工任务表
+
+不建议复用：
+
+- `annotation_task_batches`
+- `annotation_tasks`
+
+大模型不应出现在：
+
+- 标注员“我的任务”
+- 标注员“提交记录”
+- 标注员工作台
+
+### 4.3 第一版不直接复用 `annotations`
+
+不建议第一版直接写入 `annotations`。
+
+原因：
+
+- `annotations.task_id` 必填且唯一。
+- `annotations.annotator_id` 必填。
+- `annotation_type` 当前只支持 `annotation / review`。
+- `review_of_annotation_id` 语义是人工互查对应原始标注。
+
+推荐方式：
+
+```text
+AI 结果单独存储
+AI result 格式与人工 result 保持一致
+AI 结果被接受后写入 data_items.final_result
+```
+
+## 5. 数据模型建议
+
+建议新增两张核心表：
+
+```text
+ai_annotation_batches
+ai_annotation_results
+```
+
+同时建议扩展 `data_items.status`：
+
+```text
+ai_processing
+```
+
+### 5.1 `ai_annotation_batches`
+
+`ai_annotation_batches` 表示一次大模型批量标注任务。
+
+建议字段：
+
+```text
+id uuid primary key
+
+dataset_id uuid not null
+provider_id uuid not null
+
+status varchar(32) not null
+-- pending / running / completed / failed / cancelled
+
+model_provider varchar(64)
+model_name varchar(128)
+prompt_version varchar(64)
+
+annotation_schema_snapshot jsonb not null
+annotation_guide_snapshot text
+config jsonb not null default '{}'
+
+total_count int not null default 0
+processed_count int not null default 0
+success_count int not null default 0
+failed_count int not null default 0
+needs_review_count int not null default 0
+accepted_count int not null default 0
+rejected_count int not null default 0
+
+error_message text
+
+started_at timestamptz
+finished_at timestamptz
+cancelled_at timestamptz
+
+created_at timestamptz not null
+updated_at timestamptz not null
+```
+
+建议保存规则快照：
+
+- `annotation_schema_snapshot`
+- `annotation_guide_snapshot`
+
+原因是数据集规则后续可能被提供方修改，批次需要保留当时实际使用的规则。
+
+`config` 示例：
+
+```json
+{
+  "confidenceThreshold": 0.85,
+  "samplingRatio": 0.1,
+  "highRiskCategories": ["other_violation", "pornographic"],
+  "autoAcceptHighConfidence": false,
+  "itemScope": "pending_only"
+}
+```
+
+第一版建议：
+
+```text
+autoAcceptHighConfidence = false
+```
+
+即高置信结果也先进入可抽检状态，不直接自动成为最终通过结果。
+
+### 5.2 `ai_annotation_results`
+
+`ai_annotation_results` 保存单条数据项的大模型输出结果，也可以承担“批次明细”的作用。创建批次时，可以先为被锁定的数据项创建 `pending` 状态的结果记录。
+
+建议字段：
+
+```text
+id uuid primary key
+
+batch_id uuid not null
+dataset_id uuid not null
+item_id uuid not null
+round_no int not null
+
+status varchar(32) not null
+-- pending / processing / ai_labeled / needs_review / accepted / rejected / failed
+
+result jsonb
+accepted_result jsonb
+
+confidence varchar(16)
+-- high / medium / low
+
+confidence_score numeric(5,4)
+reason text
+needs_human_review boolean not null default false
+risk_flags jsonb not null default '[]'
+
+raw_output jsonb
+error_message text
+
+attempt_count int not null default 0
+chunk_no int
+request_id varchar(80)
+
+reviewed_by uuid
+reviewed_at timestamptz
+review_action varchar(32)
+review_comment text
+
+leased_at timestamptz
+lease_expires_at timestamptz
+
+created_at timestamptz not null
+updated_at timestamptz not null
+```
+
+关键约束建议：
+
+```text
+unique(batch_id, item_id, round_no)
+```
+
+关键索引建议：
+
+```text
+(batch_id, status)
+(dataset_id, status)
+(item_id, round_no)
+(batch_id, request_id)
+(status, needs_human_review)
+```
+
+`accepted_result` 用于保存人工修改后通过的结果。如果人工未修改，最终写入 `data_items.final_result` 时使用：
+
+```text
+accepted_result ?? result
+```
+
+## 6. 状态机设计
+
+### 6.1 AI 批次状态
+
+建议：
+
+```text
+[pending] --开始执行--> [running] --全部处理完成--> [completed]
+                         |
+                         +--整体失败--> [failed]
+                         |
+                         +--提供方取消--> [cancelled]
+```
+
+状态含义：
+
+- `pending`：批次已创建，尚未开始执行。
+- `running`：大模型正在执行标注。
+- `completed`：批次执行完成，不代表所有结果最终通过。
+- `failed`：批次整体失败。
+- `cancelled`：提供方取消批次。
+
+### 6.2 AI 单条结果状态
+
+建议：
+
+```text
+[pending] --AI 领取--> [processing]
+                         |
+                         +--输出低风险结果--> [ai_labeled] --确认采用--> [accepted]
+                         |
+                         +--需要人工审核--> [needs_review] --审核通过--> [accepted]
+                         |                                |
+                         |                                +--审核驳回--> [rejected]
+                         |
+                         +--执行失败/解析失败--> [failed]
+```
+
+状态含义：
+
+- `pending`：结果记录已创建，等待 AI 执行端领取。
+- `processing`：AI 执行端已领取，正在处理。
+- `ai_labeled`：AI 已产出结果，系统认为低风险，可进入抽检或批量确认。
+- `needs_review`：需要人工审核。
+- `accepted`：结果已被提供方确认采用。
+- `rejected`：结果被提供方驳回。
+- `failed`：单条数据执行失败或输出不可解析。
+
+### 6.3 数据项状态扩展
+
+新增：
+
+```text
+ai_processing
+```
+
+推荐流转：
+
+```text
+[pending] --创建 AI 批次并锁定--> [ai_processing]
+                                      |
+                                      +--AI 结果被接受--> [annotated]
+                                      |
+                                      +--失败/驳回转人工--> [pending]
+                                      |
+                                      +--驳回后重跑--> [ai_processing]
+```
+
+含义：
+
+- AI 批次创建并锁定数据项时：`pending -> ai_processing`
+- AI 结果被接受：写入 `data_items.final_result`，`ai_processing -> annotated`
+- AI 结果失败或被驳回并转人工：`ai_processing -> pending`
+- AI 结果被驳回并重新 AI 标注：保持或重新进入 `ai_processing`
+
+这样人工领取逻辑仍然只需要关心：
+
+```text
+只有 pending 数据项进入人工首次标注池
+```
+
+## 7. AI 结果汇入现有流程
+
+大模型结果不应直接让数据集完成。
+
+推荐汇入方式：
+
+1. 创建 AI 批次，锁定 `pending` 数据项为 `ai_processing`。
+2. 大模型生成结果，写入 `ai_annotation_results`。
+3. 后端根据置信度、风险类别和系统规则判断是否需要人工审核。
+4. 高置信低风险结果进入抽检池。
+5. 低置信、高风险、边界样本进入人工审核池。
+6. 提供方审核通过后：
+   - 更新 AI 结果状态为 `accepted`
+   - 写入 `data_items.final_result`
+   - 更新 `data_items.status = annotated`
+   - 刷新 `datasets.completed_item_count`
+   - 检查是否达到 `target_completion_ratio`
+7. 提供方驳回后：
+   - 更新 AI 结果状态为 `rejected`
+   - 可选择重新 AI 标注或转人工标注
+   - 转人工时将数据项恢复为 `pending`
+
+AI 结果被接受后，现有标注审核页面可以继续基于 `data_items.final_result` 和 `data_items.status = annotated` 进行最终审核。
+
+## 8. 批次创建逻辑
+
+创建 AI 标注批次时，建议在一个事务中完成：
+
+1. 校验提供方拥有目标数据集。
+2. 校验数据集状态允许 AI 标注，第一版建议允许 `in_progress / reviewing`。
+3. 根据范围选择 `data_items.status = pending` 的数据项。
+4. 将选中的数据项更新为 `ai_processing`。
+5. 创建 `ai_annotation_batches`。
+6. 为每个数据项创建 `ai_annotation_results`，初始状态为 `pending`。
+7. 批次状态初始为 `pending`，等待 AI 执行端拉取；也可以在首次拉取时转为 `running`。
+
+这样 AI 处理中的数据项不会留在人工可领取池中。
+
+## 9. 接口设计
+
+接口分为三类：
+
+- 提供方控制接口
+- 大模型执行端接口
+- 提供方治理/审核接口
+
+### 9.1 最小 MVP 接口集
+
+第一版建议先实现：
+
+```text
+POST /api/provider/datasets/{datasetId}/ai-annotation-batches
+GET  /api/provider/datasets/{datasetId}/ai-annotation-batches
+GET  /api/provider/ai-annotation-batches/{batchId}
+
+GET  /api/ai/annotation-batches/{batchId}/items
+POST /api/ai/annotation-batches/{batchId}/results
+
+GET  /api/provider/ai-annotation-results?batchId=xxx
+POST /api/provider/ai-annotation-results/{resultId}/review
+```
+
+这组接口能跑通：
+
+```text
+创建 AI 批次
+锁定 pending 数据
+AI 拉取数据
+AI 分段上传结果
+提供方审核/抽检
+确认后写 final_result
+驳回后回人工池或重试
+```
+
+### 9.2 提供方批次接口
+
+创建批次：
+
+```text
+POST /api/provider/datasets/{datasetId}/ai-annotation-batches
+```
+
+批次列表：
+
+```text
+GET /api/provider/datasets/{datasetId}/ai-annotation-batches
+```
+
+批次详情：
+
+```text
+GET /api/provider/ai-annotation-batches/{batchId}
+```
+
+详情建议返回：
+
+```json
+{
+  "id": "xxx",
+  "datasetId": "xxx",
+  "datasetName": "评论数据集",
+  "status": "running",
+  "modelName": "xxx",
+  "totalCount": 1000,
+  "processedCount": 600,
+  "successCount": 580,
+  "failedCount": 20,
+  "needsReviewCount": 80,
+  "acceptedCount": 300,
+  "rejectedCount": 10,
+  "createdAt": "...",
+  "startedAt": "...",
+  "finishedAt": null
+}
+```
+
+后续可补充：
+
+```text
+POST /api/provider/ai-annotation-batches/{batchId}/cancel
+POST /api/provider/ai-annotation-batches/{batchId}/retry
+```
+
+取消时建议：
+
+- 批次状态变 `cancelled`。
+- `pending / processing` 的 AI 结果标记为取消或失败。
+- 对应 `data_items.status` 恢复为 `pending`。
+- 已经 `accepted` 的结果不回滚。
+
+重试可支持：
+
+- 重试 `failed`。
+- 重试 `rejected`。
+- 重试未处理或超时的 `pending / processing` 项。
+
+第一版也可以不做批次级重试，而是让 `reject_retry` 直接把单条结果放回 `pending`。
+
+### 9.3 AI 获取标注数据接口
+
+建议接口：
+
+```text
+GET /api/ai/annotation-batches/{batchId}/items?limit=100
+```
+
+返回示例：
+
+```json
+{
+  "batchId": "xxx",
+  "datasetId": "xxx",
+  "annotationGuide": "...",
+  "annotationSchema": {},
+  "items": [
+    {
+      "resultId": "xxx",
+      "itemId": "xxx",
+      "roundNo": 1,
+      "content": "评论内容",
+      "contentType": "text",
+      "metadata": {}
+    }
+  ]
+}
+```
+
+建议支持领取租约：
+
+1. 查询 `ai_annotation_results.status = pending` 的记录。
+2. 按 `limit` 取一批。
+3. 更新为 `processing`。
+4. 写入 `leased_at / lease_expires_at`。
+5. 返回给 AI 执行端。
+
+这样后续可以支持多个 worker、失败重试和超时回收。即使第一版只有一个执行端，也建议保留 `processing` 和租约字段。
+
+### 9.4 AI 分段上传结果接口
+
+AI 标注结果应批量上传，并且大批量时必须分段。
+
+建议接口：
+
+```text
+POST /api/ai/annotation-batches/{batchId}/results
+```
+
+请求示例：
+
+```json
+{
+  "requestId": "chunk-001",
+  "chunkNo": 1,
+  "items": [
+    {
+      "resultId": "xxx",
+      "itemId": "xxx",
+      "roundNo": 1,
+      "result": {
+        "value": "digital_swill",
+        "subValues": {
+          "digital_swill": ["personal_attack"]
+        }
+      },
+      "confidence": "high",
+      "confidenceScore": 0.95,
+      "reason": "包含直接辱骂，属于人身攻击",
+      "needsHumanReview": false,
+      "rawOutput": {}
+    }
+  ]
+}
+```
+
+单条失败可以这样表达：
+
+```json
+{
+  "resultId": "xxx",
+  "itemId": "xxx",
+  "roundNo": 1,
+  "errorMessage": "模型输出无法解析"
+}
+```
+
+后端处理逻辑：
+
+1. 校验批次允许接收结果。
+2. 校验 `resultId / itemId / batchId` 匹配。
+3. 校验数据项仍处于 `ai_processing`。
+4. 校验 `roundNo` 等于数据项当前轮次。
+5. 校验 `result` 是合法 JSON 对象。
+6. 后端重新判断 `needs_human_review`。
+7. 更新结果状态：
+   - 高置信低风险：`ai_labeled`
+   - 需要审核：`needs_review`
+   - 单条失败：`failed`
+8. 更新批次统计。
+
+分段大小第一版建议约 100 条。
+
+#### 9.4.1 幂等要求
+
+分段上传必须考虑重复上传。
+
+建议至少保证：
+
+```text
+batch_id + item_id + round_no 唯一
+```
+
+可选增加：
+
+```text
+batch_id + chunk_no
+batch_id + request_id
+```
+
+重复上传处理建议：
+
+- 同内容重复上传：视为成功。
+- 不同内容重复上传：第一版建议拒绝，避免结果漂移。
+
+### 9.5 提供方审核 AI 结果接口
+
+结果列表接口：
+
+```text
+GET /api/provider/ai-annotation-results?batchId=xxx&status=needs_review
+GET /api/provider/ai-annotation-results?batchId=xxx&status=ai_labeled
+GET /api/provider/ai-annotation-results?batchId=xxx&status=failed
+```
+
+单条审核接口：
+
+```text
+POST /api/provider/ai-annotation-results/{resultId}/review
+```
+
+请求示例：
+
+```json
+{
+  "action": "accept",
+  "acceptedResult": null,
+  "comment": "确认通过"
+}
+```
+
+建议支持的审核动作：
+
+```text
+accept
+modify_accept
+reject_to_human
+reject_retry
+reject
+```
+
+动作含义：
+
+- `accept`：接受 AI 原结果。
+- `modify_accept`：人工修改后接受。
+- `reject_to_human`：驳回并转人工标注池。
+- `reject_retry`：驳回并重新进入 AI 待处理。
+- `reject`：只驳回，不立即流转。第一版可以不做，避免结果悬空。
+
+动作对应的数据项变化：
+
+```text
+accept / modify_accept:
+  ai_result.status = accepted
+  data_items.final_result = accepted_result or result
+  data_items.status = annotated
+  refresh completed_item_count
+  check transition to reviewing
+
+reject_to_human:
+  ai_result.status = rejected
+  data_items.status = pending
+  data_items.final_result = null
+
+reject_retry:
+  ai_result.status = pending
+  data_items.status = ai_processing
+  attempt_count += 1
+```
+
+### 9.6 批量审核接口
+
+第一版可以先不实现批量审核，但后续会需要。
+
+建议接口：
+
+```text
+POST /api/provider/ai-annotation-results/batch-review
+```
+
+请求示例：
+
+```json
+{
+  "resultIds": ["id1", "id2"],
+  "action": "accept",
+  "comment": "抽检通过，批量确认"
+}
+```
+
+用途：
+
+- 批量接受高置信低风险结果。
+- 批量转人工。
+- 批量重试失败结果。
+
+## 10. 审核分流规则
+
+第一版建议 AI 上传结果时同步判断是否需要人工审核。
+
+后端计算：
+
+```text
+finalNeedsHumanReview = modelNeedsHumanReview || systemRiskRuleMatched
+```
+
+推荐规则：
+
+- `confidenceScore < 0.85`：进入人工审核。
+- `confidence = low`：进入人工审核。
+- `sub_category = other_violation`：进入人工审核。
+- 高风险类别：进入人工审核。
+- `result` 为空或格式异常：标记 `failed`。
+- `reason` 为空：进入人工审核。
+
+后续如果要做相似评论一致性检查、多模型复核、批次错误率分析或自动抽样策略，再增加异步质检。
+
+抽检和审核不建议做成两套动作接口：
+
+- 抽检是结果列表的一种筛选或分组。
+- 审核是统一动作。
+
+例如：
+
+```text
+GET  /api/provider/ai-annotation-results?batchId=xxx&reviewMode=sampling
+POST /api/provider/ai-annotation-results/{resultId}/review
+```
+
+## 11. 权限边界
+
+提供方接口继续使用现有 provider 登录态：
+
+```text
+/api/provider/...
+```
+
+要求只能操作自己创建的数据集、批次和结果。
+
+大模型执行端接口不建议使用普通用户 JWT。建议使用服务端令牌：
+
+```text
+Authorization: Bearer <AI_WORKER_TOKEN>
+```
+
+或：
+
+```text
+X-AI-Worker-Token: xxx
+```
+
+第一版可以简单做服务 token 校验，后续再扩展更细的 worker 权限。
+
+## 12. 对现有人工链路的影响
+
+如果采用推荐方案：
+
+```text
+新增 ai_processing 状态
+AI 独立批次和结果表
+AI 接受后写 final_result + annotated
+AI 驳回后回 pending
+```
+
+对现有人工逻辑的影响较小。
+
+### 12.1 人工领取任务
+
+人工首次标注只领取 `pending` 数据项。
+
+AI 处理中数据为 `ai_processing`，不会被人工领取。因此人工领取查询可以基本不改。
+
+### 12.2 我的任务和工作台
+
+AI 不生成 `annotation_task_batches` 和 `annotation_tasks`，所以：
+
+- 不出现在标注员“我的任务”。
+- 不出现在标注员“提交记录”。
+- 不影响人工工作台。
+
+### 12.3 人工提交逻辑
+
+基本不需要修改。
+
+被 AI 驳回并转人工的数据恢复为 `pending` 后，标注员领取到的仍然是普通人工任务。
+
+### 12.4 互查逻辑
+
+第一版不建议把 AI 结果纳入现有人工互查逻辑。
+
+也就是说，不建议做：
+
+```text
+AI 原始标注 + 人工互查
+```
+
+如果后续确实需要，可以再讨论是否把 AI 结果转化为一种可互查的原始标注来源。但这会明显增加 `annotations` 和互查语义复杂度。
+
+### 12.5 提供方审核
+
+AI 结果被接受后写入 `data_items.final_result`，并将数据项设为 `annotated`。这样现有标注审核页可以继续识别这些数据项。
+
+后续可以在审核页增加“结果来源：人工 / 大模型”的展示，但第一版不是必要条件。
+
+## 13. 前端页面建议
+
+AI 标注能力第一版主要面向数据提供方。
+
+标注员侧建议无感，不新增 AI 相关入口。
+
+### 13.1 新增提供方页面
+
+建议新增：
+
+```text
+/provider/ai-annotations
+```
+
+页面名称可以是：
+
+```text
+大模型标注
+```
+
+该页面承载 AI 标注批次管理和结果治理。
+
+### 13.2 页面结构
+
+第一版建议使用一个页面内的多个视图或 Tab：
+
+```text
+大模型标注
+  - 标注批次
+  - 待审核结果
+  - 抽检结果
+  - 失败结果
+```
+
+也可以按批次进入详情页：
+
+```text
+批次列表 -> 批次详情 -> 结果治理
+```
+
+### 13.3 数据集管理入口
+
+现有数据集管理页可以增加入口：
+
+```text
+发起大模型标注
+```
+
+该入口用于快速基于当前数据集创建 AI 标注批次。
+
+### 13.4 与现有页面的边界
+
+现有页面职责保持不变：
+
+- 数据集管理：创建、导入、发布数据集。
+- 大模型标注：创建 AI 批次、查看 AI 结果、审核/抽检 AI 结果。
+- 标注审核：对已经形成最终结果的数据项做最终质量审核。
+- 争议处理：第一版继续只处理人工标注和人工互查产生的争议。
+- 标注员页面：不展示 AI 任务。
+
+## 14. 推荐第一版闭环
+
+第一版推荐实现的闭环：
+
+```text
+[提供方发起 AI 标注批次]
+    |
+    v
+[锁定 pending 数据项为 ai_processing]
+    |
+    v
+[大模型分段拉取数据并执行标注]
+    |
+    v
+[大模型分段上传结果]
+    |
+    v
+[后端同步判断是否需要人工审核]
+    |
+    v
+[提供方在大模型标注页面审核/抽检]
+    |
+    +--接受结果--> [写入 final_result，数据项变 annotated]
+    |                  |
+    |                  v
+    |              [刷新数据集完成数]
+    |                  |
+    |                  v
+    |              [达到阈值后进入 reviewing]
+    |                  |
+    |                  v
+    |              [提供方在现有标注审核页面做最终审核]
+    |
+    +--驳回转人工--> [数据项回 pending]
+    |
+    +--驳回重跑--> [数据项继续 ai_processing]
+```
+
+## 15. 第一版暂不建议实现
+
+第一版暂不建议做：
+
+- AI 模拟标注员账号领取任务。
+- AI 写入人工 `annotation_task_batches`。
+- AI 写入人工 `annotation_tasks`。
+- AI 结果直接写入 `annotations`。
+- 全量双模型互查。
+- AI 自动完成数据集。
+- AI 自动修改标注规则。
+- AI 独立裁决高风险争议。
+- AI 结果直接进入现有人工争议处理页。
+
+## 16. 总结
+
+推荐方案可以概括为：
+
+```text
+复用 datasets / data_items
+新增 AI 批次表和 AI 结果表
+新增 data_items.status = ai_processing
+AI 结果格式对齐人工 result
+AI 生产链路独立
+AI 审核治理在提供方侧完成
+确认后的结果再汇入 data_items.final_result
+人工标注员侧第一版无感
+```
+
+这个方案对现有人工标注核心链路冲击较小，同时为大模型批次、分段上传、结果审核、失败重试和后续治理能力留下扩展空间。
