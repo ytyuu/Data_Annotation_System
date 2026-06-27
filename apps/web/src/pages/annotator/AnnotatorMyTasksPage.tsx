@@ -6,10 +6,9 @@ import { AppButton } from '../../components/shared/AppButton';
 import { AppModal } from '../../components/shared/AppModal';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { AppAlert } from '../../components/shared/AppAlert';
-import { MetricBox } from '../../components/shared/MetricBox';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { PageToolbar } from '../../components/shared/PageToolbar';
-import { ListCard } from '../../components/shared/ListCard';
+import { AppTable, AppTableBody, AppTableHead, AppTableRow } from '../../components/shared/AppTable';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -189,63 +188,74 @@ export function AnnotatorMyTasksPage() {
       ) : groups.length === 0 ? (
         <EmptyState align="center">暂无已领取的任务，去「可标注数据集」页面领取吧</EmptyState>
       ) : (
-        <div className="grid gap-3">
-          {groups.map((group) => (
-            <ListCard
-              key={group.batchId}
-              title={group.datasetName}
-              subtitle={group.orderNo}
-              badges={
-                <StatusBadge status={group.status}>
-                  {taskBatchStatusLabels[group.status] || group.status}
-                </StatusBadge>
-              }
-              metrics={
-                <div className="grid grid-cols-2 gap-2">
-                  <MetricBox label="数据项" value={`${group.totalCount} 条`} />
-                  <MetricBox label="已完成" value={`${group.submittedCount} 条`} />
-                </div>
-              }
-              actions={
-                <>
-                  <span>领取 {new Date(group.assignedAt).toLocaleDateString()}</span>
-                  <AppButton
-                    type="button"
-                    variant="primary"
-                    size="sm"
-                    className="h-8"
-                    onClick={() => openDetail(group.batchId)}
-                  >
-                    查看详情
-                  </AppButton>
-                  {['assigned', 'in_progress'].includes(group.status) && (
-                    <>
-                      <AppButton
-                        type="button"
-                        variant="primary"
-                        size="sm"
-                        className="h-8"
-                        onClick={() => openWorkspace(group)}
-                        disabled={startingBatchId === group.batchId}
-                      >
-                        {startingBatchId === group.batchId ? '启动中...' : '开始标注'}
-                      </AppButton>
-                      <AppButton
-                        type="button"
-                        variant="danger"
-                        size="sm"
-                        className="h-8"
-                        onClick={() => openReturnDialog(group.batchId)}
-                      >
-                        退回
-                      </AppButton>
-                    </>
-                  )}
-                </>
-              }
-            />
-          ))}
-        </div>
+        <AppTable>
+          <AppTableHead>
+            <tr>
+              <th className="w-[30%] px-4 py-3 text-left">数据集</th>
+              <th className="px-4 py-3 text-left">状态</th>
+              <th className="px-4 py-3 text-left">数据项</th>
+              <th className="px-4 py-3 text-left">领取时间</th>
+              <th className="px-4 py-3 text-right">操作</th>
+            </tr>
+          </AppTableHead>
+          <AppTableBody>
+            {groups.map((group) => (
+              <AppTableRow key={group.batchId} className="align-top">
+                <td className="px-4 py-4 align-middle">
+                  <div className="text-base font-semibold text-gray-900">{group.datasetName}</div>
+                  <div className="mt-1 line-clamp-1 text-xs text-gray-500">
+                    {group.orderNo}
+                  </div>
+                </td>
+                <td className="px-4 py-4 align-middle">
+                  <StatusBadge status={group.status}>
+                    {taskBatchStatusLabels[group.status] || group.status}
+                  </StatusBadge>
+                </td>
+                <td className="px-4 py-4 align-middle text-gray-600">
+                  <div className="text-sm text-gray-900">{group.submittedCount} / {group.totalCount}</div>
+                  <div className="mt-1 text-xs text-gray-500">已完成 / 总数</div>
+                </td>
+                <td className="px-4 py-4 align-middle text-gray-500">
+                  {new Date(group.assignedAt).toLocaleString()}
+                </td>
+                <td className="px-4 py-4 align-middle">
+                  <div className="flex justify-end gap-2">
+                    <AppButton
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => openDetail(group.batchId)}
+                    >
+                      查看详情
+                    </AppButton>
+                    {['assigned', 'in_progress'].includes(group.status) && (
+                      <>
+                        <AppButton
+                          type="button"
+                          variant="primary"
+                          size="sm"
+                          onClick={() => openWorkspace(group)}
+                          disabled={startingBatchId === group.batchId}
+                        >
+                          {startingBatchId === group.batchId ? '启动中...' : '开始标注'}
+                        </AppButton>
+                        <AppButton
+                          type="button"
+                          variant="danger"
+                          size="sm"
+                          onClick={() => openReturnDialog(group.batchId)}
+                        >
+                          退回
+                        </AppButton>
+                      </>
+                    )}
+                  </div>
+                </td>
+              </AppTableRow>
+            ))}
+          </AppTableBody>
+        </AppTable>
       )}
 
       {returningBatchId && (

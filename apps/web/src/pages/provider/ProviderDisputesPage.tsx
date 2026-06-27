@@ -12,9 +12,20 @@ import { StatusBadge } from '../../components/shared/StatusBadge';
 import { AppAlert } from '../../components/shared/AppAlert';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { AppTable, AppTableBody, AppTableHead, AppTableRow } from '../../components/shared/AppTable';
-import { ListCard } from '../../components/shared/ListCard';
+import { PageToolbar } from '../../components/shared/PageToolbar';
 
 const apiBaseUrl = 'http://localhost:7000';
+
+const datasetStatusLabels: Record<string, string> = {
+  draft: '草稿',
+  in_progress: '进行中',
+  open: '已开放',
+  annotating: '标注中',
+  reviewing: '审核中',
+  revision_required: '需调整',
+  completed: '已完成',
+  closed: '已关闭',
+};
 
 interface Dataset {
   id: string;
@@ -274,9 +285,21 @@ export function ProviderDisputesPage() {
   function renderDatasetsView() {
     return (
       <div>
-        <div className="mb-4 text-sm text-gray-500">
+        <PageToolbar
+          actions={
+            <AppButton
+              type="button"
+              variant="secondary"
+              size="sm"
+              disabled={datasetsLoading}
+              onClick={loadDatasets}
+            >
+              {datasetsLoading ? '刷新中...' : '刷新'}
+            </AppButton>
+          }
+        >
           共 {datasets.length} 个数据集存在争议数据项
-        </div>
+        </PageToolbar>
 
         {datasetsError && <AppAlert kind="error" className="mb-6">{datasetsError}</AppAlert>}
 
@@ -285,31 +308,54 @@ export function ProviderDisputesPage() {
         ) : datasets.length === 0 ? (
           <EmptyState align="center" spacious>暂无争议数据项</EmptyState>
         ) : (
-          <div className="grid gap-3">
-            {datasets.map((dataset) => (
-              <ListCard
-                key={dataset.id}
-                title={dataset.name}
-                subtitle={dataset.description || '暂无简介'}
-                meta={<span>{dataset.itemCount} 条数据</span>}
-                badges={
-                  <StatusBadge status="disputed">
-                    {dataset.disputedItemCount} 条争议
-                  </StatusBadge>
-                }
-                actions={
-                  <AppButton
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => openDataset(dataset)}
-                  >
-                    查看争议
-                  </AppButton>
-                }
-              />
-            ))}
-          </div>
+          <AppTable>
+            <AppTableHead>
+              <tr>
+                <th className="w-[40%] px-4 py-3 text-left">名称</th>
+                <th className="px-4 py-3 text-left">状态</th>
+                <th className="px-4 py-3 text-left">数据项</th>
+                <th className="px-4 py-3 text-left">争议数</th>
+                <th className="px-4 py-3 text-left">更新时间</th>
+                <th className="px-4 py-3 text-right">操作</th>
+              </tr>
+            </AppTableHead>
+            <AppTableBody>
+              {datasets.map((dataset) => (
+                <AppTableRow key={dataset.id} className="align-top">
+                  <td className="px-4 py-4 align-middle">
+                    <div className="text-base font-semibold text-gray-900">{dataset.name}</div>
+                    <div className="mt-1 line-clamp-1 text-xs text-gray-500">
+                      {dataset.description || '暂无简介'}
+                    </div>
+                  </td>
+                  <td className="px-4 py-4 align-middle">
+                    <StatusBadge status={dataset.status}>
+                      {datasetStatusLabels[dataset.status] || dataset.status}
+                    </StatusBadge>
+                  </td>
+                  <td className="px-4 py-4 align-middle text-gray-600">
+                    {dataset.itemCount} 条
+                  </td>
+                  <td className="px-4 py-4 align-middle">
+                    <StatusBadge status="disputed">{dataset.disputedItemCount} 条争议</StatusBadge>
+                  </td>
+                  <td className="px-4 py-4 align-middle text-gray-500">
+                    {new Date(dataset.updatedAt).toLocaleString()}
+                  </td>
+                  <td className="px-4 py-4 align-middle text-right">
+                    <AppButton
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => openDataset(dataset)}
+                    >
+                      查看争议
+                    </AppButton>
+                  </td>
+                </AppTableRow>
+              ))}
+            </AppTableBody>
+          </AppTable>
         )}
       </div>
     );

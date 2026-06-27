@@ -4,9 +4,9 @@ import { TaskBatchDetailModal } from './TaskBatchDetailModal';
 import { AppButton } from '../../components/shared/AppButton';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 import { AppAlert } from '../../components/shared/AppAlert';
-import { MetricBox } from '../../components/shared/MetricBox';
 import { EmptyState } from '../../components/shared/EmptyState';
 import { PageToolbar } from '../../components/shared/PageToolbar';
+import { AppTable, AppTableBody, AppTableHead, AppTableRow } from '../../components/shared/AppTable';
 
 const apiBaseUrl = 'http://localhost:7000';
 
@@ -183,51 +183,60 @@ export function AnnotatorSubmissionsPage() {
           ) : batches.length === 0 ? (
             <EmptyState align="center">暂无提交记录</EmptyState>
           ) : (
-            <div className="grid gap-4">
-              {summaries.map((summary) => (
-                <div
-                  key={summary.datasetId}
-                  className="rounded border border-gray-300 bg-white shadow-sm transition-colors hover:bg-gray-50"
-                >
-                  <div className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(220px,1fr)_minmax(280px,auto)_auto] lg:items-center">
-                    <div>
-                        <div className="font-medium text-gray-900">
-                          {summary.datasetName}
-                        </div>
-                        <div className="mt-1 text-xs text-gray-500">
-                          {summary.lastSubmittedAt
-                            ? `最近提交 ${new Date(summary.lastSubmittedAt).toLocaleDateString()}`
-                            : '暂无提交时间'}
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2">
-                      <MetricBox label="任务单" value={`${summary.batchCount} 个`} />
-                      <MetricBox label="数据项" value={`${summary.totalItemCount} 条`} />
-                    </div>
-
-                    <div className="flex flex-wrap items-center justify-start gap-2 lg:justify-end">
-                      <div className="flex flex-wrap justify-end gap-1.5">
+            <AppTable>
+              <AppTableHead>
+                <tr>
+                  <th className="w-[34%] px-4 py-3 text-left">数据集</th>
+                  <th className="px-4 py-3 text-left">任务单</th>
+                  <th className="px-4 py-3 text-left">数据项</th>
+                  <th className="px-4 py-3 text-left">状态</th>
+                  <th className="px-4 py-3 text-left">最近提交</th>
+                  <th className="px-4 py-3 text-right">操作</th>
+                </tr>
+              </AppTableHead>
+              <AppTableBody>
+                {summaries.map((summary) => (
+                  <AppTableRow key={summary.datasetId} className="align-top">
+                    <td className="px-4 py-4 align-middle">
+                      <div className="text-base font-semibold text-gray-900">{summary.datasetName}</div>
+                      <div className="mt-1 line-clamp-1 text-xs text-gray-500">
+                        {summary.datasetId}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 align-middle text-gray-600">
+                      {summary.batchCount} 个
+                    </td>
+                    <td className="px-4 py-4 align-middle text-gray-600">
+                      {summary.totalItemCount} 条
+                    </td>
+                    <td className="px-4 py-4 align-middle">
+                      <div className="flex flex-wrap gap-1.5">
                         {Object.entries(summary.statusCounts).map(([status, count]) => (
                           <StatusBadge key={status} status={status}>
                             {taskBatchStatusLabels[status] || status} {count}
                           </StatusBadge>
                         ))}
                       </div>
+                    </td>
+                    <td className="px-4 py-4 align-middle text-gray-500">
+                      {summary.lastSubmittedAt
+                        ? new Date(summary.lastSubmittedAt).toLocaleString()
+                        : '暂无提交时间'}
+                    </td>
+                    <td className="px-4 py-4 align-middle text-right">
                       <AppButton
                         type="button"
                         variant="primary"
                         size="sm"
-                        className="h-8"
                         onClick={() => handleViewDetail(summary.datasetId)}
                       >
                         查看记录
                       </AppButton>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                    </td>
+                  </AppTableRow>
+                ))}
+              </AppTableBody>
+            </AppTable>
           )}
         </>
       ) : (
@@ -265,47 +274,59 @@ export function AnnotatorSubmissionsPage() {
           ) : selectedDatasetBatches.length === 0 ? (
             <EmptyState align="center">该数据集下暂无提交记录</EmptyState>
           ) : (
-            <div className="grid gap-4">
-              {selectedDatasetBatches.map((batch) => (
-                <div
-                  key={batch.batchId}
-                  className="rounded border border-gray-300 bg-white shadow-sm transition-colors hover:bg-gray-50"
-                >
-                  <div className="grid gap-4 px-4 py-4 lg:grid-cols-[minmax(220px,1fr)_minmax(360px,auto)_auto] lg:items-center">
-                    <div>
-                        <div className="font-medium text-gray-900">
-                          {batch.orderNo}
-                        </div>
-                        <div className="mt-1">
-                          <StatusBadge status={batch.status}>
-                            {taskBatchStatusLabels[batch.status] || batch.status}
-                          </StatusBadge>
-                        </div>
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2">
-                      <MetricBox label="数据项" value={`${batch.totalCount} 条`} />
-                      <MetricBox label="已提交" value={`${batch.submittedCount} 条`} />
-                      <MetricBox label="待处理" value={`${batch.assignedCount + batch.inProgressCount} 条`} />
-                    </div>
-
-                    <div className="flex shrink-0 flex-wrap items-center justify-start gap-3 text-xs text-gray-500 lg:justify-end">
-                      <span>领取 {new Date(batch.assignedAt).toLocaleDateString()}</span>
-                      {batch.submittedAt && <span>提交 {new Date(batch.submittedAt).toLocaleDateString()}</span>}
+            <AppTable>
+              <AppTableHead>
+                <tr>
+                  <th className="w-[28%] px-4 py-3 text-left">任务单</th>
+                  <th className="px-4 py-3 text-left">状态</th>
+                  <th className="px-4 py-3 text-left">数据项</th>
+                  <th className="px-4 py-3 text-left">待处理</th>
+                  <th className="px-4 py-3 text-left">领取时间</th>
+                  <th className="px-4 py-3 text-left">提交时间</th>
+                  <th className="px-4 py-3 text-right">操作</th>
+                </tr>
+              </AppTableHead>
+              <AppTableBody>
+                {selectedDatasetBatches.map((batch) => (
+                  <AppTableRow key={batch.batchId} className="align-top">
+                    <td className="px-4 py-4 align-middle">
+                      <div className="text-base font-semibold text-gray-900">{batch.orderNo}</div>
+                      <div className="mt-1 line-clamp-1 text-xs text-gray-500">
+                        {batch.datasetName}
+                      </div>
+                    </td>
+                    <td className="px-4 py-4 align-middle">
+                      <StatusBadge status={batch.status}>
+                        {taskBatchStatusLabels[batch.status] || batch.status}
+                      </StatusBadge>
+                    </td>
+                    <td className="px-4 py-4 align-middle text-gray-600">
+                      <div className="text-sm text-gray-900">{batch.submittedCount} / {batch.totalCount}</div>
+                      <div className="mt-1 text-xs text-gray-500">已提交 / 总数</div>
+                    </td>
+                    <td className="px-4 py-4 align-middle text-gray-600">
+                      {batch.assignedCount + batch.inProgressCount} 条
+                    </td>
+                    <td className="px-4 py-4 align-middle text-gray-500">
+                      {new Date(batch.assignedAt).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-4 align-middle text-gray-500">
+                      {batch.submittedAt ? new Date(batch.submittedAt).toLocaleString() : '未提交'}
+                    </td>
+                    <td className="px-4 py-4 align-middle text-right">
                       <AppButton
                         type="button"
                         variant="primary"
                         size="sm"
-                        className="h-8"
                         onClick={() => openDetailModal(batch.batchId)}
                       >
                         查看详情
                       </AppButton>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                    </td>
+                  </AppTableRow>
+                ))}
+              </AppTableBody>
+            </AppTable>
           )}
         </>
       )}

@@ -377,31 +377,42 @@ export function ProviderReviewsPage() {
           pendingDatasets.length === 0 ? (
             <EmptyState align="center" spacious>暂无待审核的数据集</EmptyState>
           ) : (
-            <div className="space-y-4">
-              {pendingDatasets.map((dataset) => (
-                <div key={dataset.id} className="rounded border border-gray-200 bg-white">
-                  <div className="flex items-center justify-between gap-4 px-4 py-3">
-                    <div className="flex flex-1 items-center gap-4">
-                      <div>
-                        <div className="font-medium text-gray-900">{dataset.name}</div>
-                        {dataset.description && (
-                          <div className="mt-1 line-clamp-1 text-xs text-gray-500">
-                            {dataset.description}
-                          </div>
-                        )}
-                        <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
-                          <span>{dataset.itemCount} 条数据</span>
-                          <span>{dataset.completedItemCount} 条已完成</span>
-                          <span>阈值 {dataset.targetCompletionRatio}%</span>
-                        </div>
+            <AppTable>
+              <AppTableHead>
+                <tr>
+                  <th className="w-[34%] px-4 py-3 text-left">名称</th>
+                  <th className="px-4 py-3 text-left">状态</th>
+                  <th className="px-4 py-3 text-left">数据项</th>
+                  <th className="px-4 py-3 text-left">审核阈值</th>
+                  <th className="px-4 py-3 text-left">更新时间</th>
+                  <th className="px-4 py-3 text-right">操作</th>
+                </tr>
+              </AppTableHead>
+              <AppTableBody>
+                {pendingDatasets.map((dataset) => (
+                  <AppTableRow key={dataset.id} className="align-top">
+                    <td className="px-4 py-4 align-middle">
+                      <div className="text-base font-semibold text-gray-900">{dataset.name}</div>
+                      <div className="mt-1 line-clamp-1 text-xs text-gray-500">
+                        {dataset.description || '暂无简介'}
                       </div>
-                      <div className="ml-auto">
-                        <StatusBadge status={dataset.status === 'reviewing' ? 'reviewing' : 'in_progress'}>
-                          {dataset.status === 'reviewing' ? '审核中' : '待开始审核'}
-                        </StatusBadge>
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-2">
+                    </td>
+                    <td className="px-4 py-4 align-middle">
+                      <StatusBadge status={dataset.status === 'reviewing' ? 'reviewing' : 'in_progress'}>
+                        {dataset.status === 'reviewing' ? '审核中' : '待开始审核'}
+                      </StatusBadge>
+                    </td>
+                    <td className="px-4 py-4 align-middle text-gray-600">
+                      <div className="text-sm text-gray-900">{dataset.completedItemCount} / {dataset.itemCount}</div>
+                      <div className="mt-1 text-xs text-gray-500">已完成 / 总数</div>
+                    </td>
+                    <td className="px-4 py-4 align-middle text-gray-600">
+                      {dataset.targetCompletionRatio}%
+                    </td>
+                    <td className="px-4 py-4 align-middle text-gray-500">
+                      {new Date(dataset.updatedAt).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-4 align-middle text-right">
                       <AppButton
                         type="button"
                         variant="secondary"
@@ -410,44 +421,53 @@ export function ProviderReviewsPage() {
                       >
                         {dataset.status === 'reviewing' ? '继续审核' : '开始审核'}
                       </AppButton>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                    </td>
+                  </AppTableRow>
+                ))}
+              </AppTableBody>
+            </AppTable>
           )
         ) : (
           <div>
             {reviewedDatasets.length === 0 ? (
               <EmptyState align="center" spacious>暂无已完成审核的数据集</EmptyState>
             ) : (
-              <div className="space-y-4">
-                {reviewedDatasets.map((dataset) => (
-                  <div key={dataset.id} className="rounded border border-gray-200 bg-white">
-                    <div className="flex items-center justify-between gap-4 px-4 py-3">
-                      <div className="flex flex-1 items-center gap-4">
-                        <div>
-                          <div className="font-medium text-gray-900">{dataset.name}</div>
-                          {dataset.description && (
-                            <div className="mt-1 line-clamp-1 text-xs text-gray-500">
-                              {dataset.description}
-                            </div>
-                          )}
-                          <div className="mt-1 flex items-center gap-3 text-xs text-gray-500">
-                            <span>{dataset.itemCount} 条数据</span>
-                            <span>{dataset.completedItemCount} 条已完成</span>
-                          </div>
+              <AppTable>
+                <AppTableHead>
+                  <tr>
+                    <th className="w-[40%] px-4 py-3 text-left">名称</th>
+                    <th className="px-4 py-3 text-left">状态</th>
+                    <th className="px-4 py-3 text-left">数据项</th>
+                    <th className="px-4 py-3 text-left">审核阈值</th>
+                    <th className="px-4 py-3 text-left">更新时间</th>
+                  </tr>
+                </AppTableHead>
+                <AppTableBody>
+                  {reviewedDatasets.map((dataset) => (
+                    <AppTableRow key={dataset.id} className="align-top">
+                      <td className="px-4 py-4 align-middle">
+                        <div className="text-base font-semibold text-gray-900">{dataset.name}</div>
+                        <div className="mt-1 line-clamp-1 text-xs text-gray-500">
+                          {dataset.description || '暂无简介'}
                         </div>
-                        <div className="ml-auto">
-                          <StatusBadge tone="success">
-                            已完成审核
-                          </StatusBadge>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                      </td>
+                      <td className="px-4 py-4 align-middle">
+                        <StatusBadge tone="success">已完成审核</StatusBadge>
+                      </td>
+                      <td className="px-4 py-4 align-middle text-gray-600">
+                        <div className="text-sm text-gray-900">{dataset.completedItemCount} / {dataset.itemCount}</div>
+                        <div className="mt-1 text-xs text-gray-500">已完成 / 总数</div>
+                      </td>
+                      <td className="px-4 py-4 align-middle text-gray-600">
+                        {dataset.targetCompletionRatio}%
+                      </td>
+                      <td className="px-4 py-4 align-middle text-gray-500">
+                        {new Date(dataset.updatedAt).toLocaleString()}
+                      </td>
+                    </AppTableRow>
+                  ))}
+                </AppTableBody>
+              </AppTable>
             )}
           </div>
         )}
