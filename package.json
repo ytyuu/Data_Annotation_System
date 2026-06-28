@@ -12,8 +12,8 @@
     "lint": "turbo run lint"
   },
   "devDependencies": {
-    "pg": "^8.21.0",
-    "turbo": "^2.0.7",
+    "pg": "^8.22.0",
+    "turbo": "^2.10.0",
     "typescript": "^6.0.3"
   }
 }
