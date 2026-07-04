@@ -1,8 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd"
+         root="true">
+    <modelVersion>4.1.0</modelVersion>
 
     <groupId>com.annodata</groupId>
     <artifactId>data-annotation-api</artifactId>
@@ -10,6 +11,7 @@
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <kotlin.version>2.3.20</kotlin.version>
         <javalin.version>7.2.2</javalin.version>
         <exposed.version>0.61.0</exposed.version>
@@ -18,8 +20,8 @@
         <jbcrypt.version>0.4</jbcrypt.version>
         <maven.compiler.release>25</maven.compiler.release>
         <kotlin.jvm.target>25</kotlin.jvm.target>
-        <maven.compiler.plugin.version>3.13.0</maven.compiler.plugin.version>
-        <exec.maven.plugin.version>3.2.0</exec.maven.plugin.version>
+        <maven.compiler.plugin.version>3.14.1</maven.compiler.plugin.version>
+        <exec.maven.plugin.version>3.5.1</exec.maven.plugin.version>
     </properties>
 
     <dependencies>
@@ -67,6 +69,7 @@
 
     <build>
         <sourceDirectory>${project.basedir}/src/main/kotlin</sourceDirectory>
+        <testSourceDirectory>${project.basedir}/src/test/kotlin</testSourceDirectory>
         <plugins>
             <plugin>
                 <groupId>org.jetbrains.kotlin</groupId>
@@ -78,6 +81,13 @@
                         <phase>compile</phase>
                         <goals>
                             <goal>compile</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>test-compile</id>
+                        <phase>test-compile</phase>
+                        <goals>
+                            <goal>test-compile</goal>
                         </goals>
                     </execution>
                 </executions>

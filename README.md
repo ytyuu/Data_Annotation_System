@@ -17,7 +17,7 @@ scripts/                  - 工具脚本（生成测试数据等）
 
 ## 环境要求
 
-- [mvnd](https://github.com/apache/maven-mvnd)（Maven Daemon，用于后端编译）
+- Maven 4（命令名为 `mvn4`，用于后端编译）
 - JDK 25
 - pnpm 11.5.2
 - Node.js
@@ -32,7 +32,7 @@ pnpm install
 pnpm dev
 ```
 
-API 开发模式使用 `mvnd` 编译，保存 `apps/api/src/main/kotlin` 下的 Kotlin 源码后会自动重新编译并重启后端。
+API 开发模式使用 `mvn4` 编译，保存 `apps/api/src/main/kotlin` 下的 Kotlin 源码后会自动重新编译并重启后端。
 
 ## 端口
 
@@ -130,13 +130,13 @@ pnpm lint
 cd apps/api
 
 # 编译
-mvnd compile
+mvn4 compile
 
 # 运行
-mvnd exec:java
+mvn4 exec:java
 
 # 指定端口运行
-mvnd exec:java -Dexec.args=8080
+mvn4 exec:java -Dexec.args=8080
 ```
 
 ## 生成测试数据

@@ -6,7 +6,7 @@
 
 - Kotlin 2.3
 - Javalin 7
-- Maven + mvnd
+- Maven 4
 - JDK 25
 
 当前没有 Spring Boot、MyBatis、PostgreSQL、Redis 或 S3 依赖；不要按这些框架或服务的约定组织代码，除非任务明确要求引入。
@@ -42,17 +42,17 @@ pnpm stop
 pnpm build
 pnpm test
 pnpm lint
-mvnd -q compile
-mvnd exec:java
-mvnd exec:java -Dexec.args=8080
+mvn4 -q -ntp compile
+mvn4 -ntp exec:java
+mvn4 -ntp exec:java -Dexec.args=8080
 ```
 
 ## 构建与测试说明
 
-- `pnpm build` 会通过 mvnd 编译 Kotlin。
+- `pnpm build` 会通过 `mvn4` 编译 Kotlin。
 - `pnpm lint` 当前也是编译检查，不是独立的格式化或静态分析工具。
 - `pnpm test` 当前也是编译检查，与 `build`/`lint` 相同。
-- `pnpm dev` 通过 nodemon 监听 `src/` 下的 `.kt` 文件变化，变更后自动重新编译并重启服务。若 `mvnd exec:java` 因异常残留进程导致启动失败，`scripts/dev-api.mjs` 会释放 7000 端口并自动重试一次。
+- `pnpm dev` 通过 nodemon 监听 `src/` 下的 `.kt` 文件变化，变更后自动重新编译并重启服务。若 `mvn4 exec:java` 因异常残留进程导致启动失败，`scripts/dev-api.mjs` 会释放 7000 端口并自动重试一次。
 - `pnpm stop` 会停止当前监听 7000 端口的 API 进程，用于清理异常退出后残留的 Java 进程。
 
 ## 开发约定

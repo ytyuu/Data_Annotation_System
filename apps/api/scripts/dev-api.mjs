@@ -6,12 +6,13 @@ import { fileURLToPath } from "node:url";
 
 const DEFAULT_PORT = 7000;
 const MAX_ATTEMPTS = 2;
+const MAVEN_COMMAND = "mvn4";
 
 const port = parsePort(process.argv.slice(2));
 const scriptEnv = {
   ...process.env,
   JLINE_TERMINAL: "dumb",
-  MVND_NO_TRANSFER_PROGRESS: "true",
+  MAVEN_OPTS: process.env.MAVEN_OPTS ?? "",
 };
 
 const stopScriptPath = fileURLToPath(new URL("./stop-api-port.mjs", import.meta.url));
@@ -33,7 +34,7 @@ for (const signal of shutdownSignals) {
   });
 }
 
-const compileExitCode = await runCommand("mvnd", ["-q", "compile"], {
+const compileExitCode = await runCommand(MAVEN_COMMAND, ["-q", "-ntp", "compile"], {
   env: scriptEnv,
 });
 
@@ -42,7 +43,7 @@ if (compileExitCode !== 0) {
 }
 
 for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
-  const runExitCode = await runCommand("mvnd", ["exec:java", "-Dexec.fork=true"], {
+  const runExitCode = await runCommand(MAVEN_COMMAND, ["-ntp", "exec:java", "-Dexec.fork=true"], {
     env: scriptEnv,
   });
 

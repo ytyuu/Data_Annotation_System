@@ -6,7 +6,7 @@
 
 ```text
 apps/
-  api/   后端 API，Kotlin + Javalin + Maven/mvnd
+  api/   后端 API，Kotlin + Javalin + Maven 4
   web/   前端静态应用，React + TypeScript + Tailwind CSS + Vite
 docs/    项目业务文档和数据库设计
 ```
@@ -55,7 +55,7 @@ pnpm --filter web lint
 - pnpm：仓库声明使用 `pnpm@10.29.2`
 - Node.js：用于 Turbo、workspace 脚本和前端 TypeScript 编译
 - JDK 25：后端 Maven 配置的目标版本
-- mvnd：后端脚本默认调用 Maven Daemon，命令名为 `mvnd` / `mvnd.exe`
+- Maven 4：后端脚本默认调用 `mvn4`
 
 ## 开发约定
 
