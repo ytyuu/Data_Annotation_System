@@ -11,6 +11,7 @@ apps/
     pom.xml               - Maven 构建配置
   web/                    - 前端应用（React + TypeScript + Tailwind CSS + Vite）
     src/                  - 源码入口
+  ai-worker/              - 大模型标注 Worker（TypeScript + DeepSeek）
 docs/                     - 业务文档和数据库设计
 scripts/                  - 工具脚本（生成测试数据等）
 ```
@@ -38,6 +39,82 @@ API 开发模式使用 `mvnd` 编译，保存 `apps/api/src/main/kotlin` 下的 
 
 - API: `http://localhost:7000`
 - Web: `http://localhost:3000`
+
+## 使用 AI Worker
+
+AI Worker 是按批次运行的独立命令行进程。根目录的 `pnpm dev` 只启动 API 和 Web，不会自动启动 Worker。
+
+第一版支持文本分类数据集，模型和质量规则在提供者创建批次时确定。Worker 根据批次 UUID 领取数据、调用 DeepSeek、校验结构化结果并分段上传，处理完成后自动退出。
+
+### 1. 配置环境变量
+
+复制 `.env.example` 的 AI 配置到根目录 `.env`，至少填写：
+
+```dotenv
+API_BASE_URL=http://localhost:7000
+AI_WORKER_TOKEN=replace-with-a-random-worker-token
+LLM_BASE_URL=https://api.deepseek.com
+LLM_API_KEY=replace-with-your-deepseek-api-key
+```
+
+`AI_WORKER_TOKEN` 同时供 API 和 Worker 使用，必须保持一致。可使用下面的命令生成随机值：
+
+```bash
+openssl rand -hex 32
+```
+
+不要把包含真实 Token 或 API Key 的 `.env` 提交到 Git。
+
+### 2. 创建批次
+
+1. 在根目录执行 `pnpm dev`，启动 API 和 Web。
+2. 使用数据提供者账号登录 Web，进入“大模型标注”。
+3. 点击“创建批次”，先选择有剩余数据的数据集，再配置处理数量、模型、置信度阈值、抽检比例和高风险选项。
+4. 创建成功后，在批次卡片底部复制批次 UUID。
+
+### 3. 执行批次
+
+在项目根目录运行：
+
+```bash
+pnpm --filter ai-worker dev -- --batch-id <批次UUID>
+```
+
+也可以进入 `apps/ai-worker` 后运行：
+
+```bash
+pnpm dev -- --batch-id <批次UUID>
+```
+
+常用可选参数：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `--chunk-size` | `100` | 每次从后端领取的数据量 |
+| `--model-batch-size` | `10` | 单次模型请求包含的数据量 |
+| `--concurrency` | `2` | 模型请求并发数 |
+| `--max-retries` | `2` | 单次模型请求的重试次数 |
+| `--dry-run` | 关闭 | 运行模型和校验但不上传；已领取数据需等待租约到期 |
+| `--log-level` | `info` | 日志级别：`debug/info/warn/error` |
+
+例如：
+
+```bash
+pnpm --filter ai-worker dev -- \
+  --batch-id 6a51885c-cf4f-4799-8de4-2575c8c8a888 \
+  --chunk-size 50 \
+  --model-batch-size 5 \
+  --concurrency 2
+```
+
+### 4. 运行行为
+
+- Worker 日志会显示领取、模型处理、分段上传和失败数量，但不会输出密钥。
+- 数据领取后有 5 分钟租约。进程异常退出时，租约到期的数据可以由下一次执行重新领取。
+- 租约未到期时再次执行可能暂时没有可领取数据，Worker 会正常退出。
+- 已完成批次再次执行会返回空任务并正常退出，不会重复调用模型。
+- 单条结果达到最大尝试次数后会进入失败状态，可在提供者页面转人工或重新标注。
+- 执行完成后刷新“大模型标注”页面，可审核强制审核项、抽检结果和低风险结果。
 
 ## 核心功能
 
