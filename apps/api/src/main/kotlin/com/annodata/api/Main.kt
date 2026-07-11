@@ -22,26 +22,14 @@ object Main {
         Thread.currentThread().join()
     }
 
-    /**
-     * 打印醒目的启动 banner，不依赖终端 banner 支持。
-     *
-     * @param port API 服务监听端口
-     */
+    /** 打印 API 启动地址。 */
     private fun printStartupInfo(port: Int) {
-        val banner = """
-        |
-        |    ██████   █████  ████████  █████       █████  ███    ██ ███    ██  ██████  ████████  █████  ████████ ██  ██████  ███    ██
-        |    ██   ██ ██   ██    ██    ██   ██     ██   ██ ████   ██ ████   ██ ██    ██    ██    ██   ██    ██    ██ ██    ██ ████   ██
-        |    ██   ██ ███████    ██    ███████     ███████ ██ ██  ██ ██ ██  ██ ██    ██    ██    ███████    ██    ██ ██    ██ ██ ██  ██
-        |    ██   ██ ██   ██    ██    ██   ██     ██   ██ ██  ██ ██ ██  ██ ██ ██    ██    ██    ██   ██    ██    ██ ██    ██ ██  ██ ██
-        |    ██████  ██   ██    ██    ██   ██     ██   ██ ██   ████ ██   ████  ██████     ██    ██   ██    ██    ██  ██████  ██   ████
-        |
+        val startupInfo = """
         |   Local:   http://localhost:$port
         |   Health:  http://localhost:$port/api/health
         |   Docs:    http://localhost:$port/api/docs
-        |
         """.trimMargin()
         println()
-        println(banner)
+        println(startupInfo)
     }
 }
