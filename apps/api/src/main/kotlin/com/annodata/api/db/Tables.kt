@@ -51,6 +51,74 @@ object DataItemsTable : Table("data_items") {
     override val primaryKey = PrimaryKey(id)
 }
 
+object AiAnnotationBatchesTable : Table("ai_annotation_batches") {
+    val id = uuid("id")
+    val datasetId = uuid("dataset_id").references(DatasetsTable.id, onDelete = ReferenceOption.CASCADE)
+    val providerId = uuid("provider_id").references(UsersTable.id)
+    val status = varchar("status", 32)
+    val modelProvider = varchar("model_provider", 64)
+    val modelName = varchar("model_name", 128)
+    val promptVersion = varchar("prompt_version", 64)
+    val annotationSchemaSnapshot = jsonb("annotation_schema_snapshot")
+    val annotationGuideSnapshot = text("annotation_guide_snapshot").nullable()
+    val config = jsonb("config").default("{}")
+    val totalCount = integer("total_count").default(0)
+    val processedCount = integer("processed_count").default(0)
+    val successCount = integer("success_count").default(0)
+    val failedCount = integer("failed_count").default(0)
+    val needsReviewCount = integer("needs_review_count").default(0)
+    val acceptedCount = integer("accepted_count").default(0)
+    val rejectedCount = integer("rejected_count").default(0)
+    val modelRequestCount = integer("model_request_count").default(0)
+    val promptTokens = long("prompt_tokens").default(0L)
+    val completionTokens = long("completion_tokens").default(0L)
+    val errorMessage = text("error_message").nullable()
+    val startedAt = timestampWithTimeZone("started_at").nullable()
+    val finishedAt = timestampWithTimeZone("finished_at").nullable()
+    val cancelledAt = timestampWithTimeZone("cancelled_at").nullable()
+    val createdAt = timestampWithTimeZone("created_at")
+    val updatedAt = timestampWithTimeZone("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
+}
+
+object AiAnnotationResultsTable : Table("ai_annotation_results") {
+    val id = uuid("id")
+    val batchId = uuid("batch_id").references(AiAnnotationBatchesTable.id, onDelete = ReferenceOption.CASCADE)
+    val datasetId = uuid("dataset_id").references(DatasetsTable.id, onDelete = ReferenceOption.CASCADE)
+    val itemId = uuid("item_id").references(DataItemsTable.id, onDelete = ReferenceOption.CASCADE)
+    val roundNo = integer("round_no")
+    val status = varchar("status", 32)
+    val result = jsonb("result").nullable()
+    val acceptedResult = jsonb("accepted_result").nullable()
+    val resultHash = varchar("result_hash", 64).nullable()
+    val confidence = varchar("confidence", 16).nullable()
+    val confidenceScore = decimal("confidence_score", 5, 4).nullable()
+    val reason = text("reason").nullable()
+    val needsHumanReview = bool("needs_human_review").default(false)
+    val isSampled = bool("is_sampled").default(false)
+    val riskFlags = jsonb("risk_flags").default("[]")
+    val rawOutput = jsonb("raw_output").nullable()
+    val errorMessage = text("error_message").nullable()
+    val attemptCount = integer("attempt_count").default(0)
+    val chunkNo = integer("chunk_no").nullable()
+    val requestId = varchar("request_id", 80).nullable()
+    val leasedAt = timestampWithTimeZone("leased_at").nullable()
+    val leaseExpiresAt = timestampWithTimeZone("lease_expires_at").nullable()
+    val reviewedBy = uuid("reviewed_by").references(UsersTable.id, onDelete = ReferenceOption.SET_NULL).nullable()
+    val reviewedAt = timestampWithTimeZone("reviewed_at").nullable()
+    val reviewAction = varchar("review_action", 32).nullable()
+    val reviewComment = text("review_comment").nullable()
+    val createdAt = timestampWithTimeZone("created_at")
+    val updatedAt = timestampWithTimeZone("updated_at")
+
+    override val primaryKey = PrimaryKey(id)
+
+    init {
+        uniqueIndex(batchId, itemId, roundNo)
+    }
+}
+
 object AnnotationTaskBatchesTable : Table("annotation_task_batches") {
     val id = uuid("id")
     val orderNo = varchar("order_no", 40).uniqueIndex()

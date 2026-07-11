@@ -17,6 +17,86 @@
 
 
 -- ----------------------------
+-- Table structure for ai_annotation_batches
+-- ----------------------------
+DROP TABLE IF EXISTS "public"."ai_annotation_results";
+DROP TABLE IF EXISTS "public"."ai_annotation_batches";
+CREATE TABLE "public"."ai_annotation_batches" (
+    "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+    "dataset_id" uuid NOT NULL,
+    "provider_id" uuid NOT NULL,
+    "status" varchar(32) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'pending'::character varying,
+    "model_provider" varchar(64) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'deepseek'::character varying,
+    "model_name" varchar(128) COLLATE "pg_catalog"."default" NOT NULL,
+    "prompt_version" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
+    "annotation_schema_snapshot" jsonb NOT NULL,
+    "annotation_guide_snapshot" text COLLATE "pg_catalog"."default",
+    "config" jsonb NOT NULL DEFAULT '{}'::jsonb,
+    "total_count" int4 NOT NULL DEFAULT 0,
+    "processed_count" int4 NOT NULL DEFAULT 0,
+    "success_count" int4 NOT NULL DEFAULT 0,
+    "failed_count" int4 NOT NULL DEFAULT 0,
+    "needs_review_count" int4 NOT NULL DEFAULT 0,
+    "accepted_count" int4 NOT NULL DEFAULT 0,
+    "rejected_count" int4 NOT NULL DEFAULT 0,
+    "model_request_count" int4 NOT NULL DEFAULT 0,
+    "prompt_tokens" int8 NOT NULL DEFAULT 0,
+    "completion_tokens" int8 NOT NULL DEFAULT 0,
+    "error_message" text COLLATE "pg_catalog"."default",
+    "started_at" timestamptz(6),
+    "finished_at" timestamptz(6),
+    "cancelled_at" timestamptz(6),
+    "created_at" timestamptz(6) NOT NULL DEFAULT now(),
+    "updated_at" timestamptz(6) NOT NULL DEFAULT now()
+)
+;
+COMMENT ON TABLE "public"."ai_annotation_batches" IS '大模型批量标注任务及执行统计';
+COMMENT ON COLUMN "public"."ai_annotation_batches"."annotation_schema_snapshot" IS '创建批次时的数据集标注结构快照';
+COMMENT ON COLUMN "public"."ai_annotation_batches"."annotation_guide_snapshot" IS '创建批次时的数据集标注说明快照';
+COMMENT ON COLUMN "public"."ai_annotation_batches"."config" IS '置信度阈值、抽检率、高风险标签、最大尝试次数和 metadata 白名单';
+
+-- ----------------------------
+-- Table structure for ai_annotation_results
+-- ----------------------------
+CREATE TABLE "public"."ai_annotation_results" (
+    "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+    "batch_id" uuid NOT NULL,
+    "dataset_id" uuid NOT NULL,
+    "item_id" uuid NOT NULL,
+    "round_no" int4 NOT NULL DEFAULT 1,
+    "status" varchar(32) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'pending'::character varying,
+    "result" jsonb,
+    "accepted_result" jsonb,
+    "result_hash" varchar(64) COLLATE "pg_catalog"."default",
+    "confidence" varchar(16) COLLATE "pg_catalog"."default",
+    "confidence_score" numeric(5,4),
+    "reason" text COLLATE "pg_catalog"."default",
+    "needs_human_review" bool NOT NULL DEFAULT false,
+    "is_sampled" bool NOT NULL DEFAULT false,
+    "risk_flags" jsonb NOT NULL DEFAULT '[]'::jsonb,
+    "raw_output" jsonb,
+    "error_message" text COLLATE "pg_catalog"."default",
+    "attempt_count" int4 NOT NULL DEFAULT 0,
+    "chunk_no" int4,
+    "request_id" varchar(80) COLLATE "pg_catalog"."default",
+    "leased_at" timestamptz(6),
+    "lease_expires_at" timestamptz(6),
+    "reviewed_by" uuid,
+    "reviewed_at" timestamptz(6),
+    "review_action" varchar(32) COLLATE "pg_catalog"."default",
+    "review_comment" text COLLATE "pg_catalog"."default",
+    "created_at" timestamptz(6) NOT NULL DEFAULT now(),
+    "updated_at" timestamptz(6) NOT NULL DEFAULT now()
+)
+;
+COMMENT ON TABLE "public"."ai_annotation_results" IS '大模型单条标注执行、分流和提供方审核记录';
+COMMENT ON COLUMN "public"."ai_annotation_results"."result" IS '与人工标注 value、values、subValues 结构一致的标准化结果';
+COMMENT ON COLUMN "public"."ai_annotation_results"."accepted_result" IS '提供方修改后接受的结果';
+COMMENT ON COLUMN "public"."ai_annotation_results"."raw_output" IS '当前数据项对应的模型原始输出片段';
+COMMENT ON COLUMN "public"."ai_annotation_results"."lease_expires_at" IS 'Worker 领取租约到期时间，超时后允许重新领取';
+
+
+-- ----------------------------
 -- Table structure for annotation_task_batches
 -- ----------------------------
 DROP TABLE IF EXISTS "public"."annotation_task_batches";
@@ -147,7 +227,7 @@ COMMENT ON COLUMN "public"."data_items"."current_round_no" IS '当前活跃标�
 COMMENT ON COLUMN "public"."data_items"."final_result" IS '争议裁决后的最终标注结果';
 COMMENT ON COLUMN "public"."data_items"."finalized_at" IS '最终结果确认时间';
 COMMENT ON COLUMN "public"."data_items"."finalized_by" IS '确认最终结果的提供方用户 ID';
-COMMENT ON COLUMN "public"."data_items"."status" IS '数据项状态：pending、assigned、annotated、disputed、accepted、rejected';
+COMMENT ON COLUMN "public"."data_items"."status" IS '数据项状态：pending、assigned、ai_processing、annotated、disputed、accepted、rejected';
 COMMENT ON COLUMN "public"."data_items"."created_at" IS '创建时间';
 COMMENT ON COLUMN "public"."data_items"."updated_at" IS '更新时间';
 COMMENT ON TABLE "public"."data_items" IS '数据项明细表，每一行代表一个待标注样本';
@@ -565,6 +645,76 @@ CREATE FUNCTION "public"."pgp_sym_encrypt_bytea"(bytea, text)
   COST 1;
 
 -- ----------------------------
+-- Indexes structure for table ai_annotation_batches
+-- ----------------------------
+CREATE INDEX "idx_ai_annotation_batches_dataset_status_created_at" ON "public"."ai_annotation_batches" USING btree (
+    "dataset_id" "pg_catalog"."uuid_ops" ASC NULLS LAST,
+    "status" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST,
+    "created_at" "pg_catalog"."timestamptz_ops" DESC NULLS FIRST
+    );
+CREATE INDEX "idx_ai_annotation_batches_provider_status_created_at" ON "public"."ai_annotation_batches" USING btree (
+    "provider_id" "pg_catalog"."uuid_ops" ASC NULLS LAST,
+    "status" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST,
+    "created_at" "pg_catalog"."timestamptz_ops" DESC NULLS FIRST
+    );
+
+-- ----------------------------
+-- Checks structure for table ai_annotation_batches
+-- ----------------------------
+ALTER TABLE "public"."ai_annotation_batches" ADD CONSTRAINT "ai_annotation_batches_status_check" CHECK (status::text = ANY (ARRAY['pending'::character varying, 'running'::character varying, 'completed'::character varying, 'failed'::character varying, 'cancelled'::character varying]::text[]));
+ALTER TABLE "public"."ai_annotation_batches" ADD CONSTRAINT "ai_annotation_batches_counts_check" CHECK (total_count >= 0 AND processed_count >= 0 AND success_count >= 0 AND failed_count >= 0 AND needs_review_count >= 0 AND accepted_count >= 0 AND rejected_count >= 0 AND model_request_count >= 0 AND prompt_tokens >= 0 AND completion_tokens >= 0);
+
+-- ----------------------------
+-- Primary Key structure for table ai_annotation_batches
+-- ----------------------------
+ALTER TABLE "public"."ai_annotation_batches" ADD CONSTRAINT "ai_annotation_batches_pkey" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Indexes structure for table ai_annotation_results
+-- ----------------------------
+CREATE INDEX "idx_ai_annotation_results_batch_status_created_at" ON "public"."ai_annotation_results" USING btree (
+    "batch_id" "pg_catalog"."uuid_ops" ASC NULLS LAST,
+    "status" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST,
+    "created_at" "pg_catalog"."timestamptz_ops" ASC NULLS LAST
+    );
+CREATE INDEX "idx_ai_annotation_results_dataset_status" ON "public"."ai_annotation_results" USING btree (
+    "dataset_id" "pg_catalog"."uuid_ops" ASC NULLS LAST,
+    "status" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+    );
+CREATE INDEX "idx_ai_annotation_results_status_lease_expires_at" ON "public"."ai_annotation_results" USING btree (
+    "status" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST,
+    "lease_expires_at" "pg_catalog"."timestamptz_ops" ASC NULLS LAST
+    );
+CREATE INDEX "idx_ai_annotation_results_batch_request_id" ON "public"."ai_annotation_results" USING btree (
+    "batch_id" "pg_catalog"."uuid_ops" ASC NULLS LAST,
+    "request_id" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+    );
+CREATE INDEX "idx_ai_annotation_results_batch_sampled_status" ON "public"."ai_annotation_results" USING btree (
+    "batch_id" "pg_catalog"."uuid_ops" ASC NULLS LAST,
+    "is_sampled" "pg_catalog"."bool_ops" ASC NULLS LAST,
+    "status" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
+    );
+
+-- ----------------------------
+-- Uniques structure for table ai_annotation_results
+-- ----------------------------
+ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_batch_item_round_key" UNIQUE ("batch_id", "item_id", "round_no");
+
+-- ----------------------------
+-- Checks structure for table ai_annotation_results
+-- ----------------------------
+ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_status_check" CHECK (status::text = ANY (ARRAY['pending'::character varying, 'processing'::character varying, 'ai_labeled'::character varying, 'needs_review'::character varying, 'accepted'::character varying, 'rejected'::character varying, 'failed'::character varying]::text[]));
+ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_confidence_check" CHECK (confidence IS NULL OR confidence::text = ANY (ARRAY['high'::character varying, 'medium'::character varying, 'low'::character varying]::text[]));
+ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_confidence_score_check" CHECK (confidence_score IS NULL OR confidence_score >= 0::numeric AND confidence_score <= 1::numeric);
+ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_attempt_count_check" CHECK (attempt_count >= 0);
+ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_review_action_check" CHECK (review_action IS NULL OR review_action::text = ANY (ARRAY['accept'::character varying, 'modify_accept'::character varying, 'reject_to_human'::character varying, 'reject_retry'::character varying]::text[]));
+
+-- ----------------------------
+-- Primary Key structure for table ai_annotation_results
+-- ----------------------------
+ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_pkey" PRIMARY KEY ("id");
+
+-- ----------------------------
 -- Indexes structure for table annotation_task_batches
 -- ----------------------------
 CREATE INDEX "idx_annotation_task_batches_annotator_dataset_status" ON "public"."annotation_task_batches" USING btree (
@@ -692,7 +842,7 @@ CREATE INDEX "idx_data_items_pending_by_dataset" ON "public"."data_items" USING 
 -- Checks structure for table data_items
 -- ----------------------------
 ALTER TABLE "public"."data_items" ADD CONSTRAINT "data_items_content_type_check" CHECK (content_type::text = ANY (ARRAY['text'::character varying, 'image'::character varying, 'audio'::character varying, 'video'::character varying, 'json'::character varying]::text[]));
-ALTER TABLE "public"."data_items" ADD CONSTRAINT "data_items_status_check" CHECK (status::text = ANY (ARRAY['pending'::character varying, 'assigned'::character varying, 'annotated'::character varying, 'disputed'::character varying, 'accepted'::character varying, 'rejected'::character varying]::text[]));
+ALTER TABLE "public"."data_items" ADD CONSTRAINT "data_items_status_check" CHECK (status::text = ANY (ARRAY['pending'::character varying, 'assigned'::character varying, 'ai_processing'::character varying, 'annotated'::character varying, 'disputed'::character varying, 'accepted'::character varying, 'rejected'::character varying]::text[]));
 
 -- ----------------------------
 -- Primary Key structure for table data_items
@@ -773,6 +923,20 @@ ALTER TABLE "public"."users" ADD CONSTRAINT "users_status_check" CHECK (status::
 -- Primary Key structure for table users
 -- ----------------------------
 ALTER TABLE "public"."users" ADD CONSTRAINT "users_pkey" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Foreign Keys structure for table ai_annotation_batches
+-- ----------------------------
+ALTER TABLE "public"."ai_annotation_batches" ADD CONSTRAINT "ai_annotation_batches_dataset_id_fkey" FOREIGN KEY ("dataset_id") REFERENCES "public"."datasets" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE "public"."ai_annotation_batches" ADD CONSTRAINT "ai_annotation_batches_provider_id_fkey" FOREIGN KEY ("provider_id") REFERENCES "public"."users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
+
+-- ----------------------------
+-- Foreign Keys structure for table ai_annotation_results
+-- ----------------------------
+ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_batch_id_fkey" FOREIGN KEY ("batch_id") REFERENCES "public"."ai_annotation_batches" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_dataset_id_fkey" FOREIGN KEY ("dataset_id") REFERENCES "public"."datasets" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_item_id_fkey" FOREIGN KEY ("item_id") REFERENCES "public"."data_items" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_reviewed_by_fkey" FOREIGN KEY ("reviewed_by") REFERENCES "public"."users" ("id") ON DELETE SET NULL ON UPDATE NO ACTION;
 
 -- ----------------------------
 -- Foreign Keys structure for table annotation_task_batches
