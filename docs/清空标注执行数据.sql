@@ -1,6 +1,6 @@
 -- 清空所有标注执行数据（任务单、任务项、标注结果、争议裁决、审核记录），并恢复数据项和数据集状态。
 --
--- 表关系依据 docs/data_annotation.sql：
+-- 表关系依据 docs/数据标注数据库设计.sql：
 -- annotation_task_batches --ON DELETE CASCADE--> annotation_tasks
 -- annotation_tasks        --ON DELETE CASCADE--> annotations
 --
