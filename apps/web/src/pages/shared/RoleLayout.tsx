@@ -115,13 +115,13 @@ export function RoleLayout({ role, menus, workbenchPath, redirectOnRoleMismatch 
 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900">
-      <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-gray-300 bg-white px-6 shadow-sm">
-        <div className="flex items-center gap-6">
+      <header className="sticky top-0 z-20 flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-gray-300 bg-white px-3 py-2 shadow-sm lg:h-14 lg:flex-nowrap lg:px-6 lg:py-0">
+        <div className="flex min-w-0 flex-wrap items-center gap-3 lg:gap-6">
           <div className="flex items-center gap-2 text-base font-semibold text-gray-900">
             <span className="h-3 w-3 rounded-sm bg-gray-900" />
             数据标注系统
           </div>
-          <nav className="flex items-center gap-4 text-sm text-gray-500">
+          <nav className="hidden items-center gap-4 text-sm text-gray-500 sm:flex">
             <Link to={workbenchPath} className="font-medium text-gray-900">
               工作台
             </Link>
@@ -131,8 +131,8 @@ export function RoleLayout({ role, menus, workbenchPath, redirectOnRoleMismatch 
           </nav>
         </div>
 
-        <div className="flex items-center gap-4">
-          <div className="text-right">
+        <div className="flex items-center gap-3 lg:gap-4">
+          <div className="hidden text-right sm:block">
             <div className="text-sm font-medium text-gray-900">{user?.displayName}</div>
             <div className="text-xs text-gray-500">{roleLabels[user?.role || ''] || user?.role}</div>
           </div>
@@ -142,17 +142,17 @@ export function RoleLayout({ role, menus, workbenchPath, redirectOnRoleMismatch 
         </div>
       </header>
 
-      <div className="flex min-h-[calc(100vh-56px)]">
-        <aside className="w-56 border-r border-gray-300 bg-gray-50 px-4 py-5 shadow-sm">
-          <div className="mb-5 border-b border-gray-200 px-2 pb-3 text-xs font-medium text-gray-500">
+      <div className="flex min-h-[calc(100vh-56px)] flex-col lg:flex-row">
+        <aside className="w-full border-b border-gray-300 bg-gray-50 px-3 py-2 shadow-sm lg:w-52 lg:border-b-0 lg:border-r lg:px-3 lg:py-4">
+          <div className="mb-5 hidden border-b border-gray-200 px-2 pb-3 text-xs font-medium text-gray-500 lg:block">
             <span>功能菜单</span>
           </div>
-          <nav className="space-y-1.5">
+          <nav className="flex gap-2 overflow-x-auto lg:block lg:space-y-1.5">
             {menus.map((item) => (
               <Link
                 key={item.key}
                 to={item.path}
-                className={`relative block rounded border px-3 py-2 text-left text-sm font-medium transition-colors ${
+                className={`relative block shrink-0 whitespace-nowrap rounded border px-3 py-2 text-left text-sm font-medium transition-colors ${
                   activeMenu?.key === item.key
                     ? 'border-gray-300 bg-white text-gray-950 shadow-sm'
                     : 'border-transparent text-gray-600 hover:border-gray-300 hover:bg-white hover:text-gray-900'
@@ -167,9 +167,9 @@ export function RoleLayout({ role, menus, workbenchPath, redirectOnRoleMismatch 
           </nav>
         </aside>
 
-        <main className="flex-1 p-4 lg:p-5">
+        <main className="min-w-0 flex-1 p-2 sm:p-3 lg:p-3">
           <section className="min-h-full overflow-hidden rounded border border-gray-300 bg-white shadow-sm">
-            <div className="border-b border-gray-300 bg-gray-50 px-6 py-5">
+            <div className="border-b border-gray-300 bg-gray-50 px-4 py-3 sm:px-5 sm:py-4">
               <div>
                 <div className="text-xs font-medium text-gray-500">工作台</div>
                 <h1 className="mt-1 text-xl font-semibold text-gray-900">
@@ -178,7 +178,7 @@ export function RoleLayout({ role, menus, workbenchPath, redirectOnRoleMismatch 
               </div>
             </div>
 
-            <div className="p-5 lg:p-6">
+            <div className="p-3 sm:p-4 lg:p-4">
               <Outlet />
             </div>
           </section>
