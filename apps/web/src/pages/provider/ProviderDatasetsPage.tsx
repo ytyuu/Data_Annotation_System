@@ -1381,7 +1381,7 @@ export function ProviderDatasetsPage() {
                       {new Date(dataset.updatedAt).toLocaleString()}
                     </td>
                     <td className="px-4 py-4 align-middle">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex flex-wrap justify-end gap-2">
                         <AppButton
                           type="button"
                           variant="secondary"
@@ -1485,4 +1485,3 @@ export function ProviderDatasetsPage() {
     </div>
   );
 }
-

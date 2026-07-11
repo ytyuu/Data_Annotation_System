@@ -10,6 +10,7 @@ import { AnnotatorLayout } from './pages/annotator/AnnotatorLayout';
 import { ProviderDatasetsPage } from './pages/provider/ProviderDatasetsPage';
 import { ProviderReviewsPage } from './pages/provider/ProviderReviewsPage';
 import { ProviderDisputesPage } from './pages/provider/ProviderDisputesPage';
+import { ProviderAiAnnotationsPage } from './pages/provider/ProviderAiAnnotationsPage';
 import { AnnotatorOpenDatasetsPage } from './pages/annotator/AnnotatorOpenDatasetsPage';
 import { AnnotatorMyTasksPage } from './pages/annotator/AnnotatorMyTasksPage';
 import { AnnotatorSubmissionsPage } from './pages/annotator/AnnotatorSubmissionsPage';
@@ -26,6 +27,7 @@ function App() {
           <Route path="datasets" element={<ProviderDatasetsPage />} />
           <Route path="reviews" element={<ProviderReviewsPage />} />
           <Route path="disputes" element={<ProviderDisputesPage />} />
+          <Route path="ai-annotations" element={<ProviderAiAnnotationsPage />} />
         </Route>
         <Route path="/annotator" element={<AnnotatorLayout />}>
           <Route index element={<Navigate to="open-datasets" replace />} />
