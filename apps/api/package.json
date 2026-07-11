@@ -6,7 +6,7 @@
     "dev": "nodemon --watch src -e kt --exec \"node scripts/dev-api.mjs\"",
     "stop": "node scripts/stop-api-port.mjs",
     "build": "mvnd -q compile",
-    "test": "mvnd -q compile",
+    "test": "mvnd -q test",
     "lint": "mvnd -q compile"
   },
   "devDependencies": {

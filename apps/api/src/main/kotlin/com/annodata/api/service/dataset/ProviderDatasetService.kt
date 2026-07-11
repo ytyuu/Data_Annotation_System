@@ -147,6 +147,9 @@ class ProviderDatasetService {
             // 查询每个数据集中已经形成最终结果的数据项数量。
             val completedCounts = DatasetQueryHelper.countCompletedItems(datasetIds)
 
+            // AI 批次只能选择 pending 数据项，因此这里返回当前可用数量。
+            val pendingCounts = dataItemStore.countPendingItemsByDataset(datasetIds)
+
             // 查询每个数据集中处于争议状态的数据项数量。
             val disputedCounts = DatasetQueryHelper.countDisputedItems(datasetIds)
 
@@ -154,6 +157,7 @@ class ProviderDatasetService {
                 toDatasetResponse(
                     row,
                     completedItemCount = completedCounts[row[DatasetsTable.id]] ?: 0,
+                    pendingItemCount = pendingCounts[row[DatasetsTable.id]] ?: 0,
                     disputedItemCount = disputedCounts[row[DatasetsTable.id]] ?: 0,
                 )
             }

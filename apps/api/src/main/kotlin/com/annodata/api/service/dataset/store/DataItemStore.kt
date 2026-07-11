@@ -153,6 +153,20 @@ internal class DataItemStore {
             }
     }
 
+    fun countPendingItemsByDataset(datasetIds: List<UUID>): Map<UUID, Int> {
+        if (datasetIds.isEmpty()) return emptyMap()
+
+        val itemCount = DataItemsTable.id.count()
+        return DataItemsTable
+            .select(DataItemsTable.datasetId, itemCount)
+            .where {
+                (DataItemsTable.datasetId inList datasetIds) and
+                    (DataItemsTable.status eq "pending")
+            }
+            .groupBy(DataItemsTable.datasetId)
+            .associate { row -> row[DataItemsTable.datasetId] to row[itemCount].toInt() }
+    }
+
     fun claimPendingItemsForAnnotation(
         datasetId: UUID,
         annotatorId: UUID,

@@ -3,12 +3,14 @@ package com.annodata.api.routes
 import com.annodata.api.config.SecurityConfig
 import com.annodata.api.config.ServerConfig
 import com.annodata.api.routes.auth.registerAuthRoutes
+import com.annodata.api.routes.ai.registerAiAnnotationRoutes
 import com.annodata.api.routes.datasets.registerDatasetRoutes
 import com.annodata.api.routes.demo.registerDemoRoutes
 import com.annodata.api.routes.health.registerHealthRoutes
 import com.annodata.api.routes.system.registerSystemRoutes
 import com.annodata.api.service.auth.AuthService
 import com.annodata.api.middleware.auth.AuthMiddleware
+import com.annodata.api.middleware.ai.AiWorkerAuthMiddleware
 import io.javalin.apibuilder.ApiBuilder.path
 import io.javalin.config.JavalinConfig
 
@@ -32,6 +34,7 @@ fun registerApiRoutes(config: JavalinConfig, serverConfig: ServerConfig) {
 fun registerApiRoutes(config: JavalinConfig, serverConfig: ServerConfig, securityConfig: SecurityConfig?) {
     val authService = securityConfig?.let(::AuthService)
     val authMiddleware = authService?.let(::AuthMiddleware)
+    val aiWorkerAuthMiddleware = securityConfig?.let { AiWorkerAuthMiddleware(it.aiWorkerToken) }
 
     config.routes.apiBuilder {
         registerSystemRoutes(serverConfig)
@@ -41,6 +44,7 @@ fun registerApiRoutes(config: JavalinConfig, serverConfig: ServerConfig, securit
             registerDemoRoutes()
             registerAuthRoutes(authService)
             registerDatasetRoutes(authMiddleware)
+            registerAiAnnotationRoutes(authMiddleware, aiWorkerAuthMiddleware)
         }
     }
 }
