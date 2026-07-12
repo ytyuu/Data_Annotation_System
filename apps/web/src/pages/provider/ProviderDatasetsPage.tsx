@@ -49,6 +49,8 @@ type ProviderDatasetView = 'list' | 'create';
 
 type DatasetFormMode = 'create' | 'edit';
 
+type ImportMode = 'manual' | 'csv';
+
 type ImportDialogState = {
   open: boolean;
   dataset: Dataset | null;
@@ -159,7 +161,9 @@ export function ProviderDatasetsPage() {
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState('');
   const [importDialog, setImportDialog] = useState<ImportDialogState>({ open: false, dataset: null });
+  const [importMode, setImportMode] = useState<ImportMode>('manual');
   const [importText, setImportText] = useState('');
+  const [importFile, setImportFile] = useState<File | null>(null);
   const [importLoading, setImportLoading] = useState(false);
   const [importError, setImportError] = useState('');
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState>({ open: false, dataset: null });
@@ -201,13 +205,17 @@ export function ProviderDatasetsPage() {
 
   function openImportDialog(dataset: Dataset) {
     setImportDialog({ open: true, dataset });
+    setImportMode('manual');
     setImportText('');
+    setImportFile(null);
     setImportError('');
   }
 
   function closeImportDialog() {
     setImportDialog({ open: false, dataset: null });
+    setImportMode('manual');
     setImportText('');
+    setImportFile(null);
     setImportError('');
   }
 
@@ -610,18 +618,30 @@ export function ProviderDatasetsPage() {
       return;
     }
 
-    const lines = importText
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
+    const lines = importMode === 'manual'
+      ? importText
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter((line) => line.length > 0)
+      : [];
 
-    if (lines.length === 0) {
+    if (importMode === 'manual' && lines.length === 0) {
       setImportError('请至少输入 1 条数据项');
       return;
     }
 
-    if (lines.length > 500) {
+    if (importMode === 'manual' && lines.length > 500) {
       setImportError('单次最多导入 500 条数据项');
+      return;
+    }
+
+    if (importMode === 'csv' && !importFile) {
+      setImportError('请选择要导入的 CSV 文件');
+      return;
+    }
+
+    if (importMode === 'csv' && importFile && importFile.size > 100 * 1024 * 1024) {
+      setImportError('CSV 文件不能超过 100 MB');
       return;
     }
 
@@ -633,20 +653,35 @@ export function ProviderDatasetsPage() {
 
     setImportLoading(true);
     try {
-      const response = await fetch(`${apiBaseUrl}/api/provider/datasets/${dataset.id}/items`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          items: lines.map((content) => ({
-            content,
-            contentType: 'text',
-            metadata: '{}',
-          })),
-        }),
-      });
+      const csvFormData = new FormData();
+      if (importFile) {
+        csvFormData.append('file', importFile);
+      }
+      const response = await fetch(
+        importMode === 'csv'
+          ? `${apiBaseUrl}/api/provider/datasets/${dataset.id}/items/import-csv`
+          : `${apiBaseUrl}/api/provider/datasets/${dataset.id}/items`,
+        importMode === 'csv'
+          ? {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+              body: csvFormData,
+            }
+          : {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                items: lines.map((content) => ({
+                  content,
+                  contentType: 'text',
+                  metadata: '{}',
+                })),
+              }),
+            },
+      );
       const data = await response.json().catch(() => null);
 
       if (!response.ok) {
@@ -982,26 +1017,60 @@ export function ProviderDatasetsPage() {
                 variant="primary"
                 disabled={importLoading}
               >
-                {importLoading ? '导入中...' : '导入数据项'}
+                {importLoading ? '导入中...' : importMode === 'csv' ? '导入 CSV' : '导入数据项'}
               </AppButton>
             </>
           }
         >
               {importError && <AppAlert kind="error" className="mb-6">{importError}</AppAlert>}
 
-              <label htmlFor="import-items" className="app-label">
-                文本数据
-              </label>
-              <textarea
-                id="import-items"
-                value={importText}
-                onChange={(event) => setImportText(event.target.value)}
-                className="app-input min-h-72 resize-y font-mono text-sm"
-                placeholder="每行一条数据，例如：\n这次服务很好\n配送速度太慢\n商品包装完整"
+              <SegmentedControl
+                value={importMode}
+                options={[
+                  { value: 'manual', label: '手动输入' },
+                  { value: 'csv', label: 'CSV 文件' },
+                ]}
+                onChange={(mode) => {
+                  setImportMode(mode);
+                  setImportError('');
+                }}
+                fullWidth
+                className="mb-6"
               />
-              <div className="mt-2 text-xs text-gray-500">
-                当前支持按行导入文本数据，空行会自动忽略。
-              </div>
+
+              {importMode === 'manual' ? (
+                <>
+                  <label htmlFor="import-items" className="app-label">
+                    文本数据
+                  </label>
+                  <textarea
+                    id="import-items"
+                    value={importText}
+                    onChange={(event) => setImportText(event.target.value)}
+                    className="app-input min-h-72 resize-y font-mono text-sm"
+                    placeholder="每行一条数据，例如：\n这次服务很好\n配送速度太慢\n商品包装完整"
+                  />
+                  <div className="mt-2 text-xs text-gray-500">
+                    每行一条，空行自动忽略，单次最多 500 条。
+                  </div>
+                </>
+              ) : (
+                <div>
+                  <label htmlFor="import-csv-file" className="app-label">
+                    CSV 文件
+                  </label>
+                  <input
+                    id="import-csv-file"
+                    type="file"
+                    accept=".csv,text/csv"
+                    className="app-input cursor-pointer text-sm file:mr-4 file:rounded file:border-0 file:bg-gray-100 file:px-3 file:py-2 file:text-sm file:font-medium file:text-gray-700"
+                    onChange={(event) => setImportFile(event.target.files?.[0] ?? null)}
+                  />
+                  <div className="mt-2 text-xs leading-5 text-gray-500">
+                    UTF-8 编码、无表头、仅一列，每行一条数据。空行自动忽略，不限制导入条数，文件最大 100 MB。
+                  </div>
+                </div>
+              )}
         </AppModal>
       </form>
     );

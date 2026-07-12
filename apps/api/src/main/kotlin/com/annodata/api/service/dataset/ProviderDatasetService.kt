@@ -6,6 +6,7 @@ import com.annodata.api.db.DataItemsTable
 import com.annodata.api.db.DatasetReviewsTable
 import com.annodata.api.models.AnnotationDetailResponse
 import com.annodata.api.models.CreateDatasetRequest
+import com.annodata.api.models.DataItemInput
 import com.annodata.api.models.DataItemResponse
 import com.annodata.api.models.DeleteDataItemResponse
 import com.annodata.api.models.DeleteDatasetResponse
@@ -53,6 +54,8 @@ import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import org.jetbrains.exposed.sql.update
+import java.io.BufferedReader
+import java.io.IOException
 import java.math.BigDecimal
 import java.time.OffsetDateTime
 import java.util.UUID
@@ -226,6 +229,67 @@ class ProviderDatasetService {
             }
         } catch (_: ExposedSQLException) {
             Result.Conflict("数据项导入失败，请检查外部编号是否重复")
+        }
+    }
+
+    /**
+     * 从无表头、单列 CSV 向草稿数据集导入文本数据项。
+     */
+    fun importDataItemsFromCsv(
+        providerId: UUID,
+        datasetId: UUID,
+        filename: String,
+        reader: BufferedReader,
+    ): Result<ImportDataItemsResponse> {
+        return try {
+            val response = transaction {
+                val dataset = datasetStore.findProviderDataset(providerId, datasetId)
+                    ?: return@transaction null
+
+                if (dataset.status != "draft") {
+                    return@transaction ImportDataItemsTransactionResult.InvalidStatus
+                }
+
+                val now = OffsetDateTime.now()
+                val importedCount = readSingleColumnCsv(reader, CSV_IMPORT_BATCH_SIZE) { rows ->
+                    val items = rows.map { row ->
+                        DataItemInput(
+                            content = row.content,
+                            contentType = "text",
+                            metadata = objectMapper.writeValueAsString(
+                                mapOf(
+                                    "import_source" to "csv",
+                                    "import_filename" to filename,
+                                    "import_line_no" to row.lineNumber,
+                                )
+                            ),
+                        )
+                    }
+                    dataItemStore.insertDataItems(datasetId, items, now)
+                }
+
+                val itemCount = dataItemStore.countDatasetItems(datasetId)
+                datasetStore.updateDatasetItemCount(datasetId, itemCount, now)
+
+                ImportDataItemsTransactionResult.Success(
+                    ImportDataItemsResponse(
+                        importedCount = importedCount,
+                        itemCount = itemCount,
+                    )
+                )
+            }
+
+            when (response) {
+                null -> Result.BadRequest("数据集不存在或无权访问")
+                ImportDataItemsTransactionResult.InvalidStatus -> Result.BadRequest("只能向草稿状态的数据集导入数据项")
+                is ImportDataItemsTransactionResult.Success -> Result.Success(response.value)
+            }
+        } catch (exception: CsvImportException) {
+            Result.BadRequest(exception.message ?: "CSV 文件格式不正确")
+        } catch (_: IOException) {
+            Result.BadRequest("CSV 文件读取失败，请确认文件为 UTF-8 编码")
+        } catch (_: ExposedSQLException) {
+            Result.Conflict("CSV 数据项导入失败")
         }
     }
 
@@ -1069,6 +1133,10 @@ class ProviderDatasetService {
      */
     private fun isJsonObject(value: String): Boolean {
         return runCatching { objectMapper.readTree(value)?.isObject == true }.getOrDefault(false)
+    }
+
+    private companion object {
+        const val CSV_IMPORT_BATCH_SIZE = 1_000
     }
 
 }

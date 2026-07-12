@@ -15,6 +15,8 @@ import com.annodata.api.models.UpdateDatasetRequest
 import com.annodata.api.http.Result
 import com.annodata.api.service.dataset.ProviderDatasetService
 import io.javalin.http.Context
+import java.io.InputStreamReader
+import java.nio.charset.CodingErrorAction
 import java.util.UUID
 
 /**
@@ -93,6 +95,49 @@ class ProviderDatasetHandler(private val datasetService: ProviderDatasetService)
             is Result.Unauthorized -> ctx.unauthorized(result.message)
             is Result.Forbidden -> ctx.forbidden(result.message)
             is Result.Conflict -> ctx.conflict(result.message)
+        }
+    }
+
+    /**
+     * 处理 `POST /api/provider/datasets/{datasetId}/items/import-csv` 请求。
+     */
+    fun importItemsFromCsv(ctx: Context) {
+        val providerId = UUID.fromString(ctx.currentUser().id)
+        val datasetId = UUID.fromString(ctx.pathParam("datasetId"))
+        val file = ctx.uploadedFile("file")
+
+        if (file == null) {
+            ctx.badRequest("请选择要导入的 CSV 文件")
+            return
+        }
+        val filename = file.filename().substringAfterLast('/').substringAfterLast('\\')
+        if (!filename.lowercase().endsWith(".csv")) {
+            ctx.badRequest("仅支持上传 .csv 文件")
+            return
+        }
+        if (file.size() == 0L) {
+            ctx.badRequest("CSV 文件不能为空")
+            return
+        }
+
+        val utf8Decoder = Charsets.UTF_8.newDecoder()
+            .onMalformedInput(CodingErrorAction.REPORT)
+            .onUnmappableCharacter(CodingErrorAction.REPORT)
+        InputStreamReader(file.content(), utf8Decoder).buffered().use { reader ->
+            when (
+                val result = datasetService.importDataItemsFromCsv(
+                    providerId = providerId,
+                    datasetId = datasetId,
+                    filename = filename,
+                    reader = reader,
+                )
+            ) {
+                is Result.Success -> ctx.status(201).json(result.value)
+                is Result.BadRequest -> ctx.badRequest(result.message)
+                is Result.Unauthorized -> ctx.unauthorized(result.message)
+                is Result.Forbidden -> ctx.forbidden(result.message)
+                is Result.Conflict -> ctx.conflict(result.message)
+            }
         }
     }
 

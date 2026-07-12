@@ -1,6 +1,7 @@
 package com.annodata.api.http
 
 import io.javalin.config.JavalinConfig
+import io.javalin.config.SizeUnit
 import io.javalin.http.Context
 
 /**
@@ -9,6 +10,8 @@ import io.javalin.http.Context
  * @param config Javalin 配置对象
  */
 fun configureHttp(config: JavalinConfig) {
+    config.jetty.multipartConfig.maxFileSize(100, SizeUnit.MB)
+    config.jetty.multipartConfig.maxTotalRequestSize(100, SizeUnit.MB)
     config.bundledPlugins.enableCors { cors ->
         cors.addRule { rule -> rule.anyHost() }
     }

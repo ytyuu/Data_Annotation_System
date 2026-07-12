@@ -24,6 +24,7 @@ fun registerDatasetRoutes(authMiddleware: AuthMiddleware?) {
         put("/provider/datasets/{datasetId}") { ctx -> providerDatasetHandler.update(ctx) }
         get("/provider/datasets/{datasetId}/items") { ctx -> providerDatasetHandler.listItems(ctx) }
         post("/provider/datasets/{datasetId}/items") { ctx -> providerDatasetHandler.importItems(ctx) }
+        post("/provider/datasets/{datasetId}/items/import-csv") { ctx -> providerDatasetHandler.importItemsFromCsv(ctx) }
         get("/provider/datasets/{datasetId}/disputed-items") { ctx -> providerDatasetHandler.listDisputedItems(ctx) }
         get("/provider/datasets/{datasetId}/items/{itemId}/dispute-detail") { ctx ->
             providerDatasetHandler.getDisputeDetail(ctx)
