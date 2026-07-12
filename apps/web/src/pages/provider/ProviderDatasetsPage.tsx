@@ -1067,7 +1067,7 @@ export function ProviderDatasetsPage() {
                     onChange={(event) => setImportFile(event.target.files?.[0] ?? null)}
                   />
                   <div className="mt-2 text-xs leading-5 text-gray-500">
-                    UTF-8 编码、无表头、仅一列，每行一条数据。空行自动忽略，不限制导入条数，文件最大 100 MB。
+                    UTF-8 编码、无表头，每行一条数据。评论按行原文导入，空行自动忽略，不限制导入条数，文件最大 100 MB。
                   </div>
                 </div>
               )}

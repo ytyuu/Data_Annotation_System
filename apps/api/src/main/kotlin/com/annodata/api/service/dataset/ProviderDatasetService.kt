@@ -233,7 +233,7 @@ class ProviderDatasetService {
     }
 
     /**
-     * 从无表头、单列 CSV 向草稿数据集导入文本数据项。
+     * 从无表头 CSV 按行向草稿数据集导入原始文本数据项。
      */
     fun importDataItemsFromCsv(
         providerId: UUID,
