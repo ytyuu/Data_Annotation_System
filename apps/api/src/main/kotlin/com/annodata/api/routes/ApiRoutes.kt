@@ -11,6 +11,7 @@ import com.annodata.api.routes.system.registerSystemRoutes
 import com.annodata.api.service.auth.AuthService
 import com.annodata.api.middleware.auth.AuthMiddleware
 import com.annodata.api.middleware.ai.AiWorkerAuthMiddleware
+import com.annodata.api.service.ai.AiWorkerDispatcher
 import io.javalin.apibuilder.ApiBuilder.path
 import io.javalin.config.JavalinConfig
 
@@ -35,6 +36,11 @@ fun registerApiRoutes(config: JavalinConfig, serverConfig: ServerConfig, securit
     val authService = securityConfig?.let(::AuthService)
     val authMiddleware = authService?.let(::AuthMiddleware)
     val aiWorkerAuthMiddleware = securityConfig?.let { AiWorkerAuthMiddleware(it.aiWorkerToken) }
+    val aiWorkerDispatcher = securityConfig?.let { security ->
+        val baseUrl = security.aiWorkerBaseUrl
+        val triggerToken = security.workerTriggerToken
+        if (baseUrl != null && triggerToken != null) AiWorkerDispatcher(baseUrl, triggerToken) else null
+    }
 
     config.routes.apiBuilder {
         registerSystemRoutes(serverConfig)
@@ -44,7 +50,7 @@ fun registerApiRoutes(config: JavalinConfig, serverConfig: ServerConfig, securit
             registerDemoRoutes()
             registerAuthRoutes(authService)
             registerDatasetRoutes(authMiddleware)
-            registerAiAnnotationRoutes(authMiddleware, aiWorkerAuthMiddleware)
+            registerAiAnnotationRoutes(authMiddleware, aiWorkerAuthMiddleware, aiWorkerDispatcher)
         }
     }
 }

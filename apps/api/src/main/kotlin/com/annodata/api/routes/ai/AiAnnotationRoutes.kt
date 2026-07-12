@@ -9,19 +9,22 @@ import com.annodata.api.middleware.auth.requireAuth
 import com.annodata.api.middleware.auth.requireRole
 import com.annodata.api.routes.routeGroup
 import com.annodata.api.service.ai.AiAnnotationService
+import com.annodata.api.service.ai.AiWorkerDispatcher
 import com.annodata.api.service.ai.AiWorkerService
 
 fun registerAiAnnotationRoutes(
     authMiddleware: AuthMiddleware?,
     aiWorkerAuthMiddleware: AiWorkerAuthMiddleware?,
+    aiWorkerDispatcher: AiWorkerDispatcher?,
 ) {
-    val handler = AiAnnotationHandler(AiAnnotationService())
+    val handler = AiAnnotationHandler(AiAnnotationService(aiWorkerDispatcher))
     val workerHandler = AiWorkerAnnotationHandler(AiWorkerService())
 
     routeGroup(requireAuth(authMiddleware), requireRole("provider")) {
         post("/provider/datasets/{datasetId}/ai-annotation-batches") { ctx -> handler.createBatch(ctx) }
         get("/provider/datasets/{datasetId}/ai-annotation-batches") { ctx -> handler.listBatches(ctx) }
         get("/provider/ai-annotation-batches/{batchId}") { ctx -> handler.getBatch(ctx) }
+        post("/provider/ai-annotation-batches/{batchId}/run") { ctx -> handler.runBatch(ctx) }
         get("/provider/ai-annotation-results") { ctx -> handler.listResults(ctx) }
         post("/provider/ai-annotation-results/{resultId}/review") { ctx -> handler.reviewResult(ctx) }
         post("/provider/ai-annotation-results/batch-review") { ctx -> handler.batchReview(ctx) }

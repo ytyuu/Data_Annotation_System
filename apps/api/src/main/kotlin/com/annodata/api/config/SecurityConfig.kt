@@ -8,6 +8,8 @@ data class SecurityConfig(
     val jwtIssuer: String,
     val jwtExpiresMinutes: Long,
     val aiWorkerToken: String?,
+    val aiWorkerBaseUrl: String?,
+    val workerTriggerToken: String?,
 ) {
     companion object {
         private const val DEFAULT_JWT_SECRET = "change-me-in-env"
@@ -21,6 +23,8 @@ data class SecurityConfig(
                 jwtExpiresMinutes = env["JWT_EXPIRES_MINUTES"]?.trim()?.toLongOrNull()
                     ?: DEFAULT_JWT_EXPIRES_MINUTES,
                 aiWorkerToken = env["AI_WORKER_TOKEN"]?.trim()?.takeIf { it.isNotEmpty() },
+                aiWorkerBaseUrl = env["AI_WORKER_BASE_URL"]?.trim()?.trimEnd('/')?.takeIf { it.isNotEmpty() },
+                workerTriggerToken = env["WORKER_TRIGGER_TOKEN"]?.trim()?.takeIf { it.isNotEmpty() },
             )
         }
     }

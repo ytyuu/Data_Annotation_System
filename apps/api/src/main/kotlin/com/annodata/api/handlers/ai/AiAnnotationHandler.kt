@@ -35,6 +35,12 @@ class AiAnnotationHandler(private val service: AiAnnotationService) {
         respond(ctx, service.getBatch(providerId, batchId))
     }
 
+    fun runBatch(ctx: Context) {
+        val providerId = UUID.fromString(ctx.currentUser().id)
+        val batchId = parseUuid(ctx, ctx.pathParam("batchId"), "batchId") ?: return
+        respond(ctx, service.runBatch(providerId, batchId), successStatus = 202)
+    }
+
     fun listResults(ctx: Context) {
         val providerId = UUID.fromString(ctx.currentUser().id)
         val batchId = parseUuid(ctx, ctx.queryParam("batchId"), "batchId") ?: return

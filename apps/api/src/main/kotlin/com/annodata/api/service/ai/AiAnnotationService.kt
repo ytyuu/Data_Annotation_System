@@ -6,6 +6,7 @@ import com.annodata.api.http.Result
 import com.annodata.api.models.AiAnnotationBatchListResponse
 import com.annodata.api.models.AiAnnotationBatchResponse
 import com.annodata.api.models.CreateAiAnnotationBatchRequest
+import com.annodata.api.models.MessageResponse
 import com.annodata.api.service.ai.store.AiAnnotationStore
 import com.annodata.api.service.ai.validation.AiAnnotationValidator
 import com.annodata.api.service.ai.validation.ClassificationSchemaParseResult
@@ -16,7 +17,7 @@ import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.OffsetDateTime
 import java.util.UUID
 
-class AiAnnotationService {
+class AiAnnotationService(private val workerDispatcher: AiWorkerDispatcher? = null) {
     private val store = AiAnnotationStore()
     private val objectMapper = ObjectMapper()
 
@@ -103,6 +104,32 @@ class AiAnnotationService {
         val row = transaction { store.findProviderBatch(providerId, batchId) }
             ?: return Result.BadRequest("AI 标注批次不存在或无权访问")
         return Result.Success(toBatchResponse(row))
+    }
+
+    fun runBatch(providerId: UUID, batchId: UUID): Result<MessageResponse> {
+        val status = transaction {
+            store.findProviderBatch(providerId, batchId)?.get(AiAnnotationBatchesTable.status)
+        } ?: return Result.BadRequest("AI 标注批次不存在或无权访问")
+
+        when (status) {
+            "pending" -> Unit
+            "running" -> return Result.Conflict("AI 标注批次正在运行")
+            else -> return Result.Conflict("当前批次状态不允许运行")
+        }
+        val dispatcher = workerDispatcher
+            ?: return Result.BadRequest("AI Worker 派发未配置，请检查 AI_WORKER_BASE_URL 和 WORKER_TRIGGER_TOKEN")
+
+        return when (val outcome = dispatcher.dispatch(batchId)) {
+            AiWorkerDispatchOutcome.Accepted -> Result.Success(MessageResponse("批次已派发到 AI Worker"))
+            is AiWorkerDispatchOutcome.ConfigurationError -> Result.BadRequest(outcome.message)
+            is AiWorkerDispatchOutcome.Unavailable ->
+                Result.BadRequest("AI Worker 不可达，批次仍可再次运行：${outcome.message}")
+            is AiWorkerDispatchOutcome.Rejected -> if (outcome.statusCode == 409) {
+                Result.Conflict(outcome.message)
+            } else {
+                Result.BadRequest("AI Worker 拒绝执行：${outcome.message}")
+            }
+        }
     }
 
     private fun validateCreateRequest(request: CreateAiAnnotationBatchRequest): String? {
