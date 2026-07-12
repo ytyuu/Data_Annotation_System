@@ -7,6 +7,7 @@ import {
   listAiResults,
   listProviderDatasets,
   reviewAiResult,
+  runAiBatch,
   type AiBatch,
   type AiResult,
   type CreateBatchInput,
@@ -71,12 +72,14 @@ export function ProviderAiAnnotationsPage() {
   const [createForm, setCreateForm] = useState<CreateBatchInput>(initialForm);
   const [saving, setSaving] = useState(false);
   const [copiedBatchId, setCopiedBatchId] = useState('');
+  const [runningBatchId, setRunningBatchId] = useState('');
   const [reviewResult, setReviewResult] = useState<AiResult | null>(null);
   const [reviewComment, setReviewComment] = useState('');
   const [modifyMode, setModifyMode] = useState(false);
   const [modifiedSelection, setModifiedSelection] = useState<AnnotationSelection>({ main: [], sub: {} });
   const [reviewing, setReviewing] = useState(false);
   const preferredBatchIdRef = useRef<string | null>(null);
+  const pollingIntervalRef = useRef<number | null>(null);
 
   const eligibleDatasets = useMemo(
     () => datasets.filter((dataset) => dataset.status === 'in_progress' || dataset.status === 'reviewing'),
@@ -114,6 +117,23 @@ export function ProviderAiAnnotationsPage() {
     void loadResults();
   }, [selectedBatchId, resultView]);
 
+  useEffect(() => {
+    if (!selectedBatch || !selectedDatasetId) return;
+    const shouldPoll = selectedBatch.status === 'running' || runningBatchId === selectedBatch.id;
+    if (!shouldPoll) return;
+    const batchId = selectedBatch.id;
+
+    pollingIntervalRef.current = window.setInterval(() => {
+      void loadBatches(selectedDatasetId, batchId);
+    }, 3000);
+    return () => {
+      if (pollingIntervalRef.current !== null) {
+        window.clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+    };
+  }, [selectedBatch?.id, selectedBatch?.status, selectedDatasetId, runningBatchId]);
+
   async function loadDatasets() {
     setLoading(true);
     setError('');
@@ -139,6 +159,11 @@ export function ProviderAiAnnotationsPage() {
       const nextBatchId = preferredBatchId && data.some((batch) => batch.id === preferredBatchId)
         ? preferredBatchId : data.some((batch) => batch.id === selectedBatchId) ? selectedBatchId : data[0]?.id || '';
       setSelectedBatchId(nextBatchId);
+      setRunningBatchId((current) => {
+        if (!current) return current;
+        const trackedBatch = data.find((batch) => batch.id === current);
+        return trackedBatch && ['pending', 'running'].includes(trackedBatch.status) ? current : '';
+      });
     } catch (err) {
       setError(errorMessage(err, '批次加载失败'));
       setBatches([]);
@@ -263,6 +288,20 @@ export function ProviderAiAnnotationsPage() {
     }
   }
 
+  async function handleRunBatch(batchId: string) {
+    if (!selectedDatasetId) return;
+    setSelectedBatchId(batchId);
+    setRunningBatchId(batchId);
+    setError('');
+    try {
+      await runAiBatch(batchId);
+      await loadBatches(selectedDatasetId, batchId);
+    } catch (err) {
+      setRunningBatchId('');
+      setError(errorMessage(err, '批次运行失败'));
+    }
+  }
+
   if (loading) return <EmptyState>正在加载大模型标注数据...</EmptyState>;
 
   return (
@@ -354,6 +393,17 @@ export function ProviderAiAnnotationsPage() {
                             </span>
                           )}
                         </button>
+                        {batch.status === 'pending' && (
+                          <AppButton
+                            type="button"
+                            variant="primary"
+                            size="sm"
+                            disabled={runningBatchId === batch.id}
+                            onClick={() => void handleRunBatch(batch.id)}
+                          >
+                            {runningBatchId === batch.id ? '运行中...' : '运行'}
+                          </AppButton>
+                        )}
                       </div>
                     </div>
                   );

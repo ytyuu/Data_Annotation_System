@@ -86,6 +86,12 @@ export async function listAiBatches(datasetId: string): Promise<AiBatch[]> {
   return response.items;
 }
 
+export async function runAiBatch(batchId: string) {
+  return request<{ message: string }>(`/api/provider/ai-annotation-batches/${batchId}/run`, {
+    method: 'POST',
+  });
+}
+
 export async function listAiResults(
   batchId: string,
   options: { status?: string; reviewMode?: string; page?: number; pageSize?: number } = {},
