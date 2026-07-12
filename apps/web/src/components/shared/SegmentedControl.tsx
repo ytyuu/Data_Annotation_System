@@ -3,6 +3,7 @@ import { AppButton } from './AppButton';
 export interface SegmentedControlOption<T extends string> {
   value: T;
   label: string;
+  badge?: number;
   description?: string;
   disabled?: boolean;
 }
@@ -73,7 +74,17 @@ export function SegmentedControl<T extends string>({
                 </span>
               </span>
             ) : (
-              option.label
+              <span className="inline-flex items-center gap-1.5">
+                <span>{option.label}</span>
+                {option.badge !== undefined && option.badge > 0 && (
+                  <span
+                    className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-semibold leading-none text-white"
+                    title={`${option.badge} 条待处理`}
+                  >
+                    {option.badge > 99 ? '99+' : option.badge}
+                  </span>
+                )}
+              </span>
             )}
           </AppButton>
         );

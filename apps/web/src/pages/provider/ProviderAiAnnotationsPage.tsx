@@ -27,6 +27,9 @@ import { SegmentedControl } from '../../components/shared/SegmentedControl';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 
 type ResultView = 'mandatory' | 'sampling' | 'low-risk' | 'failed' | 'accepted';
+type ReviewCounts = Record<'mandatory' | 'sampling' | 'low-risk', number>;
+
+const emptyReviewCounts: ReviewCounts = { mandatory: 0, sampling: 0, 'low-risk': 0 };
 
 const batchStatusLabels: Record<string, string> = {
   pending: '等待执行', running: '执行中', completed: '执行完成', failed: '执行失败', cancelled: '已取消',
@@ -57,10 +60,11 @@ export function ProviderAiAnnotationsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const [datasets, setDatasets] = useState<ProviderDataset[]>([]);
   const [selectedDatasetId, setSelectedDatasetId] = useState(searchParams.get('datasetId') || '');
-  const [batches, setBatches] = useState<AiBatch[]>([]);
+  const [allBatches, setAllBatches] = useState<AiBatch[]>([]);
   const [selectedBatchId, setSelectedBatchId] = useState('');
   const [results, setResults] = useState<AiResult[]>([]);
   const [resultTotal, setResultTotal] = useState(0);
+  const [reviewCounts, setReviewCounts] = useState<ReviewCounts>(emptyReviewCounts);
   const [resultView, setResultView] = useState<ResultView>('mandatory');
   const [selectedResultIds, setSelectedResultIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,15 +84,29 @@ export function ProviderAiAnnotationsPage() {
   const [reviewing, setReviewing] = useState(false);
   const preferredBatchIdRef = useRef<string | null>(null);
   const pollingIntervalRef = useRef<number | null>(null);
+  const reviewCountsRequestRef = useRef(0);
 
   const eligibleDatasets = useMemo(
     () => datasets.filter((dataset) => dataset.status === 'in_progress' || dataset.status === 'reviewing'),
     [datasets],
   );
+  const batches = useMemo(
+    () => selectedDatasetId
+      ? allBatches.filter((batch) => batch.datasetId === selectedDatasetId)
+      : allBatches,
+    [allBatches, selectedDatasetId],
+  );
+  const batchCounts = useMemo(() => allBatches.reduce<Record<string, number>>((counts, batch) => {
+    counts[batch.datasetId] = (counts[batch.datasetId] ?? 0) + 1;
+    return counts;
+  }, {}), [allBatches]);
   const selectedDataset = datasets.find((dataset) => dataset.id === selectedDatasetId) ?? null;
   const createDataset = eligibleDatasets.find((dataset) => dataset.id === createDatasetId) ?? null;
   const selectedBatch = batches.find((batch) => batch.id === selectedBatchId) ?? null;
-  const annotationSchema = useMemo(() => parseSchema(selectedDataset?.annotationSchema), [selectedDataset]);
+  const activeDataset = selectedDataset
+    ?? datasets.find((dataset) => dataset.id === selectedBatch?.datasetId)
+    ?? null;
+  const annotationSchema = useMemo(() => parseSchema(activeDataset?.annotationSchema), [activeDataset]);
   const createAnnotationSchema = useMemo(() => parseSchema(createDataset?.annotationSchema), [createDataset]);
   const canReviewResult = reviewResult?.status === 'ai_labeled'
     || reviewResult?.status === 'needs_review'
@@ -97,34 +115,42 @@ export function ProviderAiAnnotationsPage() {
   useEffect(() => { void loadDatasets(); }, []);
 
   useEffect(() => {
-    if (!selectedDatasetId) {
-      setBatches([]);
-      setSelectedBatchId('');
-      return;
-    }
-    setSearchParams({ datasetId: selectedDatasetId }, { replace: true });
-    const preferredBatchId = preferredBatchIdRef.current ?? undefined;
-    preferredBatchIdRef.current = null;
-    void loadBatches(selectedDatasetId, preferredBatchId);
-  }, [selectedDatasetId]);
+    setSearchParams(selectedDatasetId ? { datasetId: selectedDatasetId } : {}, { replace: true });
+    setSelectedBatchId((current) => {
+      const preferredBatchId = preferredBatchIdRef.current;
+      if (preferredBatchId && batches.some((batch) => batch.id === preferredBatchId)) {
+        preferredBatchIdRef.current = null;
+        return preferredBatchId;
+      }
+      return batches.some((batch) => batch.id === current) ? current : batches[0]?.id || '';
+    });
+  }, [batches, selectedDatasetId, setSearchParams]);
 
   useEffect(() => {
     if (!selectedBatchId) {
       setResults([]);
       setResultTotal(0);
+      reviewCountsRequestRef.current += 1;
+      setReviewCounts(emptyReviewCounts);
       return;
     }
     void loadResults();
   }, [selectedBatchId, resultView]);
 
   useEffect(() => {
-    if (!selectedBatch || !selectedDatasetId) return;
+    if (!selectedBatchId) return;
+    void loadReviewCounts(selectedBatchId);
+  }, [selectedBatchId, selectedBatch?.status]);
+
+  useEffect(() => {
+    if (!selectedBatch) return;
     const shouldPoll = selectedBatch.status === 'running' || runningBatchId === selectedBatch.id;
     if (!shouldPoll) return;
     const batchId = selectedBatch.id;
+    const datasetId = selectedBatch.datasetId;
 
     pollingIntervalRef.current = window.setInterval(() => {
-      void loadBatches(selectedDatasetId, batchId);
+      void refreshDatasetBatches(datasetId);
     }, 3000);
     return () => {
       if (pollingIntervalRef.current !== null) {
@@ -132,18 +158,21 @@ export function ProviderAiAnnotationsPage() {
         pollingIntervalRef.current = null;
       }
     };
-  }, [selectedBatch?.id, selectedBatch?.status, selectedDatasetId, runningBatchId]);
+  }, [selectedBatch?.id, selectedBatch?.status, selectedBatch?.datasetId, runningBatchId]);
 
-  async function loadDatasets() {
+  async function loadDatasets(preferredDatasetId?: string, preferredBatchId?: string) {
     setLoading(true);
     setError('');
     try {
       const data = await listProviderDatasets();
       setDatasets(data);
       const requested = searchParams.get('datasetId');
-      const nextId = data.some((dataset) => dataset.id === requested && (dataset.status === 'in_progress' || dataset.status === 'reviewing'))
-        ? requested! : data.find((dataset) => dataset.status === 'in_progress' || dataset.status === 'reviewing')?.id || '';
+      const eligible = data.filter((dataset) => dataset.status === 'in_progress' || dataset.status === 'reviewing');
+      const requestedId = preferredDatasetId ?? requested;
+      const nextId = eligible.some((dataset) => dataset.id === requestedId) ? requestedId! : '';
+      preferredBatchIdRef.current = preferredBatchId ?? null;
       setSelectedDatasetId(nextId);
+      await loadAllBatches(eligible);
     } catch (err) {
       setError(errorMessage(err, '数据集加载失败'));
     } finally {
@@ -151,14 +180,12 @@ export function ProviderAiAnnotationsPage() {
     }
   }
 
-  async function loadBatches(datasetId: string, preferredBatchId?: string) {
+  async function loadAllBatches(sourceDatasets: ProviderDataset[]) {
     setError('');
     try {
-      const data = await listAiBatches(datasetId);
-      setBatches(data);
-      const nextBatchId = preferredBatchId && data.some((batch) => batch.id === preferredBatchId)
-        ? preferredBatchId : data.some((batch) => batch.id === selectedBatchId) ? selectedBatchId : data[0]?.id || '';
-      setSelectedBatchId(nextBatchId);
+      const groups = await Promise.all(sourceDatasets.map((dataset) => listAiBatches(dataset.id)));
+      const data = sortBatches(groups.flat());
+      setAllBatches(data);
       setRunningBatchId((current) => {
         if (!current) return current;
         const trackedBatch = data.find((batch) => batch.id === current);
@@ -166,8 +193,26 @@ export function ProviderAiAnnotationsPage() {
       });
     } catch (err) {
       setError(errorMessage(err, '批次加载失败'));
-      setBatches([]);
+      setAllBatches([]);
       setSelectedBatchId('');
+    }
+  }
+
+  async function refreshDatasetBatches(datasetId: string) {
+    setError('');
+    try {
+      const data = await listAiBatches(datasetId);
+      setAllBatches((current) => sortBatches([
+        ...current.filter((batch) => batch.datasetId !== datasetId),
+        ...data,
+      ]));
+      setRunningBatchId((current) => {
+        if (!current) return current;
+        const trackedBatch = data.find((batch) => batch.id === current);
+        return trackedBatch && ['pending', 'running'].includes(trackedBatch.status) ? current : '';
+      });
+    } catch (err) {
+      setError(errorMessage(err, '批次加载失败'));
     }
   }
 
@@ -194,9 +239,28 @@ export function ProviderAiAnnotationsPage() {
     }
   }
 
+  async function loadReviewCounts(batchId: string) {
+    const requestId = ++reviewCountsRequestRef.current;
+    try {
+      const [mandatory, sampling, allLowRisk] = await Promise.all([
+        listAiResults(batchId, { status: 'needs_review', pageSize: 1 }),
+        listAiResults(batchId, { status: 'ai_labeled', reviewMode: 'sampling', pageSize: 1 }),
+        listAiResults(batchId, { status: 'ai_labeled', pageSize: 1 }),
+      ]);
+      if (requestId !== reviewCountsRequestRef.current) return;
+      setReviewCounts({
+        mandatory: mandatory.total,
+        sampling: sampling.total,
+        'low-risk': Math.max(0, allLowRisk.total - sampling.total),
+      });
+    } catch {
+      if (requestId === reviewCountsRequestRef.current) setReviewCounts(emptyReviewCounts);
+    }
+  }
+
   function openCreateDialog() {
     setCreateForm(initialForm);
-    setCreateDatasetId('');
+    setCreateDatasetId(eligibleDatasets.some((dataset) => dataset.id === selectedDatasetId) ? selectedDatasetId : '');
     setCreateDatasetOpen(true);
     setError('');
   }
@@ -220,13 +284,7 @@ export function ProviderAiAnnotationsPage() {
     try {
       const batch = await createAiBatch(createDatasetId, createForm);
       setCreateOpen(false);
-      await loadDatasets();
-      if (createDatasetId === selectedDatasetId) {
-        await loadBatches(createDatasetId, batch.id);
-      } else {
-        preferredBatchIdRef.current = batch.id;
-        setSelectedDatasetId(createDatasetId);
-      }
+      await loadDatasets(createDatasetId, batch.id);
     } catch (err) {
       setError(errorMessage(err, '批次创建失败'));
     } finally {
@@ -251,7 +309,11 @@ export function ProviderAiAnnotationsPage() {
         : null;
       await reviewAiResult(reviewResult.id, { action, acceptedResult, comment: reviewComment });
       setReviewResult(null);
-      await Promise.all([loadResults(), selectedDatasetId ? loadBatches(selectedDatasetId, selectedBatchId) : Promise.resolve()]);
+      await Promise.all([
+        loadResults(),
+        loadReviewCounts(selectedBatchId),
+        selectedBatch ? refreshDatasetBatches(selectedBatch.datasetId) : Promise.resolve(),
+      ]);
     } catch (err) {
       setError(errorMessage(err, '审核操作失败'));
     } finally {
@@ -266,7 +328,11 @@ export function ProviderAiAnnotationsPage() {
     setError('');
     try {
       await batchAcceptAiResults(selectedBatchId, selectedResultIds);
-      await Promise.all([loadResults(), selectedDatasetId ? loadBatches(selectedDatasetId, selectedBatchId) : Promise.resolve()]);
+      await Promise.all([
+        loadResults(),
+        loadReviewCounts(selectedBatchId),
+        selectedBatch ? refreshDatasetBatches(selectedBatch.datasetId) : Promise.resolve(),
+      ]);
     } catch (err) {
       setError(errorMessage(err, '批量接受失败'));
     } finally {
@@ -289,13 +355,14 @@ export function ProviderAiAnnotationsPage() {
   }
 
   async function handleRunBatch(batchId: string) {
-    if (!selectedDatasetId) return;
+    const batch = allBatches.find((item) => item.id === batchId);
+    if (!batch) return;
     setSelectedBatchId(batchId);
     setRunningBatchId(batchId);
     setError('');
     try {
       await runAiBatch(batchId);
-      await loadBatches(selectedDatasetId, batchId);
+      await refreshDatasetBatches(batch.datasetId);
     } catch (err) {
       setRunningBatchId('');
       setError(errorMessage(err, '批次运行失败'));
@@ -317,7 +384,7 @@ export function ProviderAiAnnotationsPage() {
         }
       >
         <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-          <span className="shrink-0">筛选批次</span>
+          <span className="shrink-0">数据集：</span>
           <div className="min-w-0 sm:w-[200px]">
             <DatasetSelectMenu
               datasets={eligibleDatasets}
@@ -325,13 +392,15 @@ export function ProviderAiAnnotationsPage() {
               onChange={setSelectedDatasetId}
               ariaLabel="按数据集筛选批次"
               showCounts={false}
+              includeAll
+              batchCounts={batchCounts}
             />
           </div>
         </div>
       </PageToolbar>
 
       {error && <AppAlert kind="error" className="mb-4">{error}</AppAlert>}
-      {!selectedDatasetId ? (
+      {eligibleDatasets.length === 0 ? (
         <EmptyState align="center" spacious>没有可发起大模型标注的数据集</EmptyState>
       ) : (
         <div className="grid min-h-[620px] gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
@@ -427,9 +496,9 @@ export function ProviderAiAnnotationsPage() {
                     value={resultView}
                     onChange={setResultView}
                     options={[
-                      { value: 'mandatory', label: '必须审核' },
-                      { value: 'sampling', label: '抽检' },
-                      { value: 'low-risk', label: '低风险' },
+                      { value: 'mandatory', label: '必须审核', badge: reviewCounts.mandatory },
+                      { value: 'sampling', label: '抽检', badge: reviewCounts.sampling },
+                      { value: 'low-risk', label: '低风险', badge: reviewCounts['low-risk'] },
                       { value: 'failed', label: '失败' },
                       { value: 'accepted', label: '已采用' },
                     ]}
@@ -607,6 +676,8 @@ function DatasetSelectMenu({
   disableEmpty = false,
   inlineMenu = false,
   showCounts = true,
+  includeAll = false,
+  batchCounts,
 }: {
   datasets: ProviderDataset[];
   value: string;
@@ -616,10 +687,13 @@ function DatasetSelectMenu({
   disableEmpty?: boolean;
   inlineMenu?: boolean;
   showCounts?: boolean;
+  includeAll?: boolean;
+  batchCounts?: Record<string, number>;
 }) {
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const selectedDataset = datasets.find((dataset) => dataset.id === value) ?? null;
+  const totalBatchCount = Object.values(batchCounts ?? {}).reduce((total, count) => total + count, 0);
 
   useEffect(() => {
     if (!open) return;
@@ -649,7 +723,14 @@ function DatasetSelectMenu({
         {selectedDataset ? (
           <>
             <span className="min-w-0 truncate font-medium">{selectedDataset.name}</span>
-            {showCounts && <span className="shrink-0 text-xs text-gray-500">剩余 {remainingItems(selectedDataset)} 条</span>}
+            {batchCounts ? (
+              <span className="shrink-0 text-xs text-gray-500">{batchCounts[selectedDataset.id] ?? 0} 个批次</span>
+            ) : showCounts && <span className="shrink-0 text-xs text-gray-500">剩余 {remainingItems(selectedDataset)} 条</span>}
+          </>
+        ) : includeAll ? (
+          <>
+            <span className="font-medium text-gray-900">全部</span>
+            <span className="shrink-0 text-xs text-gray-500">{totalBatchCount} 个批次</span>
           </>
         ) : <span className="text-gray-500">{placeholder}</span>}
         <span aria-hidden="true" className={`shrink-0 text-gray-500 transition-transform ${open ? 'rotate-180' : ''}`}>▾</span>
@@ -661,6 +742,25 @@ function DatasetSelectMenu({
           aria-label={ariaLabel}
           className={`${inlineMenu ? 'relative mt-2' : 'absolute left-0 right-0 top-full z-40 mt-1'} max-h-80 overflow-y-auto rounded border border-gray-300 bg-white py-1 shadow-lg`}
         >
+          {includeAll && (
+            <AppButton
+              type="button"
+              variant="custom"
+              role="option"
+              aria-selected={!value}
+              className={`flex w-full items-center justify-between gap-4 px-3 py-2.5 text-left ${!value ? 'bg-gray-100 hover:bg-gray-100' : 'hover:bg-gray-50'}`}
+              onClick={() => {
+                onChange('');
+                setOpen(false);
+              }}
+            >
+              <span className="text-sm font-medium text-gray-900">全部</span>
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="text-sm font-medium text-gray-700">{totalBatchCount} 个批次</span>
+                <span className="w-4 text-center text-gray-900" aria-hidden="true">{!value ? '✓' : ''}</span>
+              </span>
+            </AppButton>
+          )}
           {datasets.length === 0 ? (
             <div className="px-3 py-4 text-center text-sm text-gray-500">没有可用数据集</div>
           ) : datasets.map((dataset) => {
@@ -690,7 +790,11 @@ function DatasetSelectMenu({
                   </span>
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
-                  {showCounts && <span className={`text-sm font-medium ${disabled ? 'text-gray-400' : 'text-gray-700'}`}>剩余 {remaining} 条</span>}
+                  {batchCounts ? (
+                    <span className={`text-sm font-medium ${disabled ? 'text-gray-400' : 'text-gray-700'}`}>
+                      {batchCounts[dataset.id] ?? 0} 个批次
+                    </span>
+                  ) : showCounts && <span className={`text-sm font-medium ${disabled ? 'text-gray-400' : 'text-gray-700'}`}>剩余 {remaining} 条</span>}
                   <span className="w-4 text-center text-gray-900" aria-hidden="true">{selected ? '✓' : ''}</span>
                 </span>
               </button>
@@ -713,6 +817,10 @@ function errorMessage(error: unknown, fallback: string) {
 
 function remainingItems(dataset: ProviderDataset) {
   return Math.max(0, dataset.pendingItemCount ?? dataset.itemCount - dataset.completedItemCount);
+}
+
+function sortBatches(batches: AiBatch[]) {
+  return [...batches].sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
 }
 
 function modelDisplayName(modelName: string) {
