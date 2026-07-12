@@ -19,6 +19,8 @@
 -- ----------------------------
 -- Table structure for ai_annotation_batches
 -- ----------------------------
+DROP TABLE IF EXISTS "public"."ai_annotation_failure_records";
+DROP TABLE IF EXISTS "public"."ai_annotation_retry_requests";
 DROP TABLE IF EXISTS "public"."ai_annotation_results";
 DROP TABLE IF EXISTS "public"."ai_annotation_batches";
 CREATE TABLE "public"."ai_annotation_batches" (
@@ -43,6 +45,10 @@ CREATE TABLE "public"."ai_annotation_batches" (
     "prompt_tokens" int8 NOT NULL DEFAULT 0,
     "completion_tokens" int8 NOT NULL DEFAULT 0,
     "error_message" text COLLATE "pg_catalog"."default",
+    "failure_code" varchar(64) COLLATE "pg_catalog"."default",
+    "failure_stage" varchar(32) COLLATE "pg_catalog"."default",
+    "failed_at" timestamptz(6),
+    "retry_count" int4 NOT NULL DEFAULT 0,
     "started_at" timestamptz(6),
     "finished_at" timestamptz(6),
     "cancelled_at" timestamptz(6),
@@ -54,6 +60,10 @@ COMMENT ON TABLE "public"."ai_annotation_batches" IS '大模型批量标注任�
 COMMENT ON COLUMN "public"."ai_annotation_batches"."annotation_schema_snapshot" IS '创建批次时的数据集标注结构快照';
 COMMENT ON COLUMN "public"."ai_annotation_batches"."annotation_guide_snapshot" IS '创建批次时的数据集标注说明快照';
 COMMENT ON COLUMN "public"."ai_annotation_batches"."config" IS '置信度阈值、抽检率、高风险标签、最大尝试次数和 metadata 白名单';
+COMMENT ON COLUMN "public"."ai_annotation_batches"."failure_code" IS '当前最后一次批次失败的稳定代码';
+COMMENT ON COLUMN "public"."ai_annotation_batches"."failure_stage" IS '当前最后一次批次失败阶段';
+COMMENT ON COLUMN "public"."ai_annotation_batches"."failed_at" IS '当前最后一次批次失败时间';
+COMMENT ON COLUMN "public"."ai_annotation_batches"."retry_count" IS '批次被提供方恢复执行的业务重试次数';
 
 -- ----------------------------
 -- Table structure for ai_annotation_results
@@ -76,7 +86,12 @@ CREATE TABLE "public"."ai_annotation_results" (
     "risk_flags" jsonb NOT NULL DEFAULT '[]'::jsonb,
     "raw_output" jsonb,
     "error_message" text COLLATE "pg_catalog"."default",
+    "failure_code" varchar(64) COLLATE "pg_catalog"."default",
+    "failure_stage" varchar(32) COLLATE "pg_catalog"."default",
+    "failed_at" timestamptz(6),
+    "retryable" bool NOT NULL DEFAULT false,
     "attempt_count" int4 NOT NULL DEFAULT 0,
+    "retry_count" int4 NOT NULL DEFAULT 0,
     "chunk_no" int4,
     "request_id" varchar(80) COLLATE "pg_catalog"."default",
     "leased_at" timestamptz(6),
@@ -94,6 +109,71 @@ COMMENT ON COLUMN "public"."ai_annotation_results"."result" IS '与人工标注 
 COMMENT ON COLUMN "public"."ai_annotation_results"."accepted_result" IS '提供方修改后接受的结果';
 COMMENT ON COLUMN "public"."ai_annotation_results"."raw_output" IS '当前数据项对应的模型原始输出片段';
 COMMENT ON COLUMN "public"."ai_annotation_results"."lease_expires_at" IS 'Worker 领取租约到期时间，超时后允许重新领取';
+COMMENT ON COLUMN "public"."ai_annotation_results"."failure_code" IS '当前最后一次结果失败的稳定代码';
+COMMENT ON COLUMN "public"."ai_annotation_results"."failure_stage" IS '当前最后一次结果失败阶段';
+COMMENT ON COLUMN "public"."ai_annotation_results"."failed_at" IS '当前最后一次结果失败时间';
+COMMENT ON COLUMN "public"."ai_annotation_results"."retryable" IS '当前失败是否允许提供方发起业务重试';
+COMMENT ON COLUMN "public"."ai_annotation_results"."retry_count" IS '提供方已发起的业务重试轮次';
+
+-- ----------------------------
+-- Table structure for ai_annotation_retry_requests
+-- ----------------------------
+CREATE TABLE "public"."ai_annotation_retry_requests" (
+    "id" uuid NOT NULL,
+    "batch_id" uuid NOT NULL,
+    "provider_id" uuid NOT NULL,
+    "scope" varchar(24) COLLATE "pg_catalog"."default" NOT NULL,
+    "requested_count" int4 NOT NULL DEFAULT 0,
+    "retried_count" int4 NOT NULL DEFAULT 0,
+    "skipped_count" int4 NOT NULL DEFAULT 0,
+    "status" varchar(24) COLLATE "pg_catalog"."default" NOT NULL DEFAULT 'prepared'::character varying,
+    "comment" text COLLATE "pg_catalog"."default",
+    "error_message" text COLLATE "pg_catalog"."default",
+    "created_at" timestamptz(6) NOT NULL DEFAULT now(),
+    "updated_at" timestamptz(6) NOT NULL DEFAULT now()
+)
+;
+COMMENT ON TABLE "public"."ai_annotation_retry_requests" IS '提供方批量重试失败 AI 标注结果的幂等请求与派发记录';
+COMMENT ON COLUMN "public"."ai_annotation_retry_requests"."id" IS '前端生成的幂等请求 UUID';
+COMMENT ON COLUMN "public"."ai_annotation_retry_requests"."scope" IS '重试范围：selected 或 all_failed';
+COMMENT ON COLUMN "public"."ai_annotation_retry_requests"."status" IS '重试请求状态：prepared、dispatched、dispatch_failed';
+COMMENT ON COLUMN "public"."ai_annotation_retry_requests"."comment" IS '提供方填写的重试说明';
+COMMENT ON COLUMN "public"."ai_annotation_retry_requests"."error_message" IS 'Worker 派发失败原因';
+
+-- ----------------------------
+-- Table structure for ai_annotation_failure_records
+-- ----------------------------
+CREATE TABLE "public"."ai_annotation_failure_records" (
+    "id" uuid NOT NULL DEFAULT gen_random_uuid(),
+    "batch_id" uuid NOT NULL,
+    "result_id" uuid,
+    "dataset_id" uuid NOT NULL,
+    "item_id" uuid,
+    "scope" varchar(16) COLLATE "pg_catalog"."default" NOT NULL,
+    "failure_stage" varchar(32) COLLATE "pg_catalog"."default" NOT NULL,
+    "failure_code" varchar(64) COLLATE "pg_catalog"."default" NOT NULL,
+    "error_message" text COLLATE "pg_catalog"."default" NOT NULL,
+    "retryable" bool NOT NULL DEFAULT false,
+    "attempt_count" int4 NOT NULL DEFAULT 0,
+    "retry_count" int4 NOT NULL DEFAULT 0,
+    "raw_output" jsonb,
+    "details" jsonb NOT NULL DEFAULT '{}'::jsonb,
+    "retry_request_id" uuid,
+    "retried_by" uuid,
+    "retried_at" timestamptz(6),
+    "created_at" timestamptz(6) NOT NULL DEFAULT now()
+)
+;
+COMMENT ON TABLE "public"."ai_annotation_failure_records" IS '大模型标注结果级与批次级终态失败历史';
+COMMENT ON COLUMN "public"."ai_annotation_failure_records"."scope" IS '失败作用域：result 或 batch';
+COMMENT ON COLUMN "public"."ai_annotation_failure_records"."failure_stage" IS '失败阶段';
+COMMENT ON COLUMN "public"."ai_annotation_failure_records"."failure_code" IS '稳定失败代码';
+COMMENT ON COLUMN "public"."ai_annotation_failure_records"."retryable" IS '失败发生时是否允许业务重试';
+COMMENT ON COLUMN "public"."ai_annotation_failure_records"."attempt_count" IS '失败发生时的 Worker 领取次数快照';
+COMMENT ON COLUMN "public"."ai_annotation_failure_records"."retry_count" IS '失败发生时的业务重试轮次快照';
+COMMENT ON COLUMN "public"."ai_annotation_failure_records"."raw_output" IS '输出校验失败时的模型原始输出快照';
+COMMENT ON COLUMN "public"."ai_annotation_failure_records"."details" IS '仅允许保存 HTTP 状态、模型、chunkNo、requestId 和错误类型等脱敏信息';
+COMMENT ON COLUMN "public"."ai_annotation_failure_records"."retry_request_id" IS '解决本次失败的批量重试请求';
 
 
 -- ----------------------------
@@ -663,6 +743,8 @@ CREATE INDEX "idx_ai_annotation_batches_provider_status_created_at" ON "public".
 -- ----------------------------
 ALTER TABLE "public"."ai_annotation_batches" ADD CONSTRAINT "ai_annotation_batches_status_check" CHECK (status::text = ANY (ARRAY['pending'::character varying, 'running'::character varying, 'completed'::character varying, 'failed'::character varying, 'cancelled'::character varying]::text[]));
 ALTER TABLE "public"."ai_annotation_batches" ADD CONSTRAINT "ai_annotation_batches_counts_check" CHECK (total_count >= 0 AND processed_count >= 0 AND success_count >= 0 AND failed_count >= 0 AND needs_review_count >= 0 AND accepted_count >= 0 AND rejected_count >= 0 AND model_request_count >= 0 AND prompt_tokens >= 0 AND completion_tokens >= 0);
+ALTER TABLE "public"."ai_annotation_batches" ADD CONSTRAINT "ai_annotation_batches_retry_count_check" CHECK (retry_count >= 0);
+ALTER TABLE "public"."ai_annotation_batches" ADD CONSTRAINT "ai_annotation_batches_failure_stage_check" CHECK (failure_stage IS NULL OR failure_stage::text = ANY (ARRAY['model_request'::character varying, 'model_output'::character varying, 'lease'::character varying, 'worker_runtime'::character varying, 'backend_request'::character varying, 'batch_dispatch'::character varying, 'unknown'::character varying]::text[]));
 
 -- ----------------------------
 -- Primary Key structure for table ai_annotation_batches
@@ -694,6 +776,11 @@ CREATE INDEX "idx_ai_annotation_results_batch_sampled_status" ON "public"."ai_an
     "is_sampled" "pg_catalog"."bool_ops" ASC NULLS LAST,
     "status" COLLATE "pg_catalog"."default" "pg_catalog"."text_ops" ASC NULLS LAST
     );
+CREATE INDEX "idx_ai_annotation_results_batch_retryable_failed" ON "public"."ai_annotation_results" USING btree (
+    "batch_id" "pg_catalog"."uuid_ops" ASC NULLS LAST,
+    "retryable" "pg_catalog"."bool_ops" ASC NULLS LAST,
+    "created_at" "pg_catalog"."timestamptz_ops" ASC NULLS LAST
+    ) WHERE status::text = 'failed'::text;
 
 -- ----------------------------
 -- Uniques structure for table ai_annotation_results
@@ -707,12 +794,72 @@ ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_resul
 ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_confidence_check" CHECK (confidence IS NULL OR confidence::text = ANY (ARRAY['high'::character varying, 'medium'::character varying, 'low'::character varying]::text[]));
 ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_confidence_score_check" CHECK (confidence_score IS NULL OR confidence_score >= 0::numeric AND confidence_score <= 1::numeric);
 ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_attempt_count_check" CHECK (attempt_count >= 0);
+ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_retry_count_check" CHECK (retry_count >= 0);
+ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_failure_stage_check" CHECK (failure_stage IS NULL OR failure_stage::text = ANY (ARRAY['model_request'::character varying, 'model_output'::character varying, 'lease'::character varying, 'worker_runtime'::character varying, 'backend_request'::character varying, 'batch_dispatch'::character varying, 'unknown'::character varying]::text[]));
 ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_review_action_check" CHECK (review_action IS NULL OR review_action::text = ANY (ARRAY['accept'::character varying, 'modify_accept'::character varying, 'reject_to_human'::character varying, 'reject_retry'::character varying]::text[]));
 
 -- ----------------------------
 -- Primary Key structure for table ai_annotation_results
 -- ----------------------------
 ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_pkey" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Indexes structure for table ai_annotation_retry_requests
+-- ----------------------------
+CREATE INDEX "idx_ai_annotation_retry_requests_batch_created_at" ON "public"."ai_annotation_retry_requests" USING btree (
+    "batch_id" "pg_catalog"."uuid_ops" ASC NULLS LAST,
+    "created_at" "pg_catalog"."timestamptz_ops" DESC NULLS FIRST
+    );
+CREATE INDEX "idx_ai_annotation_retry_requests_provider_created_at" ON "public"."ai_annotation_retry_requests" USING btree (
+    "provider_id" "pg_catalog"."uuid_ops" ASC NULLS LAST,
+    "created_at" "pg_catalog"."timestamptz_ops" DESC NULLS FIRST
+    );
+
+-- ----------------------------
+-- Checks structure for table ai_annotation_retry_requests
+-- ----------------------------
+ALTER TABLE "public"."ai_annotation_retry_requests" ADD CONSTRAINT "ai_annotation_retry_requests_scope_check" CHECK (scope::text = ANY (ARRAY['selected'::character varying, 'all_failed'::character varying]::text[]));
+ALTER TABLE "public"."ai_annotation_retry_requests" ADD CONSTRAINT "ai_annotation_retry_requests_status_check" CHECK (status::text = ANY (ARRAY['prepared'::character varying, 'dispatched'::character varying, 'dispatch_failed'::character varying]::text[]));
+ALTER TABLE "public"."ai_annotation_retry_requests" ADD CONSTRAINT "ai_annotation_retry_requests_counts_check" CHECK (requested_count >= 0 AND retried_count >= 0 AND skipped_count >= 0 AND retried_count + skipped_count <= requested_count);
+
+-- ----------------------------
+-- Primary Key structure for table ai_annotation_retry_requests
+-- ----------------------------
+ALTER TABLE "public"."ai_annotation_retry_requests" ADD CONSTRAINT "ai_annotation_retry_requests_pkey" PRIMARY KEY ("id");
+
+-- ----------------------------
+-- Indexes structure for table ai_annotation_failure_records
+-- ----------------------------
+CREATE INDEX "idx_ai_annotation_failure_records_batch_created_at" ON "public"."ai_annotation_failure_records" USING btree (
+    "batch_id" "pg_catalog"."uuid_ops" ASC NULLS LAST,
+    "created_at" "pg_catalog"."timestamptz_ops" DESC NULLS FIRST
+    );
+CREATE INDEX "idx_ai_annotation_failure_records_result_created_at" ON "public"."ai_annotation_failure_records" USING btree (
+    "result_id" "pg_catalog"."uuid_ops" ASC NULLS LAST,
+    "created_at" "pg_catalog"."timestamptz_ops" DESC NULLS FIRST
+    );
+CREATE INDEX "idx_ai_annotation_failure_records_batch_retryable_retried_at" ON "public"."ai_annotation_failure_records" USING btree (
+    "batch_id" "pg_catalog"."uuid_ops" ASC NULLS LAST,
+    "retryable" "pg_catalog"."bool_ops" ASC NULLS LAST,
+    "retried_at" "pg_catalog"."timestamptz_ops" ASC NULLS LAST
+    );
+CREATE INDEX "idx_ai_annotation_failure_records_retry_request_id" ON "public"."ai_annotation_failure_records" USING btree (
+    "retry_request_id" "pg_catalog"."uuid_ops" ASC NULLS LAST
+    );
+
+-- ----------------------------
+-- Checks structure for table ai_annotation_failure_records
+-- ----------------------------
+ALTER TABLE "public"."ai_annotation_failure_records" ADD CONSTRAINT "ai_annotation_failure_records_scope_check" CHECK (scope::text = ANY (ARRAY['result'::character varying, 'batch'::character varying]::text[]));
+ALTER TABLE "public"."ai_annotation_failure_records" ADD CONSTRAINT "ai_annotation_failure_records_failure_stage_check" CHECK (failure_stage::text = ANY (ARRAY['model_request'::character varying, 'model_output'::character varying, 'lease'::character varying, 'worker_runtime'::character varying, 'backend_request'::character varying, 'batch_dispatch'::character varying, 'unknown'::character varying]::text[]));
+ALTER TABLE "public"."ai_annotation_failure_records" ADD CONSTRAINT "ai_annotation_failure_records_counts_check" CHECK (attempt_count >= 0 AND retry_count >= 0);
+ALTER TABLE "public"."ai_annotation_failure_records" ADD CONSTRAINT "ai_annotation_failure_records_target_check" CHECK ((scope::text = 'result'::text AND result_id IS NOT NULL AND item_id IS NOT NULL) OR (scope::text = 'batch'::text AND result_id IS NULL AND item_id IS NULL));
+ALTER TABLE "public"."ai_annotation_failure_records" ADD CONSTRAINT "ai_annotation_failure_records_retry_resolution_check" CHECK ((retry_request_id IS NULL AND retried_by IS NULL AND retried_at IS NULL) OR (retry_request_id IS NOT NULL AND retried_by IS NOT NULL AND retried_at IS NOT NULL));
+
+-- ----------------------------
+-- Primary Key structure for table ai_annotation_failure_records
+-- ----------------------------
+ALTER TABLE "public"."ai_annotation_failure_records" ADD CONSTRAINT "ai_annotation_failure_records_pkey" PRIMARY KEY ("id");
 
 -- ----------------------------
 -- Indexes structure for table annotation_task_batches
@@ -937,6 +1084,22 @@ ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_resul
 ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_dataset_id_fkey" FOREIGN KEY ("dataset_id") REFERENCES "public"."datasets" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_item_id_fkey" FOREIGN KEY ("item_id") REFERENCES "public"."data_items" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
 ALTER TABLE "public"."ai_annotation_results" ADD CONSTRAINT "ai_annotation_results_reviewed_by_fkey" FOREIGN KEY ("reviewed_by") REFERENCES "public"."users" ("id") ON DELETE SET NULL ON UPDATE NO ACTION;
+
+-- ----------------------------
+-- Foreign Keys structure for table ai_annotation_retry_requests
+-- ----------------------------
+ALTER TABLE "public"."ai_annotation_retry_requests" ADD CONSTRAINT "ai_annotation_retry_requests_batch_id_fkey" FOREIGN KEY ("batch_id") REFERENCES "public"."ai_annotation_batches" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE "public"."ai_annotation_retry_requests" ADD CONSTRAINT "ai_annotation_retry_requests_provider_id_fkey" FOREIGN KEY ("provider_id") REFERENCES "public"."users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
+
+-- ----------------------------
+-- Foreign Keys structure for table ai_annotation_failure_records
+-- ----------------------------
+ALTER TABLE "public"."ai_annotation_failure_records" ADD CONSTRAINT "ai_annotation_failure_records_batch_id_fkey" FOREIGN KEY ("batch_id") REFERENCES "public"."ai_annotation_batches" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE "public"."ai_annotation_failure_records" ADD CONSTRAINT "ai_annotation_failure_records_result_id_fkey" FOREIGN KEY ("result_id") REFERENCES "public"."ai_annotation_results" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE "public"."ai_annotation_failure_records" ADD CONSTRAINT "ai_annotation_failure_records_dataset_id_fkey" FOREIGN KEY ("dataset_id") REFERENCES "public"."datasets" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE "public"."ai_annotation_failure_records" ADD CONSTRAINT "ai_annotation_failure_records_item_id_fkey" FOREIGN KEY ("item_id") REFERENCES "public"."data_items" ("id") ON DELETE CASCADE ON UPDATE NO ACTION;
+ALTER TABLE "public"."ai_annotation_failure_records" ADD CONSTRAINT "ai_annotation_failure_records_retry_request_id_fkey" FOREIGN KEY ("retry_request_id") REFERENCES "public"."ai_annotation_retry_requests" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
+ALTER TABLE "public"."ai_annotation_failure_records" ADD CONSTRAINT "ai_annotation_failure_records_retried_by_fkey" FOREIGN KEY ("retried_by") REFERENCES "public"."users" ("id") ON DELETE NO ACTION ON UPDATE NO ACTION;
 
 -- ----------------------------
 -- Foreign Keys structure for table annotation_task_batches
