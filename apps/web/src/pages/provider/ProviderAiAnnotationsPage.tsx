@@ -80,6 +80,7 @@ export function ProviderAiAnnotationsPage() {
   const [saving, setSaving] = useState(false);
   const [copiedBatchId, setCopiedBatchId] = useState('');
   const [runningBatchId, setRunningBatchId] = useState('');
+  const [runConfirmBatch, setRunConfirmBatch] = useState<AiBatch | null>(null);
   const [reviewResult, setReviewResult] = useState<AiResult | null>(null);
   const [reviewComment, setReviewComment] = useState('');
   const [modifyMode, setModifyMode] = useState(false);
@@ -444,7 +445,7 @@ export function ProviderAiAnnotationsPage() {
               <span className="text-xs text-gray-500">{batches.length} 个</span>
             </div>
             {batches.length === 0 ? <EmptyState align="center">暂无批次</EmptyState> : (
-              <div className="space-y-2">
+              <div className="max-h-[560px] space-y-2 overflow-y-auto overscroll-contain pr-1 xl:max-h-[calc(100vh-220px)]">
                 {batches.map((batch) => {
                   const selected = batch.id === selectedBatchId;
                   const percent = batch.totalCount ? Math.round(batch.processedCount / batch.totalCount * 100) : 0;
@@ -502,9 +503,9 @@ export function ProviderAiAnnotationsPage() {
                             variant="primary"
                             size="sm"
                             disabled={runningBatchId === batch.id}
-                            onClick={() => void handleRunBatch(batch.id)}
+                            onClick={() => setRunConfirmBatch(batch)}
                           >
-                            {runningBatchId === batch.id ? '运行中...' : '运行'}
+                            {runningBatchId === batch.id ? '开始中...' : '开始'}
                           </AppButton>
                         )}
                       </div>
@@ -517,7 +518,28 @@ export function ProviderAiAnnotationsPage() {
 
           <section className="min-w-0">
             {!selectedBatch ? <EmptyState align="center" spacious>请选择一个批次</EmptyState> : (
-              <>
+              selectedBatch.status === 'pending' ? (
+                <div className="flex min-h-[420px] items-center justify-center px-6 text-center xl:min-h-[620px]">
+                  <div className="flex flex-col items-center">
+                    <AppButton
+                      type="button"
+                      variant="custom"
+                      className="group flex h-16 w-16 items-center justify-center rounded-full border border-gray-300 bg-white shadow-sm ring-8 ring-gray-50 transition-colors hover:border-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-8 focus:ring-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                      aria-label="开始 AI 标注批次"
+                      title="开始"
+                      disabled={runningBatchId === selectedBatch.id}
+                      onClick={() => setRunConfirmBatch(selectedBatch)}
+                    >
+                      <span
+                        className="ml-1 block h-0 w-0 border-y-[9px] border-l-[14px] border-y-transparent border-l-gray-700 transition-colors group-hover:border-l-gray-900"
+                        aria-hidden="true"
+                      />
+                    </AppButton>
+                    <h2 className="mt-7 text-xl font-semibold text-gray-900">本批次还未开始</h2>
+                    <div className="mt-3"><StatusBadge status="pending">等待执行</StatusBadge></div>
+                  </div>
+                </div>
+              ) : <>
                 <div className="grid grid-cols-2 gap-px overflow-hidden rounded border border-gray-200 bg-gray-200 sm:grid-cols-4">
                   <Metric label="总数" value={selectedBatch.totalCount} />
                   <Metric label="待审核" value={selectedBatch.needsReviewCount} />
@@ -611,6 +633,35 @@ export function ProviderAiAnnotationsPage() {
             disableEmpty
             inlineMenu
           />
+        </AppModal>
+      )}
+
+      {runConfirmBatch && (
+        <AppModal
+          title="开始 AI 标注批次"
+          subtitle={`${runConfirmBatch.datasetName} - ${modelDisplayName(runConfirmBatch.modelName)}`}
+          width="sm"
+          onClose={() => setRunConfirmBatch(null)}
+          contentClassName="px-6 py-5"
+          footer={<>
+            <AppButton type="button" onClick={() => setRunConfirmBatch(null)}>取消</AppButton>
+            <AppButton
+              type="button"
+              variant="primary"
+              disabled={runningBatchId === runConfirmBatch.id}
+              onClick={() => {
+                const batchId = runConfirmBatch.id;
+                setRunConfirmBatch(null);
+                void handleRunBatch(batchId);
+              }}
+            >
+              确认开始
+            </AppButton>
+          </>}
+        >
+          <p className="text-sm leading-6 text-gray-700">
+            开始后，AI Worker 将领取并处理本批次中的数据。确认开始该批次吗？
+          </p>
         </AppModal>
       )}
 
