@@ -1,16 +1,16 @@
-import { ZodError } from 'zod';
-import { loadConfig } from './config.js';
+import { formatConfigError, loadCliRunConfig, loadEnvironmentConfig } from './config.js';
 import { Logger } from './log.js';
 import { BackendApiClient } from './backend/api-client.js';
 import { LlmClient } from './llm/llm-client.js';
 import { BatchRunner } from './runner/batch-runner.js';
 
 async function main() {
-  const config = loadConfig();
-  const logger = new Logger(config.logLevel);
-  const backend = new BackendApiClient(config.apiBaseUrl, config.workerToken);
-  const llm = new LlmClient(config.llm);
-  const runner = new BatchRunner(config, backend, llm, logger);
+  const environment = loadEnvironmentConfig();
+  const runConfig = loadCliRunConfig();
+  const logger = new Logger(runConfig.logLevel);
+  const backend = new BackendApiClient(environment.apiBaseUrl, environment.workerToken);
+  const llm = new LlmClient(environment.llm);
+  const runner = new BatchRunner(runConfig, backend, llm, logger);
 
   process.once('SIGINT', () => runner.requestStop());
   process.once('SIGTERM', () => runner.requestStop());
@@ -26,11 +26,7 @@ async function main() {
 }
 
 main().catch((error) => {
-  const message = error instanceof ZodError ? error.issues.map((issue) => {
-    const field = issue.path.join('.');
-    return field ? `${field}: ${issue.message}` : issue.message;
-  }).join('; ')
-    : error instanceof Error ? error.message : 'Worker 启动失败';
+  const message = formatConfigError(error);
   console.error(JSON.stringify({ timestamp: new Date().toISOString(), level: 'error', message }));
   process.exitCode = 1;
 });

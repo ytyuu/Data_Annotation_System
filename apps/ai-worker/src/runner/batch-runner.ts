@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { WorkerConfig } from '../config.js';
+import type { BatchRunConfig } from '../config.js';
 import type { AnnotationSchema, UploadResultItem, UploadResultsRequest, WorkItem, WorkResponse } from '../backend/types.js';
 import type { LlmCompletion } from '../llm/llm-client.js';
 import type { Logger } from '../log.js';
@@ -27,7 +27,7 @@ export class BatchRunner {
   private chunkNo = 0;
 
   constructor(
-    private readonly config: WorkerConfig,
+    private readonly config: BatchRunConfig,
     private readonly backend: BatchBackend,
     private readonly llm: BatchLlm,
     private readonly logger: Logger,

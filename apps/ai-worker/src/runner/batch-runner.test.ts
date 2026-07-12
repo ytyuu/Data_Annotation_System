@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { WorkerConfig } from '../config.js';
+import type { BatchRunConfig } from '../config.js';
 import type { AnnotationSchema, UploadResultsRequest, WorkItem, WorkResponse } from '../backend/types.js';
 import type { LlmCompletion } from '../llm/llm-client.js';
 import { Logger } from '../log.js';
@@ -101,21 +101,8 @@ class FakeBackend implements BatchBackend {
   }
 }
 
-function config(): WorkerConfig {
+function config(): BatchRunConfig {
   return {
-    apiBaseUrl: 'http://localhost:7000',
-    workerToken: 'test-worker-token',
-    llm: {
-      provider: 'deepseek',
-      baseUrl: 'https://api.deepseek.com',
-      model: 'deepseek-v4-flash',
-      apiKey: 'test-api-key',
-      responseFormat: 'json_object',
-      thinkingEnabled: false,
-      temperature: 0.1,
-      maxTokens: 4096,
-      timeoutMs: 60_000,
-    },
     batchId,
     chunkSize: 100,
     modelBatchSize: 10,

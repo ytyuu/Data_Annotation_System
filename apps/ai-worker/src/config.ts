@@ -13,7 +13,7 @@ const booleanFromEnv = z.string().default('false').transform((value, ctx) => {
   return z.NEVER;
 });
 
-const envSchema = z.object({
+const commonEnvShape = {
   API_BASE_URL: z.url().default('http://localhost:7000'),
   AI_WORKER_TOKEN: z.string().min(1, '环境变量 AI_WORKER_TOKEN 未配置'),
   LLM_PROVIDER: z.literal('deepseek').default('deepseek'),
@@ -25,9 +25,16 @@ const envSchema = z.object({
   LLM_TEMPERATURE: z.coerce.number().min(0).max(2).default(0.1),
   LLM_MAX_TOKENS: z.coerce.number().int().positive().default(4096),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(60_000),
+};
+
+const environmentSchema = z.object(commonEnvShape);
+const serverEnvironmentSchema = z.object({
+  ...commonEnvShape,
+  WORKER_TRIGGER_TOKEN: z.string().min(1, '环境变量 WORKER_TRIGGER_TOKEN 未配置'),
+  WORKER_HTTP_PORT: z.coerce.number().int().min(1).max(65_535).default(7100),
 });
 
-const cliSchema = z.object({
+export const batchRunConfigSchema = z.object({
   batchId: z.uuid('请通过 --batch-id <UUID> 指定要执行的批次'),
   chunkSize: z.number().int().min(1).max(500).default(100),
   modelBatchSize: z.number().int().min(1).max(20).default(10),
@@ -35,13 +42,48 @@ const cliSchema = z.object({
   maxRetries: z.number().int().min(0).max(5).default(2),
   dryRun: z.boolean().default(false),
   logLevel: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
-});
+}).strict();
 
-export type WorkerConfig = ReturnType<typeof loadConfig>;
+type ParsedEnvironment = z.infer<typeof environmentSchema>;
+export type WorkerEnvironmentConfig = ReturnType<typeof loadEnvironmentConfig>;
+export type WorkerServerEnvironmentConfig = ReturnType<typeof loadServerEnvironmentConfig>;
+export type BatchRunConfig = z.infer<typeof batchRunConfigSchema>;
 
-export function loadConfig(argv = process.argv.slice(2)) {
-  const env = envSchema.parse(process.env);
-  const args = cliSchema.parse(parseCliArgs(argv));
+// 保留旧名称，供 BatchRunner 调用方平滑迁移。
+export type WorkerConfig = BatchRunConfig;
+
+export function loadEnvironmentConfig(env: NodeJS.ProcessEnv = process.env) {
+  return toEnvironmentConfig(environmentSchema.parse(env));
+}
+
+export function loadServerEnvironmentConfig(env: NodeJS.ProcessEnv = process.env) {
+  const parsed = serverEnvironmentSchema.parse(env);
+  return {
+    ...toEnvironmentConfig(parsed),
+    triggerToken: parsed.WORKER_TRIGGER_TOKEN,
+    httpPort: parsed.WORKER_HTTP_PORT,
+  };
+}
+
+export function loadCliRunConfig(argv = process.argv.slice(2)): BatchRunConfig {
+  return parseBatchRunConfig(parseCliArgs(argv));
+}
+
+export function parseBatchRunConfig(input: unknown): BatchRunConfig {
+  return batchRunConfigSchema.parse(input);
+}
+
+export function formatConfigError(error: unknown): string {
+  if (error instanceof z.ZodError) {
+    return error.issues.map((issue) => {
+      const field = issue.path.join('.');
+      return field ? `${field}: ${issue.message}` : issue.message;
+    }).join('; ');
+  }
+  return error instanceof Error ? error.message : 'Worker 配置无效';
+}
+
+function toEnvironmentConfig(env: ParsedEnvironment) {
   return {
     apiBaseUrl: env.API_BASE_URL.replace(/\/$/, ''),
     workerToken: env.AI_WORKER_TOKEN,
@@ -56,7 +98,6 @@ export function loadConfig(argv = process.argv.slice(2)) {
       maxTokens: env.LLM_MAX_TOKENS,
       timeoutMs: env.LLM_TIMEOUT_MS,
     },
-    ...args,
   };
 }
 
@@ -77,7 +118,7 @@ function parseCliArgs(argv: string[]): Record<string, unknown> {
     }
     const key = argument === '--batch-id' ? 'batchId'
       : argument === '--log-level' ? 'logLevel'
-        : argument ? numericOptions[argument] : undefined;
+        : numericOptions[argument];
     if (!key) throw new Error(`未知参数：${argument}`);
     const value = argv[index + 1];
     if (!value || value.startsWith('--')) throw new Error(`${argument} 缺少参数值`);
