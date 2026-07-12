@@ -1366,7 +1366,7 @@ export function ProviderDatasetsPage() {
 
   function renderProviderContent() {
     return (
-      <div>
+      <div className="flex min-h-0 flex-col lg:h-[calc(100vh-120px)] lg:overflow-hidden">
         <PageToolbar
           actions={
             <>
@@ -1408,8 +1408,9 @@ export function ProviderDatasetsPage() {
             </AppButton>
           </EmptyState>
         ) : (
-          <AppTable>
-              <AppTableHead>
+          <div className="min-h-0 flex-1 overflow-auto overscroll-contain lg:pr-1">
+            <AppTable className="min-w-[1100px] lg:!overflow-visible">
+              <AppTableHead className="sticky top-0 z-10">
                 <tr>
                   <th className="w-[30%] px-4 py-3 text-left">名称</th>
                   <th className="px-4 py-3 text-left">状态</th>
@@ -1523,7 +1524,8 @@ export function ProviderDatasetsPage() {
                   </AppTableRow>
                 ))}
               </AppTableBody>
-          </AppTable>
+            </AppTable>
+          </div>
         )}
       </div>
     );

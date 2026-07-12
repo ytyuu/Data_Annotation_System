@@ -116,22 +116,21 @@ export function RoleLayout({ role, menus, workbenchPath, redirectOnRoleMismatch 
   return (
     <div className="min-h-screen bg-gray-100 text-gray-900">
       <header className="sticky top-0 z-20 flex min-h-14 flex-wrap items-center justify-between gap-3 border-b border-gray-300 bg-white px-3 py-2 shadow-sm lg:h-14 lg:flex-nowrap lg:px-6 lg:py-0">
-        <div className="flex min-w-0 flex-wrap items-center gap-3 lg:gap-6">
-          <div className="flex items-center gap-2 text-base font-semibold text-gray-900">
+        <div className="flex min-w-0 flex-1 items-center gap-3">
+          <Link to={workbenchPath} className="flex shrink-0 items-center gap-2 text-base font-semibold text-gray-900">
             <span className="h-3 w-3 rounded-sm bg-gray-900" />
             数据标注系统
-          </div>
-          <nav className="hidden items-center gap-4 text-sm text-gray-500 sm:flex">
-            <Link to={workbenchPath} className="font-medium text-gray-900">
-              工作台
-            </Link>
-            <Link to="/api-test" className="hover:text-gray-700">
-              API 测试
-            </Link>
-          </nav>
+          </Link>
+          <span className="h-5 w-px shrink-0 bg-gray-300" aria-hidden="true" />
+          <h1 className="min-w-0 truncate text-base font-semibold text-gray-900">
+            {activeMenu?.label || '业务页面'}
+          </h1>
         </div>
 
         <div className="flex items-center gap-3 lg:gap-4">
+          <Link to="/api-test" className="hidden text-sm text-gray-500 hover:text-gray-900 sm:block">
+            API 测试
+          </Link>
           <div className="hidden text-right sm:block">
             <div className="text-sm font-medium text-gray-900">{user?.displayName}</div>
             <div className="text-xs text-gray-500">{roleLabels[user?.role || ''] || user?.role}</div>
@@ -169,15 +168,6 @@ export function RoleLayout({ role, menus, workbenchPath, redirectOnRoleMismatch 
 
         <main className="min-w-0 flex-1 p-2 sm:p-3 lg:p-3">
           <section className="min-h-full overflow-hidden rounded border border-gray-300 bg-white shadow-sm">
-            <div className="border-b border-gray-300 bg-gray-50 px-4 py-3 sm:px-5 sm:py-4">
-              <div>
-                <div className="text-xs font-medium text-gray-500">工作台</div>
-                <h1 className="mt-1 text-xl font-semibold text-gray-900">
-                  {activeMenu?.label || '业务页面'}
-                </h1>
-              </div>
-            </div>
-
             <div className="p-3 sm:p-4 lg:p-4">
               <Outlet />
             </div>

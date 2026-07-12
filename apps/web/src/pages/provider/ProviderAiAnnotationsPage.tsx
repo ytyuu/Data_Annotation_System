@@ -22,7 +22,6 @@ import { AnnotationEditor, type AnnotationSchema, type AnnotationSelection } fro
 import { AnnotationResultViewer, parseAnnotationSelection } from '../../components/shared/AnnotationResultViewer';
 import { buildAnnotationResult } from '../../components/shared/AnnotationResultBuilder';
 import { EmptyState } from '../../components/shared/EmptyState';
-import { PageToolbar } from '../../components/shared/PageToolbar';
 import { SegmentedControl } from '../../components/shared/SegmentedControl';
 import { StatusBadge } from '../../components/shared/StatusBadge';
 
@@ -406,46 +405,36 @@ export function ProviderAiAnnotationsPage() {
   if (loading) return <EmptyState>正在加载大模型标注数据...</EmptyState>;
 
   return (
-    <div>
-      <PageToolbar
-        actions={
-          <>
-            <AppButton type="button" variant="secondary" onClick={() => void loadDatasets()}>刷新</AppButton>
-            <AppButton type="button" variant="primary" disabled={eligibleDatasets.length === 0} onClick={openCreateDialog}>
-              创建批次
-            </AppButton>
-          </>
-        }
-      >
-        <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-          <span className="shrink-0">数据集：</span>
-          <div className="min-w-0 sm:w-[200px]">
-            <DatasetSelectMenu
-              datasets={eligibleDatasets}
-              value={selectedDatasetId}
-              onChange={setSelectedDatasetId}
-              ariaLabel="按数据集筛选批次"
-              showCounts={false}
-              includeAll
-              batchCounts={batchCounts}
-            />
-          </div>
-        </div>
-      </PageToolbar>
-
+    <div className="flex min-h-0 flex-col xl:h-[calc(100vh-120px)] xl:overflow-hidden">
       {error && <AppAlert kind="error" className="mb-4">{error}</AppAlert>}
       {notice && <AppAlert kind="success" className="mb-4">{notice}</AppAlert>}
       {eligibleDatasets.length === 0 ? (
         <EmptyState align="center" spacious>没有可发起大模型标注的数据集</EmptyState>
       ) : (
-        <div className="grid min-h-[620px] gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
-          <section className="min-w-0 border-b border-gray-200 pb-5 xl:border-b-0 xl:border-r xl:pb-0 xl:pr-5">
-            <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-900">标注批次</h2>
-              <span className="text-xs text-gray-500">{batches.length} 个</span>
+        <div className="grid gap-4 xl:min-h-0 xl:flex-1 xl:grid-cols-[300px_minmax(0,1fr)] xl:overflow-hidden">
+          <section className="min-w-0 border-b border-gray-200 pb-5 xl:flex xl:min-h-0 xl:flex-col xl:border-b-0 xl:border-r xl:pb-0 xl:pr-4">
+            <div className="mb-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-gray-900">标注批次</h2>
+                <span className="text-xs text-gray-500">{batches.length} 个</span>
+              </div>
+              <div className="mt-3 flex min-w-0 items-center gap-2">
+                <span className="shrink-0 text-sm text-gray-600">数据集：</span>
+                <div className="min-w-0 flex-1">
+                  <DatasetSelectMenu
+                    datasets={eligibleDatasets}
+                    value={selectedDatasetId}
+                    onChange={setSelectedDatasetId}
+                    ariaLabel="按数据集筛选批次"
+                    showCounts={false}
+                    includeAll
+                    batchCounts={batchCounts}
+                  />
+                </div>
+              </div>
             </div>
             {batches.length === 0 ? <EmptyState align="center">暂无批次</EmptyState> : (
-              <div className="max-h-[560px] space-y-2 overflow-y-auto overscroll-contain pr-1 xl:max-h-[calc(100vh-220px)]">
+              <div className="space-y-2 pr-1 xl:min-h-0 xl:flex-1 xl:overflow-y-auto xl:overscroll-contain">
                 {batches.map((batch) => {
                   const selected = batch.id === selectedBatchId;
                   const percent = batch.totalCount ? Math.round(batch.processedCount / batch.totalCount * 100) : 0;
@@ -516,88 +505,130 @@ export function ProviderAiAnnotationsPage() {
             )}
           </section>
 
-          <section className="min-w-0">
-            {!selectedBatch ? <EmptyState align="center" spacious>请选择一个批次</EmptyState> : (
-              selectedBatch.status === 'pending' ? (
-                <div className="flex min-h-[420px] items-center justify-center px-6 text-center xl:min-h-[620px]">
-                  <div className="flex flex-col items-center">
-                    <AppButton
-                      type="button"
-                      variant="custom"
-                      className="group flex h-16 w-16 items-center justify-center rounded-full border border-gray-300 bg-white shadow-sm ring-8 ring-gray-50 transition-colors hover:border-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-8 focus:ring-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
-                      aria-label="开始 AI 标注批次"
-                      title="开始"
-                      disabled={runningBatchId === selectedBatch.id}
-                      onClick={() => setRunConfirmBatch(selectedBatch)}
-                    >
-                      <span
-                        className="ml-1 block h-0 w-0 border-y-[9px] border-l-[14px] border-y-transparent border-l-gray-700 transition-colors group-hover:border-l-gray-900"
-                        aria-hidden="true"
-                      />
-                    </AppButton>
-                    <h2 className="mt-7 text-xl font-semibold text-gray-900">本批次还未开始</h2>
-                    <div className="mt-3"><StatusBadge status="pending">等待执行</StatusBadge></div>
+          <section className="min-w-0 xl:flex xl:min-h-0 xl:flex-col xl:overflow-hidden">
+            <div className="mb-3 flex flex-wrap items-start justify-between gap-3 border-b border-gray-200 pb-3">
+              {selectedBatch ? (
+                <div className="min-w-0">
+                  <h2
+                    className="truncate text-lg font-semibold text-gray-900"
+                    title={`${selectedBatch.datasetName} - ${modelDisplayName(selectedBatch.modelName)}`}
+                  >
+                    {selectedBatch.datasetName} - {modelDisplayName(selectedBatch.modelName)}
+                  </h2>
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500">
+                    <span>{formatDateTime(selectedBatch.createdAt)}</span>
+                    <span aria-hidden="true">·</span>
+                    <code className="select-all font-mono text-[11px] text-gray-600">{selectedBatch.id}</code>
                   </div>
                 </div>
-              ) : <>
-                <div className="grid grid-cols-2 gap-px overflow-hidden rounded border border-gray-200 bg-gray-200 sm:grid-cols-4">
-                  <Metric label="总数" value={selectedBatch.totalCount} />
-                  <Metric label="待审核" value={selectedBatch.needsReviewCount} />
-                  <Metric label="失败" value={selectedBatch.failedCount} />
-                  <Metric label="已采用" value={selectedBatch.acceptedCount} />
+              ) : (
+                <div className="min-w-0">
+                  <h2 className="text-lg font-semibold text-gray-900">批次详情</h2>
+                  <p className="mt-1 text-xs text-gray-500">选择左侧批次后查看标注结果</p>
                 </div>
+              )}
+              <div className="ml-auto flex shrink-0 flex-wrap items-center justify-end gap-2">
+                {selectedBatch && (
+                  <StatusBadge status={selectedBatch.status}>
+                    {batchStatusLabels[selectedBatch.status] || selectedBatch.status}
+                  </StatusBadge>
+                )}
+                <AppButton type="button" variant="secondary" size="sm" onClick={() => void loadDatasets()}>刷新</AppButton>
+                <AppButton type="button" variant="primary" size="sm" disabled={eligibleDatasets.length === 0} onClick={openCreateDialog}>
+                  创建批次
+                </AppButton>
+              </div>
+            </div>
 
-                <div className="my-4 overflow-x-auto">
-                  <SegmentedControl
-                    value={resultView}
-                    onChange={setResultView}
-                    options={[
-                      { value: 'mandatory', label: '必须审核', badge: reviewCounts.mandatory },
-                      { value: 'sampling', label: '抽检', badge: reviewCounts.sampling },
-                      { value: 'low-risk', label: '低风险', badge: reviewCounts['low-risk'] },
-                      { value: 'failed', label: '失败' },
-                      { value: 'accepted', label: '已采用' },
-                    ]}
-                  />
-                </div>
+            {!selectedBatch ? <EmptyState align="center" spacious>请选择一个批次</EmptyState> : (
+              <>
+                {selectedBatch.status === 'pending' ? (
+                  <div className="flex min-h-[340px] items-center justify-center px-6 text-center xl:min-h-0 xl:flex-1">
+                    <div className="flex flex-col items-center">
+                      <AppButton
+                        type="button"
+                        variant="custom"
+                        className="group flex h-16 w-16 items-center justify-center rounded-full border border-gray-300 bg-white shadow-sm ring-8 ring-gray-50 transition-colors hover:border-gray-500 hover:bg-gray-50 focus:outline-none focus:ring-8 focus:ring-gray-100 disabled:cursor-not-allowed disabled:opacity-50"
+                        aria-label="开始 AI 标注批次"
+                        title="开始"
+                        disabled={runningBatchId === selectedBatch.id}
+                        onClick={() => setRunConfirmBatch(selectedBatch)}
+                      >
+                        <span
+                          className="ml-1 block h-0 w-0 border-y-[9px] border-l-[14px] border-y-transparent border-l-gray-700 transition-colors group-hover:border-l-gray-900"
+                          aria-hidden="true"
+                        />
+                      </AppButton>
+                      <h2 className="mt-7 text-xl font-semibold text-gray-900">本批次还未开始</h2>
+                      <div className="mt-3"><StatusBadge status="pending">等待执行</StatusBadge></div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex min-h-0 flex-1 flex-col">
+                    <div className="grid grid-cols-2 gap-px overflow-hidden rounded border border-gray-200 bg-gray-200 sm:grid-cols-4">
+                      <Metric label="总数" value={selectedBatch.totalCount} />
+                      <Metric label="待审核" value={selectedBatch.needsReviewCount} />
+                      <Metric label="失败" value={selectedBatch.failedCount} />
+                      <Metric label="已采用" value={selectedBatch.acceptedCount} />
+                    </div>
 
-                <PageToolbar actions={resultView === 'low-risk' ? (
-                  <AppButton
-                    type="button"
-                    variant="primary"
-                    disabled={selectedResultIds.length === 0 || reviewing}
-                    onClick={() => void handleBatchAccept()}
-                  >
-                    批量接受（{selectedResultIds.length}）
-                  </AppButton>
-                ) : undefined}>共 {resultTotal} 条</PageToolbar>
+                    <div className="my-3 flex min-w-0 flex-wrap items-center justify-between gap-3">
+                      <div className="min-w-0 overflow-x-auto">
+                        <SegmentedControl
+                          value={resultView}
+                          onChange={setResultView}
+                          options={[
+                            { value: 'mandatory', label: '必须审核', badge: reviewCounts.mandatory },
+                            { value: 'sampling', label: '抽检', badge: reviewCounts.sampling },
+                            { value: 'low-risk', label: '低风险', badge: reviewCounts['low-risk'] },
+                            { value: 'failed', label: '失败' },
+                            { value: 'accepted', label: '已采用' },
+                          ]}
+                        />
+                      </div>
+                      <div className="flex shrink-0 items-center gap-3">
+                        <span className="text-sm text-gray-500">共 {resultTotal} 条</span>
+                        {resultView === 'low-risk' && (
+                          <AppButton
+                            type="button"
+                            variant="primary"
+                            disabled={selectedResultIds.length === 0 || reviewing}
+                            onClick={() => void handleBatchAccept()}
+                          >
+                            批量接受（{selectedResultIds.length}）
+                          </AppButton>
+                        )}
+                      </div>
+                    </div>
 
                 {resultsLoading ? <EmptyState>正在加载结果...</EmptyState> : results.length === 0 ? (
                   <EmptyState align="center" spacious>当前分类下没有结果</EmptyState>
                 ) : (
-                  <div className="overflow-x-auto">
-                    <AppTable className="min-w-[760px]">
-                      <AppTableHead><tr>
-                        {resultView === 'low-risk' && <th className="w-12 px-4 py-3" />}
-                        <th className="px-4 py-3">数据内容</th>
-                        <th className="px-4 py-3">AI 结果</th>
-                        <th className="px-4 py-3">置信度</th>
-                        <th className="px-4 py-3">状态</th>
-                        <th className="px-4 py-3 text-right">操作</th>
+                  <div className="overflow-x-auto xl:min-h-0 xl:flex-1 xl:overflow-auto xl:overscroll-contain xl:pr-1">
+                    <AppTable className="min-w-[760px] xl:!overflow-visible">
+                      <AppTableHead className="xl:sticky xl:top-0 xl:z-10"><tr>
+                        {resultView === 'low-risk' && <th className="w-11 px-3 py-2" />}
+                        <th className="px-3 py-2">数据内容</th>
+                        <th className="px-3 py-2">AI 结果</th>
+                        <th className="px-3 py-2">置信度</th>
+                        <th className="px-3 py-2">状态</th>
+                        <th className="px-3 py-2 text-right">操作</th>
                       </tr></AppTableHead>
                       <AppTableBody>{results.map((result) => (
                         <AppTableRow key={result.id}>
-                          {resultView === 'low-risk' && <td className="px-4 py-3">
+                          {resultView === 'low-risk' && <td className="px-3 py-2">
                             <input type="checkbox" checked={selectedResultIds.includes(result.id)} onChange={() => toggleResult(result.id)} />
                           </td>}
-                          <td className="max-w-72 px-4 py-3"><div className="line-clamp-2 text-gray-800">{result.content}</div></td>
-                          <td className="px-4 py-3"><AnnotationResultViewer result={result.result ? JSON.stringify(result.result) : null} schema={annotationSchema} /></td>
-                          <td className="px-4 py-3 text-gray-600">{result.confidence || '-'} {result.confidenceScore || ''}</td>
-                          <td className="px-4 py-3"><StatusBadge status={result.status}>{resultStatusLabels[result.status] || result.status}</StatusBadge></td>
-                          <td className="px-4 py-3 text-right"><AppButton type="button" size="sm" onClick={() => openReview(result)}>查看</AppButton></td>
+                          <td className="max-w-72 px-3 py-2"><div className="truncate text-gray-800" title={result.content}>{result.content}</div></td>
+                          <td className="px-3 py-2"><AnnotationResultViewer className="max-w-64 overflow-hidden whitespace-nowrap" result={result.result ? JSON.stringify(result.result) : null} schema={annotationSchema} /></td>
+                          <td className="px-3 py-2 text-gray-600">{result.confidence || '-'} {result.confidenceScore || ''}</td>
+                          <td className="px-3 py-2"><StatusBadge status={result.status}>{resultStatusLabels[result.status] || result.status}</StatusBadge></td>
+                          <td className="px-3 py-2 text-right"><AppButton type="button" size="sm" onClick={() => openReview(result)}>查看</AppButton></td>
                         </AppTableRow>
                       ))}</AppTableBody>
                     </AppTable>
+                  </div>
+                )}
                   </div>
                 )}
               </>
@@ -783,7 +814,12 @@ export function ProviderAiAnnotationsPage() {
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
-  return <div className="bg-white px-4 py-3"><div className="text-xs text-gray-500">{label}</div><div className="mt-1 text-xl font-semibold text-gray-900">{value}</div></div>;
+  return (
+    <div className="flex items-center justify-between gap-3 bg-white px-3 py-2">
+      <div className="text-xs text-gray-500">{label}</div>
+      <div className="text-base font-semibold text-gray-900">{value}</div>
+    </div>
+  );
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
