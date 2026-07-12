@@ -30,6 +30,8 @@ type ResultView = 'mandatory' | 'sampling' | 'low-risk' | 'failed' | 'accepted';
 type ReviewCounts = Record<'mandatory' | 'sampling' | 'low-risk', number>;
 
 const emptyReviewCounts: ReviewCounts = { mandatory: 0, sampling: 0, 'low-risk': 0 };
+const autoAdvanceResultViews = new Set<ResultView>(['mandatory', 'sampling', 'low-risk']);
+const autoAdvanceStorageKey = 'provider-ai-review-auto-advance';
 
 const batchStatusLabels: Record<string, string> = {
   pending: '等待执行', running: '执行中', completed: '执行完成', failed: '执行失败', cancelled: '已取消',
@@ -70,6 +72,7 @@ export function ProviderAiAnnotationsPage() {
   const [loading, setLoading] = useState(true);
   const [resultsLoading, setResultsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
   const [createDatasetOpen, setCreateDatasetOpen] = useState(false);
   const [createDatasetId, setCreateDatasetId] = useState('');
   const [createOpen, setCreateOpen] = useState(false);
@@ -82,6 +85,7 @@ export function ProviderAiAnnotationsPage() {
   const [modifyMode, setModifyMode] = useState(false);
   const [modifiedSelection, setModifiedSelection] = useState<AnnotationSelection>({ main: [], sub: {} });
   const [reviewing, setReviewing] = useState(false);
+  const [autoAdvance, setAutoAdvance] = useState(() => window.localStorage.getItem(autoAdvanceStorageKey) !== 'false');
   const preferredBatchIdRef = useRef<string | null>(null);
   const pollingIntervalRef = useRef<number | null>(null);
   const reviewCountsRequestRef = useRef(0);
@@ -111,6 +115,8 @@ export function ProviderAiAnnotationsPage() {
   const canReviewResult = reviewResult?.status === 'ai_labeled'
     || reviewResult?.status === 'needs_review'
     || reviewResult?.status === 'failed';
+  const reviewResultIndex = reviewResult ? results.findIndex((result) => result.id === reviewResult.id) : -1;
+  const supportsAutoAdvance = autoAdvanceResultViews.has(resultView);
 
   useEffect(() => { void loadDatasets(); }, []);
 
@@ -216,8 +222,8 @@ export function ProviderAiAnnotationsPage() {
     }
   }
 
-  async function loadResults() {
-    if (!selectedBatchId) return;
+  async function loadResults(): Promise<AiResult[] | null> {
+    if (!selectedBatchId) return [];
     setResultsLoading(true);
     setError('');
     setSelectedResultIds([]);
@@ -230,10 +236,12 @@ export function ProviderAiAnnotationsPage() {
       const items = resultView === 'low-risk' ? response.items.filter((item) => !item.isSampled) : response.items;
       setResults(items);
       setResultTotal(resultView === 'low-risk' ? items.length : response.total);
+      return items;
     } catch (err) {
       setError(errorMessage(err, '结果加载失败'));
       setResults([]);
       setResultTotal(0);
+      return null;
     } finally {
       setResultsLoading(false);
     }
@@ -297,23 +305,48 @@ export function ProviderAiAnnotationsPage() {
     setReviewComment('');
     setModifyMode(false);
     setModifiedSelection(parseAnnotationSelection(JSON.stringify(result.result || {}), annotationSchema));
+    setNotice('');
+  }
+
+  function moveReviewResult(offset: -1 | 1) {
+    if (reviewResultIndex < 0 || reviewing || modifyMode) return;
+    const nextResult = results[reviewResultIndex + offset];
+    if (nextResult) openReview(nextResult);
+  }
+
+  function handleAutoAdvanceChange(enabled: boolean) {
+    setAutoAdvance(enabled);
+    window.localStorage.setItem(autoAdvanceStorageKey, String(enabled));
   }
 
   async function handleReview(action: 'accept' | 'modify_accept' | 'reject_to_human' | 'reject_retry') {
     if (!reviewResult) return;
+    const reviewedIndex = Math.max(0, results.findIndex((result) => result.id === reviewResult.id));
     setReviewing(true);
     setError('');
+    setNotice('');
     try {
       const acceptedResult = action === 'modify_accept'
         ? JSON.parse(buildAnnotationResult(modifiedSelection, annotationSchema)) as Record<string, unknown>
         : null;
       await reviewAiResult(reviewResult.id, { action, acceptedResult, comment: reviewComment });
-      setReviewResult(null);
-      await Promise.all([
+      const [refreshedResults] = await Promise.all([
         loadResults(),
         loadReviewCounts(selectedBatchId),
         selectedBatch ? refreshDatasetBatches(selectedBatch.datasetId) : Promise.resolve(),
       ]);
+      if (refreshedResults === null) {
+        setReviewResult(null);
+        return;
+      }
+      if (autoAdvance && supportsAutoAdvance && refreshedResults.length > 0) {
+        openReview(refreshedResults[Math.min(reviewedIndex, refreshedResults.length - 1)]);
+      } else {
+        setReviewResult(null);
+        if (autoAdvance && supportsAutoAdvance && refreshedResults.length === 0) {
+          setNotice('当前分类已处理完成');
+        }
+      }
     } catch (err) {
       setError(errorMessage(err, '审核操作失败'));
     } finally {
@@ -400,6 +433,7 @@ export function ProviderAiAnnotationsPage() {
       </PageToolbar>
 
       {error && <AppAlert kind="error" className="mb-4">{error}</AppAlert>}
+      {notice && <AppAlert kind="success" className="mb-4">{notice}</AppAlert>}
       {eligibleDatasets.length === 0 ? (
         <EmptyState align="center" spacious>没有可发起大模型标注的数据集</EmptyState>
       ) : (
@@ -631,11 +665,49 @@ export function ProviderAiAnnotationsPage() {
         <AppModal
           title="AI 标注结果"
           subtitle={`置信度 ${reviewResult.confidence || '-'} ${reviewResult.confidenceScore || ''}`}
+          actions={<>
+            <span className="min-w-14 text-center text-xs text-gray-500">
+              {reviewResultIndex >= 0 ? `${reviewResultIndex + 1} / ${results.length}` : `- / ${results.length}`}
+            </span>
+            <AppButton
+              type="button"
+              variant="custom"
+              className="flex h-8 w-8 items-center justify-center rounded border border-gray-300 bg-white text-base text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="上一条 AI 标注结果"
+              title="上一条"
+              disabled={reviewResultIndex <= 0 || reviewing || modifyMode}
+              onClick={() => moveReviewResult(-1)}
+            >
+              ←
+            </AppButton>
+            <AppButton
+              type="button"
+              variant="custom"
+              className="flex h-8 w-8 items-center justify-center rounded border border-gray-300 bg-white text-base text-gray-600 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+              aria-label="下一条 AI 标注结果"
+              title="下一条"
+              disabled={reviewResultIndex < 0 || reviewResultIndex >= results.length - 1 || reviewing || modifyMode}
+              onClick={() => moveReviewResult(1)}
+            >
+              →
+            </AppButton>
+          </>}
           width="xl"
           onClose={() => setReviewResult(null)}
           contentClassName="max-h-[calc(100vh-240px)] overflow-y-auto px-6 py-5"
           footer={<>
-            <AppButton type="button" onClick={() => setReviewResult(null)}>关闭</AppButton>
+            {supportsAutoAdvance && (
+              <label className="mr-auto flex cursor-pointer items-center gap-2 text-sm text-gray-600">
+                <input
+                  type="checkbox"
+                  checked={autoAdvance}
+                  disabled={reviewing}
+                  onChange={(event) => handleAutoAdvanceChange(event.target.checked)}
+                />
+                处理后自动下一条
+              </label>
+            )}
+            <AppButton type="button" disabled={reviewing} onClick={() => setReviewResult(null)}>关闭</AppButton>
             {canReviewResult && reviewResult.status !== 'failed' && !modifyMode && <AppButton type="button" variant="primary" disabled={reviewing} onClick={() => void handleReview('accept')}>接受</AppButton>}
             {canReviewResult && reviewResult.status !== 'failed' && <AppButton type="button" disabled={reviewing} onClick={() => modifyMode ? void handleReview('modify_accept') : setModifyMode(true)}>{modifyMode ? '保存修改并接受' : '修改后接受'}</AppButton>}
             {canReviewResult && <AppButton type="button" variant="danger" disabled={reviewing} onClick={() => void handleReview('reject_to_human')}>转人工</AppButton>}
