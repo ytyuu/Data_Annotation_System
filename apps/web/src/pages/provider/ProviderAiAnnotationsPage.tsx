@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import {
   batchAcceptAiResults,
   createAiBatch,
+  deleteAiBatch,
   listAiBatches,
   listAiResults,
   listProviderDatasets,
@@ -80,6 +81,8 @@ export function ProviderAiAnnotationsPage() {
   const [copiedBatchId, setCopiedBatchId] = useState('');
   const [runningBatchId, setRunningBatchId] = useState('');
   const [runConfirmBatch, setRunConfirmBatch] = useState<AiBatch | null>(null);
+  const [deleteConfirmBatch, setDeleteConfirmBatch] = useState<AiBatch | null>(null);
+  const [deletingBatchId, setDeletingBatchId] = useState('');
   const [reviewResult, setReviewResult] = useState<AiResult | null>(null);
   const [reviewComment, setReviewComment] = useState('');
   const [modifyMode, setModifyMode] = useState(false);
@@ -402,6 +405,24 @@ export function ProviderAiAnnotationsPage() {
     }
   }
 
+  async function handleDeleteBatch(batchId: string) {
+    const batch = allBatches.find((item) => item.id === batchId);
+    if (!batch) return;
+    setDeletingBatchId(batchId);
+    setError('');
+    try {
+      await deleteAiBatch(batchId);
+      setAllBatches((current) => current.filter((item) => item.id !== batchId));
+      if (selectedBatchId === batchId) setSelectedBatchId('');
+      await refreshDatasetBatches(batch.datasetId);
+    } catch (err) {
+      setError(errorMessage(err, '批次删除失败'));
+    } finally {
+      setDeletingBatchId('');
+      setDeleteConfirmBatch(null);
+    }
+  }
+
   if (loading) return <EmptyState>正在加载大模型标注数据...</EmptyState>;
 
   return (
@@ -497,6 +518,17 @@ export function ProviderAiAnnotationsPage() {
                             {runningBatchId === batch.id ? '开始中...' : '开始'}
                           </AppButton>
                         )}
+                        {(batch.status === 'pending' || batch.status === 'failed' || batch.status === 'cancelled') && (
+                          <AppButton
+                            type="button"
+                            variant="danger"
+                            size="sm"
+                            disabled={deletingBatchId === batch.id}
+                            onClick={() => setDeleteConfirmBatch(batch)}
+                          >
+                            {deletingBatchId === batch.id ? '删除中...' : '删除'}
+                          </AppButton>
+                        )}
                       </div>
                     </div>
                   );
@@ -532,6 +564,17 @@ export function ProviderAiAnnotationsPage() {
                   <StatusBadge status={selectedBatch.status}>
                     {batchStatusLabels[selectedBatch.status] || selectedBatch.status}
                   </StatusBadge>
+                )}
+                {selectedBatch && (selectedBatch.status === 'pending' || selectedBatch.status === 'failed' || selectedBatch.status === 'cancelled') && (
+                  <AppButton
+                    type="button"
+                    variant="danger"
+                    size="sm"
+                    disabled={deletingBatchId === selectedBatch.id}
+                    onClick={() => setDeleteConfirmBatch(selectedBatch)}
+                  >
+                    删除
+                  </AppButton>
                 )}
                 <AppButton type="button" variant="secondary" size="sm" onClick={() => void loadDatasets()}>刷新</AppButton>
                 <AppButton type="button" variant="primary" size="sm" disabled={eligibleDatasets.length === 0} onClick={openCreateDialog}>
@@ -692,6 +735,34 @@ export function ProviderAiAnnotationsPage() {
         >
           <p className="text-sm leading-6 text-gray-700">
             开始后，AI Worker 将领取并处理本批次中的数据。确认开始该批次吗？
+          </p>
+        </AppModal>
+      )}
+
+      {deleteConfirmBatch && (
+        <AppModal
+          title="删除 AI 标注批次"
+          subtitle={`${deleteConfirmBatch.datasetName} - ${modelDisplayName(deleteConfirmBatch.modelName)}`}
+          width="sm"
+          onClose={() => setDeleteConfirmBatch(null)}
+          contentClassName="px-6 py-5"
+          footer={<>
+            <AppButton type="button" onClick={() => setDeleteConfirmBatch(null)}>取消</AppButton>
+            <AppButton
+              type="button"
+              variant="danger"
+              disabled={deletingBatchId === deleteConfirmBatch.id}
+              onClick={() => {
+                const batchId = deleteConfirmBatch.id;
+                void handleDeleteBatch(batchId);
+              }}
+            >
+              {deletingBatchId === deleteConfirmBatch.id ? '删除中...' : '确认删除'}
+            </AppButton>
+          </>}
+        >
+          <p className="text-sm leading-6 text-gray-700">
+            删除后，批次及其标注结果将被永久移除，处于 AI 处理中的数据项将恢复为待处理状态。确认删除该批次吗？
           </p>
         </AppModal>
       )}

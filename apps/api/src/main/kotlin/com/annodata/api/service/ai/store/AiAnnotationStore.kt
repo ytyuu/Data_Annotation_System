@@ -10,6 +10,7 @@ import org.jetbrains.exposed.sql.SqlExpressionBuilder.eq
 import org.jetbrains.exposed.sql.SortOrder
 import org.jetbrains.exposed.sql.and
 import org.jetbrains.exposed.sql.batchInsert
+import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.statements.StatementType
@@ -406,6 +407,30 @@ internal class AiAnnotationStore {
             it[finishedAt] = now
             it[updatedAt] = now
         }
+    }
+
+    fun deleteBatchAndReleaseItems(batchId: UUID, now: OffsetDateTime) {
+        val releaseItemsSql = """
+            UPDATE data_items item
+            SET status = 'pending',
+                updated_at = ?
+            WHERE item.status = 'ai_processing'
+              AND EXISTS (
+                SELECT 1
+                FROM ai_annotation_results result
+                WHERE result.batch_id = ?
+                  AND result.item_id = item.id
+              )
+        """.trimIndent()
+        TransactionManager.current().exec(
+            stmt = releaseItemsSql,
+            args = listOf(
+                DataItemsTable.updatedAt.columnType to now,
+                AiAnnotationResultsTable.batchId.columnType to batchId,
+            ),
+        )
+
+        AiAnnotationBatchesTable.deleteWhere { AiAnnotationBatchesTable.id eq batchId }
     }
 
     fun listProviderResults(

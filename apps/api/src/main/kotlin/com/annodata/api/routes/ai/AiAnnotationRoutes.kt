@@ -25,6 +25,7 @@ fun registerAiAnnotationRoutes(
         get("/provider/datasets/{datasetId}/ai-annotation-batches") { ctx -> handler.listBatches(ctx) }
         get("/provider/ai-annotation-batches/{batchId}") { ctx -> handler.getBatch(ctx) }
         post("/provider/ai-annotation-batches/{batchId}/run") { ctx -> handler.runBatch(ctx) }
+        delete("/provider/ai-annotation-batches/{batchId}") { ctx -> handler.deleteBatch(ctx) }
         get("/provider/ai-annotation-results") { ctx -> handler.listResults(ctx) }
         post("/provider/ai-annotation-results/{resultId}/review") { ctx -> handler.reviewResult(ctx) }
         post("/provider/ai-annotation-results/batch-review") { ctx -> handler.batchReview(ctx) }

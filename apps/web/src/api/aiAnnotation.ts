@@ -92,6 +92,12 @@ export async function runAiBatch(batchId: string) {
   });
 }
 
+export async function deleteAiBatch(batchId: string) {
+  return request<{ message: string }>(`/api/provider/ai-annotation-batches/${batchId}`, {
+    method: 'DELETE',
+  });
+}
+
 export async function listAiResults(
   batchId: string,
   options: { status?: string; reviewMode?: string; page?: number; pageSize?: number } = {},

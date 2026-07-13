@@ -1,35 +1,72 @@
 -- 大模型标注失败批量重试数据库变更
 -- 适用数据库：PostgreSQL 14+
 -- 执行责任：由项目维护者在开发数据库中执行并验证；Codex 不连接或查看数据库。
--- 执行说明：请在部署依赖新字段的应用代码前执行。本脚本按单次完整执行设计。
+-- 执行说明：请在部署依赖新字段的应用代码前执行。本脚本支持重复执行（幂等）。
+-- 权限要求：执行用户必须是 ai_annotation_batches、ai_annotation_results、
+--           datasets、data_items、users 表的 owner，或具有 superuser 权限。
+--           常见做法：以 postgres 超级用户执行，或在 psql 中 \set ON_ERROR_STOP on 后执行。
+
+-- 前置权限检查：若当前用户不是目标表的 owner 则主动报错终止。
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_catalog.pg_class c
+        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+        WHERE n.nspname = 'public'
+          AND c.relname = 'ai_annotation_batches'
+          AND c.relowner = (SELECT usesysid FROM pg_catalog.pg_user WHERE usename = current_user)
+    ) THEN
+        RAISE EXCEPTION '当前用户 % 不是表 ai_annotation_batches 的 owner，请使用表 owner 或 superuser 执行此脚本', current_user;
+    END IF;
+END $$;
 
 BEGIN;
 
 -- 1. 扩展 AI 标注批次的当前失败信息和业务重试次数。
-ALTER TABLE "public"."ai_annotation_batches"
-    ADD COLUMN "failure_code" varchar(64),
-    ADD COLUMN "failure_stage" varchar(32),
-    ADD COLUMN "failed_at" timestamptz(6),
-    ADD COLUMN "retry_count" int4 NOT NULL DEFAULT 0;
+DO $$ BEGIN
+    ALTER TABLE "public"."ai_annotation_batches"
+        ADD COLUMN "failure_code" varchar(64);
+EXCEPTION WHEN duplicate_column THEN RAISE NOTICE '列 ai_annotation_batches.failure_code 已存在，跳过'; END $$;
 
-ALTER TABLE "public"."ai_annotation_batches"
-    ADD CONSTRAINT "ai_annotation_batches_retry_count_check"
-        CHECK (retry_count >= 0),
-    ADD CONSTRAINT "ai_annotation_batches_failure_stage_check"
-        CHECK (
-            failure_stage IS NULL
-            OR failure_stage::text = ANY (
-                ARRAY[
-                    'model_request',
-                    'model_output',
-                    'lease',
-                    'worker_runtime',
-                    'backend_request',
-                    'batch_dispatch',
-                    'unknown'
-                ]::text[]
-            )
-        );
+DO $$ BEGIN
+    ALTER TABLE "public"."ai_annotation_batches"
+        ADD COLUMN "failure_stage" varchar(32);
+EXCEPTION WHEN duplicate_column THEN RAISE NOTICE '列 ai_annotation_batches.failure_stage 已存在，跳过'; END $$;
+
+DO $$ BEGIN
+    ALTER TABLE "public"."ai_annotation_batches"
+        ADD COLUMN "failed_at" timestamptz(6);
+EXCEPTION WHEN duplicate_column THEN RAISE NOTICE '列 ai_annotation_batches.failed_at 已存在，跳过'; END $$;
+
+DO $$ BEGIN
+    ALTER TABLE "public"."ai_annotation_batches"
+        ADD COLUMN "retry_count" int4 NOT NULL DEFAULT 0;
+EXCEPTION WHEN duplicate_column THEN RAISE NOTICE '列 ai_annotation_batches.retry_count 已存在，跳过'; END $$;
+
+DO $$ BEGIN
+    ALTER TABLE "public"."ai_annotation_batches"
+        ADD CONSTRAINT "ai_annotation_batches_retry_count_check"
+            CHECK (retry_count >= 0);
+EXCEPTION WHEN duplicate_object THEN RAISE NOTICE '约束 ai_annotation_batches_retry_count_check 已存在，跳过'; END $$;
+
+DO $$ BEGIN
+    ALTER TABLE "public"."ai_annotation_batches"
+        ADD CONSTRAINT "ai_annotation_batches_failure_stage_check"
+            CHECK (
+                failure_stage IS NULL
+                OR failure_stage::text = ANY (
+                    ARRAY[
+                        'model_request',
+                        'model_output',
+                        'lease',
+                        'worker_runtime',
+                        'backend_request',
+                        'batch_dispatch',
+                        'unknown'
+                    ]::text[]
+                )
+            );
+EXCEPTION WHEN duplicate_object THEN RAISE NOTICE '约束 ai_annotation_batches_failure_stage_check 已存在，跳过'; END $$;
 
 COMMENT ON COLUMN "public"."ai_annotation_batches"."failure_code" IS '当前最后一次批次失败的稳定代码';
 COMMENT ON COLUMN "public"."ai_annotation_batches"."failure_stage" IS '当前最后一次批次失败阶段';
@@ -37,33 +74,57 @@ COMMENT ON COLUMN "public"."ai_annotation_batches"."failed_at" IS '当前最后�
 COMMENT ON COLUMN "public"."ai_annotation_batches"."retry_count" IS '批次被提供方恢复执行的业务重试次数';
 
 -- 2. 扩展 AI 单条结果的当前失败信息和业务重试次数。
-ALTER TABLE "public"."ai_annotation_results"
-    ADD COLUMN "failure_code" varchar(64),
-    ADD COLUMN "failure_stage" varchar(32),
-    ADD COLUMN "failed_at" timestamptz(6),
-    ADD COLUMN "retryable" bool NOT NULL DEFAULT false,
-    ADD COLUMN "retry_count" int4 NOT NULL DEFAULT 0;
+DO $$ BEGIN
+    ALTER TABLE "public"."ai_annotation_results"
+        ADD COLUMN "failure_code" varchar(64);
+EXCEPTION WHEN duplicate_column THEN RAISE NOTICE '列 ai_annotation_results.failure_code 已存在，跳过'; END $$;
 
-ALTER TABLE "public"."ai_annotation_results"
-    ADD CONSTRAINT "ai_annotation_results_retry_count_check"
-        CHECK (retry_count >= 0),
-    ADD CONSTRAINT "ai_annotation_results_failure_stage_check"
-        CHECK (
-            failure_stage IS NULL
-            OR failure_stage::text = ANY (
-                ARRAY[
-                    'model_request',
-                    'model_output',
-                    'lease',
-                    'worker_runtime',
-                    'backend_request',
-                    'batch_dispatch',
-                    'unknown'
-                ]::text[]
-            )
-        );
+DO $$ BEGIN
+    ALTER TABLE "public"."ai_annotation_results"
+        ADD COLUMN "failure_stage" varchar(32);
+EXCEPTION WHEN duplicate_column THEN RAISE NOTICE '列 ai_annotation_results.failure_stage 已存在，跳过'; END $$;
 
-CREATE INDEX "idx_ai_annotation_results_batch_retryable_failed"
+DO $$ BEGIN
+    ALTER TABLE "public"."ai_annotation_results"
+        ADD COLUMN "failed_at" timestamptz(6);
+EXCEPTION WHEN duplicate_column THEN RAISE NOTICE '列 ai_annotation_results.failed_at 已存在，跳过'; END $$;
+
+DO $$ BEGIN
+    ALTER TABLE "public"."ai_annotation_results"
+        ADD COLUMN "retryable" bool NOT NULL DEFAULT false;
+EXCEPTION WHEN duplicate_column THEN RAISE NOTICE '列 ai_annotation_results.retryable 已存在，跳过'; END $$;
+
+DO $$ BEGIN
+    ALTER TABLE "public"."ai_annotation_results"
+        ADD COLUMN "retry_count" int4 NOT NULL DEFAULT 0;
+EXCEPTION WHEN duplicate_column THEN RAISE NOTICE '列 ai_annotation_results.retry_count 已存在，跳过'; END $$;
+
+DO $$ BEGIN
+    ALTER TABLE "public"."ai_annotation_results"
+        ADD CONSTRAINT "ai_annotation_results_retry_count_check"
+            CHECK (retry_count >= 0);
+EXCEPTION WHEN duplicate_object THEN RAISE NOTICE '约束 ai_annotation_results_retry_count_check 已存在，跳过'; END $$;
+
+DO $$ BEGIN
+    ALTER TABLE "public"."ai_annotation_results"
+        ADD CONSTRAINT "ai_annotation_results_failure_stage_check"
+            CHECK (
+                failure_stage IS NULL
+                OR failure_stage::text = ANY (
+                    ARRAY[
+                        'model_request',
+                        'model_output',
+                        'lease',
+                        'worker_runtime',
+                        'backend_request',
+                        'batch_dispatch',
+                        'unknown'
+                    ]::text[]
+                )
+            );
+EXCEPTION WHEN duplicate_object THEN RAISE NOTICE '约束 ai_annotation_results_failure_stage_check 已存在，跳过'; END $$;
+
+CREATE INDEX IF NOT EXISTS "idx_ai_annotation_results_batch_retryable_failed"
     ON "public"."ai_annotation_results" ("batch_id", "retryable", "created_at")
     WHERE status::text = 'failed'::text;
 
@@ -74,7 +135,7 @@ COMMENT ON COLUMN "public"."ai_annotation_results"."retryable" IS '当前失败�
 COMMENT ON COLUMN "public"."ai_annotation_results"."retry_count" IS '提供方已发起的业务重试轮次';
 
 -- 3. 批量重试请求。该表先于失败历史创建，供失败历史引用请求 ID。
-CREATE TABLE "public"."ai_annotation_retry_requests" (
+CREATE TABLE IF NOT EXISTS "public"."ai_annotation_retry_requests" (
     "id" uuid NOT NULL,
     "batch_id" uuid NOT NULL,
     "provider_id" uuid NOT NULL,
@@ -105,10 +166,10 @@ CREATE TABLE "public"."ai_annotation_retry_requests" (
         )
 );
 
-CREATE INDEX "idx_ai_annotation_retry_requests_batch_created_at"
+CREATE INDEX IF NOT EXISTS "idx_ai_annotation_retry_requests_batch_created_at"
     ON "public"."ai_annotation_retry_requests" ("batch_id", "created_at" DESC);
 
-CREATE INDEX "idx_ai_annotation_retry_requests_provider_created_at"
+CREATE INDEX IF NOT EXISTS "idx_ai_annotation_retry_requests_provider_created_at"
     ON "public"."ai_annotation_retry_requests" ("provider_id", "created_at" DESC);
 
 COMMENT ON TABLE "public"."ai_annotation_retry_requests" IS '提供方批量重试失败 AI 标注结果的幂等请求与派发记录';
@@ -119,7 +180,7 @@ COMMENT ON COLUMN "public"."ai_annotation_retry_requests"."comment" IS '提供�
 COMMENT ON COLUMN "public"."ai_annotation_retry_requests"."error_message" IS 'Worker 派发失败原因';
 
 -- 4. 追加式失败历史。失败内容不可覆盖，只允许后续补写解决信息。
-CREATE TABLE "public"."ai_annotation_failure_records" (
+CREATE TABLE IF NOT EXISTS "public"."ai_annotation_failure_records" (
     "id" uuid NOT NULL DEFAULT gen_random_uuid(),
     "batch_id" uuid NOT NULL,
     "result_id" uuid,
@@ -181,16 +242,16 @@ CREATE TABLE "public"."ai_annotation_failure_records" (
         )
 );
 
-CREATE INDEX "idx_ai_annotation_failure_records_batch_created_at"
+CREATE INDEX IF NOT EXISTS "idx_ai_annotation_failure_records_batch_created_at"
     ON "public"."ai_annotation_failure_records" ("batch_id", "created_at" DESC);
 
-CREATE INDEX "idx_ai_annotation_failure_records_result_created_at"
+CREATE INDEX IF NOT EXISTS "idx_ai_annotation_failure_records_result_created_at"
     ON "public"."ai_annotation_failure_records" ("result_id", "created_at" DESC);
 
-CREATE INDEX "idx_ai_annotation_failure_records_batch_retryable_retried_at"
+CREATE INDEX IF NOT EXISTS "idx_ai_annotation_failure_records_batch_retryable_retried_at"
     ON "public"."ai_annotation_failure_records" ("batch_id", "retryable", "retried_at");
 
-CREATE INDEX "idx_ai_annotation_failure_records_retry_request_id"
+CREATE INDEX IF NOT EXISTS "idx_ai_annotation_failure_records_retry_request_id"
     ON "public"."ai_annotation_failure_records" ("retry_request_id");
 
 COMMENT ON TABLE "public"."ai_annotation_failure_records" IS '大模型标注结果级与批次级终态失败历史';
@@ -209,14 +270,16 @@ UPDATE "public"."ai_annotation_batches"
 SET "failure_code" = 'legacy_failure',
     "failure_stage" = 'unknown',
     "failed_at" = COALESCE("finished_at", "updated_at", now())
-WHERE "status" = 'failed';
+WHERE "status" = 'failed'
+  AND "failure_code" IS NULL;
 
 UPDATE "public"."ai_annotation_results"
 SET "failure_code" = 'legacy_failure',
     "failure_stage" = 'unknown',
     "failed_at" = COALESCE("updated_at", now()),
     "retryable" = true
-WHERE "status" = 'failed';
+WHERE "status" = 'failed'
+  AND "failure_code" IS NULL;
 
 INSERT INTO "public"."ai_annotation_failure_records" (
     "batch_id",
@@ -244,7 +307,13 @@ SELECT
     jsonb_build_object('source', 'legacy_migration'),
     COALESCE(batch."failed_at", batch."updated_at", now())
 FROM "public"."ai_annotation_batches" batch
-WHERE batch."status" = 'failed';
+WHERE batch."status" = 'failed'
+  AND NOT EXISTS (
+      SELECT 1 FROM "public"."ai_annotation_failure_records" fr
+      WHERE fr."batch_id" = batch."id"
+        AND fr."scope" = 'batch'
+        AND fr."failure_code" = 'legacy_failure'
+  );
 
 INSERT INTO "public"."ai_annotation_failure_records" (
     "batch_id",
@@ -282,11 +351,18 @@ SELECT
     ),
     COALESCE(result."failed_at", result."updated_at", now())
 FROM "public"."ai_annotation_results" result
-WHERE result."status" = 'failed';
+WHERE result."status" = 'failed'
+  AND NOT EXISTS (
+      SELECT 1 FROM "public"."ai_annotation_failure_records" fr
+      WHERE fr."result_id" = result."id"
+        AND fr."scope" = 'result'
+        AND fr."failure_code" = 'legacy_failure'
+  );
 
 COMMIT;
 
 -- 回滚参考：执行后会永久删除失败历史和重试请求，请先确认不需要保留审计数据。
+-- 回滚前请确认当前用户是相关表的 owner 或具有 superuser 权限。
 -- BEGIN;
 -- DROP TABLE IF EXISTS "public"."ai_annotation_failure_records";
 -- DROP TABLE IF EXISTS "public"."ai_annotation_retry_requests";

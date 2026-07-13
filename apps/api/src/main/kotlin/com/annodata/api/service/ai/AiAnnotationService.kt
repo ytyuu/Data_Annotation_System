@@ -132,6 +132,37 @@ class AiAnnotationService(private val workerDispatcher: AiWorkerDispatcher? = nu
         }
     }
 
+    fun deleteBatch(providerId: UUID, batchId: UUID): Result<MessageResponse> {
+        val outcome = transaction {
+            val row = store.findProviderBatch(providerId, batchId)
+                ?: return@transaction DeleteBatchOutcome.NotFound
+            val status = row[AiAnnotationBatchesTable.status]
+            if (status !in setOf("pending", "failed", "cancelled")) {
+                return@transaction DeleteBatchOutcome.InvalidStatus(status)
+            }
+            val now = OffsetDateTime.now()
+            store.deleteBatchAndReleaseItems(batchId, now)
+            DeleteBatchOutcome.Success
+        }
+
+        return when (outcome) {
+            DeleteBatchOutcome.NotFound -> Result.BadRequest("AI 标注批次不存在或无权访问")
+            is DeleteBatchOutcome.InvalidStatus -> Result.BadRequest(
+                "当前批次状态（${batchStatusName(outcome.status)}）不允许删除，仅可删除等待执行、执行失败或已取消的批次"
+            )
+            DeleteBatchOutcome.Success -> Result.Success(MessageResponse("批次已删除"))
+        }
+    }
+
+    private fun batchStatusName(status: String): String = when (status) {
+        "pending" -> "等待执行"
+        "running" -> "执行中"
+        "completed" -> "执行完成"
+        "failed" -> "执行失败"
+        "cancelled" -> "已取消"
+        else -> status
+    }
+
     private fun validateCreateRequest(request: CreateAiAnnotationBatchRequest): String? {
         return when {
             request.maxItems !in 1..5000 -> "批次数据量必须在 1 到 5000 之间"
@@ -197,4 +228,10 @@ private sealed class CreateBatchOutcome {
     data object InvalidHighRiskValues : CreateBatchOutcome()
     data object NoPendingItems : CreateBatchOutcome()
     data class Success(val value: AiAnnotationBatchResponse) : CreateBatchOutcome()
+}
+
+private sealed class DeleteBatchOutcome {
+    data object NotFound : DeleteBatchOutcome()
+    data class InvalidStatus(val status: String) : DeleteBatchOutcome()
+    data object Success : DeleteBatchOutcome()
 }
